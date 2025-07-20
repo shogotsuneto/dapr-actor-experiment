@@ -49,7 +49,7 @@ func (c *CounterActor) Type() string {
 	return "CounterActor"
 }
 
-func (c *CounterActor) IncrementCounter(ctx context.Context) (*generated.CounterState, error) {
+func (c *CounterActor) Increment(ctx context.Context) (*generated.CounterState, error) {
 	state, err := c.getState(ctx)
 	if err != nil {
 		return nil, err
@@ -64,7 +64,7 @@ func (c *CounterActor) IncrementCounter(ctx context.Context) (*generated.Counter
 	return state, nil
 }
 
-func (c *CounterActor) DecrementCounter(ctx context.Context) (*generated.CounterState, error) {
+func (c *CounterActor) Decrement(ctx context.Context) (*generated.CounterState, error) {
 	state, err := c.getState(ctx)
 	if err != nil {
 		return nil, err
@@ -79,7 +79,7 @@ func (c *CounterActor) DecrementCounter(ctx context.Context) (*generated.Counter
 	return state, nil
 }
 
-func (c *CounterActor) GetCounterValue(ctx context.Context) (*generated.CounterState, error) {
+func (c *CounterActor) Get(ctx context.Context) (*generated.CounterState, error) {
 	state, err := c.getState(ctx)
 	if err != nil {
 		return nil, err
@@ -88,7 +88,7 @@ func (c *CounterActor) GetCounterValue(ctx context.Context) (*generated.CounterS
 	return state, nil
 }
 
-func (c *CounterActor) SetCounterValue(ctx context.Context, request generated.SetValueRequest) (*generated.CounterState, error) {
+func (c *CounterActor) Set(ctx context.Context, request generated.SetValueRequest) (*generated.CounterState, error) {
 	if err := c.validateSetRequest(request); err != nil {
 		return nil, err
 	}

@@ -175,13 +175,21 @@ func generateTypes(doc *openapi3.T, packageName, outputDir string) error {
 
 // extractMethodFromOperation extracts method information from OpenAPI operation
 func extractMethodFromOperation(op *openapi3.Operation, httpMethod, path string) *Method {
-	// Require operationId for consistent method naming
-	if op.OperationID == "" {
-		return nil
+	// For Dapr actors, extract method name from path (e.g., /{actorId}/method/get -> get)
+	methodName := extractMethodNameFromPath(path)
+	if methodName == "" {
+		// Fallback to operationId if path extraction fails
+		if op.OperationID == "" {
+			return nil
+		}
+		methodName = operationIDToMethodName(op.OperationID)
+	} else {
+		// Capitalize the method name for Go interface (exported method)
+		methodName = strings.Title(methodName)
 	}
 
 	method := &Method{
-		Name:       operationIDToMethodName(op.OperationID),
+		Name:       methodName,
 		Comment:    getOperationComment(op),
 		HasRequest: false,
 		ReturnType: "interface{}", // default return type
@@ -202,6 +210,19 @@ func extractMethodFromOperation(op *openapi3.Operation, httpMethod, path string)
 	}
 
 	return method
+}
+
+// extractMethodNameFromPath extracts the method name from Dapr actor path
+// e.g., "/{actorId}/method/get" -> "get"
+func extractMethodNameFromPath(path string) string {
+	// Look for pattern: /{actorId}/method/{methodName}
+	parts := strings.Split(path, "/")
+	for i, part := range parts {
+		if part == "method" && i+1 < len(parts) {
+			return parts[i+1]
+		}
+	}
+	return ""
 }
 
 // operationIDToMethodName converts operationId to Go method name
