@@ -1,0 +1,82 @@
+version: '3.8'
+
+services:
+  # Redis for state store
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Actor service
+  actor-service:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      - DAPR_HTTP_PORT=3500
+      - DAPR_GRPC_PORT=50001
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Dapr sidecar for actor service  
+  actor-service-dapr:
+    image: daprio/daprd:1.14.4
+    command: [
+      "./daprd",
+      "-app-id", "actor-service",
+      "-app-port", "8080",
+      "-dapr-http-port", "3500",
+      "-dapr-grpc-port", "50001",
+      "-components-path", "/components",
+      "-config", "/config/config.yaml",
+      "-log-level", "info"
+    ]
+    volumes:
+      - "./dapr:/components"
+      - "./dapr:/config"
+    depends_on:
+      actor-service:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    network_mode: "service:actor-service"
+
+  # Client application
+  client:
+    build: ./client
+    environment:
+      - DAPR_HTTP_ENDPOINT=http://client-dapr:3501
+    depends_on:
+      - actor-service-dapr
+    profiles:
+      - client
+
+  # Dapr sidecar for client
+  client-dapr:
+    image: daprio/daprd:1.14.4
+    command: [
+      "./daprd",
+      "-app-id", "client",
+      "-dapr-http-port", "3501",
+      "-dapr-grpc-port", "50002",
+      "-log-level", "info"
+    ]
+    depends_on:
+      - actor-service-dapr
+    profiles:
+      - client
+
+networks:
+  default:
+    driver: bridge
