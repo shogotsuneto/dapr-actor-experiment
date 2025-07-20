@@ -6,7 +6,7 @@ echo "This script runs the Dapr actor demo using Docker Compose."
 echo "No Dapr CLI installation required!"
 echo ""
 
-# Check if Docker and Docker Compose are available
+# Check if Docker, Docker Compose, and Go are available
 if ! command -v docker &> /dev/null; then
     echo "❌ Docker not found. Please install Docker first."
     exit 1
@@ -17,11 +17,24 @@ if ! docker compose version &> /dev/null; then
     exit 1
 fi
 
-echo "✓ Docker and Docker Compose found"
+if ! command -v go &> /dev/null; then
+    echo "❌ Go not found. Please install Go first."
+    exit 1
+fi
+
+echo "✓ Docker, Docker Compose, and Go found"
+
+# Build the Go binary first
+echo "Building Go binary..."
+if ! go build -o server ./cmd/server; then
+    echo "❌ Failed to build Go binary"
+    exit 1
+fi
+echo "✓ Go binary built successfully"
 
 # Build and start the services using Docker Compose
 echo "Starting services with Docker Compose..."
-docker compose up -d redis actor-service actor-service-dapr
+docker compose up -d
 
 # Wait for services to be ready
 echo "Waiting for services to be ready..."

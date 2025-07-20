@@ -3,8 +3,8 @@ FROM alpine:latest
 
 WORKDIR /root/
 
-# Copy the pre-built binary (build locally first)
-COPY bin/server .
+# Copy the pre-built binary
+COPY server .
 
 # Expose port
 EXPOSE 8080

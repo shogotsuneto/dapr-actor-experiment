@@ -1,19 +1,19 @@
 #!/bin/bash
 
-echo "=== Cleaning up Docker-based Dapr Demo ==="
+echo "=== Cleaning up Docker Compose Dapr Demo ==="
 echo ""
 
-echo "Stopping containers..."
-docker stop actor-service dapr-sidecar redis-dapr 2>/dev/null || true
+# Stop and remove all services
+echo "Stopping and removing all services..."
+docker compose down -v
 
-echo "Removing containers..."
-docker rm actor-service dapr-sidecar redis-dapr 2>/dev/null || true
+# Remove any orphaned containers
+echo "Removing orphaned containers..."
+docker compose down --remove-orphans
 
-echo "Removing network..."
-docker network rm dapr-demo 2>/dev/null || true
-
-echo "Removing image..."
-docker rmi dapr-actor-demo 2>/dev/null || true
+# Clean up unused images (optional)
+echo "Cleaning up unused Docker resources..."
+docker system prune -f
 
 echo ""
 echo "✓ Cleanup complete!"

@@ -28,7 +28,7 @@ services:
     ports:
       - "50006:50006"
 
-  # Actor service (using local binary)
+  # Actor service (builds from source)
   actor-service:
     build:
       context: .
