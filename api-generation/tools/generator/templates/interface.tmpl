@@ -5,12 +5,11 @@ package {{.PackageName}}
 
 import "context"
 
-// CounterActorContract defines the interface that must be implemented
-// to satisfy the OpenAPI contract for CounterActor.
+// {{.InterfaceName}} {{.InterfaceDesc}}.
 // This interface enforces compile-time contract compliance.
-type CounterActorContract interface {
+type {{.InterfaceName}} interface {
 {{- range .Methods}}
 	// {{.Comment}}
-	{{.Name}}(ctx context.Context{{if .HasRequest}}, request {{.RequestType}}{{end}}) (*CounterState, error)
+	{{.Name}}(ctx context.Context{{if .HasRequest}}, request {{.RequestType}}{{end}}) (*{{.ReturnType}}, error)
 {{- end}}
 }

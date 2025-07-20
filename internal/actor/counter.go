@@ -43,13 +43,13 @@ type CounterActor struct {
 }
 
 // Compile-time check to ensure CounterActor implements the generated contract interface
-var _ generated.CounterActorContract = (*CounterActor)(nil)
+var _ generated.CounterActorAPIContract = (*CounterActor)(nil)
 
 func (c *CounterActor) Type() string {
 	return "CounterActor"
 }
 
-func (c *CounterActor) Increment(ctx context.Context) (*generated.CounterState, error) {
+func (c *CounterActor) IncrementCounter(ctx context.Context) (*generated.CounterState, error) {
 	state, err := c.getState(ctx)
 	if err != nil {
 		return nil, err
@@ -64,7 +64,7 @@ func (c *CounterActor) Increment(ctx context.Context) (*generated.CounterState, 
 	return state, nil
 }
 
-func (c *CounterActor) Decrement(ctx context.Context) (*generated.CounterState, error) {
+func (c *CounterActor) DecrementCounter(ctx context.Context) (*generated.CounterState, error) {
 	state, err := c.getState(ctx)
 	if err != nil {
 		return nil, err
@@ -79,7 +79,7 @@ func (c *CounterActor) Decrement(ctx context.Context) (*generated.CounterState, 
 	return state, nil
 }
 
-func (c *CounterActor) Get(ctx context.Context) (*generated.CounterState, error) {
+func (c *CounterActor) GetCounterValue(ctx context.Context) (*generated.CounterState, error) {
 	state, err := c.getState(ctx)
 	if err != nil {
 		return nil, err
@@ -88,7 +88,7 @@ func (c *CounterActor) Get(ctx context.Context) (*generated.CounterState, error)
 	return state, nil
 }
 
-func (c *CounterActor) Set(ctx context.Context, request generated.SetValueRequest) (*generated.CounterState, error) {
+func (c *CounterActor) SetCounterValue(ctx context.Context, request generated.SetValueRequest) (*generated.CounterState, error) {
 	if err := c.validateSetRequest(request); err != nil {
 		return nil, err
 	}
@@ -150,10 +150,10 @@ func ValidateContract() error {
 	
 	// Example: Validate that all required methods are implemented
 	var actor CounterActor
-	var contract generated.CounterActorContract = &actor
+	var contract generated.CounterActorAPIContract = &actor
 	
 	if contract == nil {
-		return errors.New("CounterActor does not implement CounterActorContract")
+		return errors.New("CounterActor does not implement CounterActorAPIContract")
 	}
 	
 	return nil

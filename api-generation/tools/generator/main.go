@@ -35,6 +35,7 @@ type Method struct {
 	Comment     string
 	HasRequest  bool
 	RequestType string
+	ReturnType  string
 }
 
 type TypesTemplateData struct {
@@ -44,8 +45,10 @@ type TypesTemplateData struct {
 }
 
 type InterfaceTemplateData struct {
-	PackageName string
-	Methods     []Method
+	PackageName     string
+	InterfaceName   string
+	InterfaceDesc   string
+	Methods         []Method
 }
 
 func main() {
@@ -170,42 +173,166 @@ func generateTypes(doc *openapi3.T, packageName, outputDir string) error {
 	return nil
 }
 
-func generateInterface(doc *openapi3.T, packageName, outputDir string) error {
-	// Parse methods from paths
-	methods := []Method{}
-	for _, pathItem := range doc.Paths.Map() {
-		if pathItem.Get != nil {
-			op := pathItem.Get
-			if op.OperationID == "getCounterValue" {
-				methods = append(methods, Method{
-					Name:       "Get",
-					Comment:    "Get current counter value",
-					HasRequest: false,
-				})
+// extractMethodFromOperation extracts method information from OpenAPI operation
+func extractMethodFromOperation(op *openapi3.Operation, httpMethod, path string) *Method {
+	// Require operationId for consistent method naming
+	if op.OperationID == "" {
+		return nil
+	}
+
+	method := &Method{
+		Name:       operationIDToMethodName(op.OperationID),
+		Comment:    getOperationComment(op),
+		HasRequest: false,
+		ReturnType: "interface{}", // default return type
+	}
+
+	// Check if operation has request body
+	if op.RequestBody != nil && op.RequestBody.Value != nil {
+		method.HasRequest = true
+		// Extract request type from schema
+		if requestType := extractRequestType(op.RequestBody.Value); requestType != "" {
+			method.RequestType = requestType
+		}
+	}
+
+	// Extract return type from 200 response
+	if returnType := extractReturnType(op); returnType != "" {
+		method.ReturnType = returnType
+	}
+
+	return method
+}
+
+// operationIDToMethodName converts operationId to Go method name
+func operationIDToMethodName(operationID string) string {
+	// Handle camelCase: split on uppercase letters
+	var parts []string
+	var current strings.Builder
+	
+	for i, r := range operationID {
+		if i > 0 && (r >= 'A' && r <= 'Z') {
+			if current.Len() > 0 {
+				parts = append(parts, current.String())
+				current.Reset()
 			}
 		}
-		if pathItem.Post != nil {
-			op := pathItem.Post
-			switch op.OperationID {
-			case "incrementCounter":
-				methods = append(methods, Method{
-					Name:       "Increment",
-					Comment:    "Increment counter by 1",
-					HasRequest: false,
-				})
-			case "decrementCounter":
-				methods = append(methods, Method{
-					Name:       "Decrement",
-					Comment:    "Decrement counter by 1",
-					HasRequest: false,
-				})
-			case "setCounterValue":
-				methods = append(methods, Method{
-					Name:        "Set",
-					Comment:     "Set counter to specific value",
-					HasRequest:  true,
-					RequestType: "SetValueRequest",
-				})
+		current.WriteRune(r)
+	}
+	if current.Len() > 0 {
+		parts = append(parts, current.String())
+	}
+	
+	// Convert to PascalCase
+	var result strings.Builder
+	for _, part := range parts {
+		if len(part) > 0 {
+			result.WriteString(strings.ToUpper(part[:1]) + strings.ToLower(part[1:]))
+		}
+	}
+	
+	return result.String()
+}
+
+// getOperationComment extracts comment from operation summary/description
+func getOperationComment(op *openapi3.Operation) string {
+	if op.Summary != "" {
+		return op.Summary
+	}
+	if op.Description != "" {
+		// Use first line of description if multi-line
+		lines := strings.Split(strings.TrimSpace(op.Description), "\n")
+		return strings.TrimSpace(lines[0])
+	}
+	return "Generated method from OpenAPI operation"
+}
+
+// extractRequestType extracts the request type name from request body
+func extractRequestType(requestBody *openapi3.RequestBody) string {
+	if requestBody.Content == nil {
+		return ""
+	}
+	
+	// Look for JSON content
+	if jsonContent := requestBody.Content.Get("application/json"); jsonContent != nil {
+		if jsonContent.Schema != nil && jsonContent.Schema.Ref != "" {
+			// Extract type name from $ref
+			parts := strings.Split(jsonContent.Schema.Ref, "/")
+			if len(parts) > 0 {
+				return parts[len(parts)-1]
+			}
+		}
+	}
+	
+	return ""
+}
+
+// extractReturnType extracts the return type from 200 response
+func extractReturnType(op *openapi3.Operation) string {
+	if op.Responses == nil {
+		return ""
+	}
+	
+	// Look for 200 response
+	response200 := op.Responses.Status(200)
+	if response200 == nil || response200.Value == nil || response200.Value.Content == nil {
+		return ""
+	}
+	
+	// Look for JSON content
+	if jsonContent := response200.Value.Content.Get("application/json"); jsonContent != nil {
+		if jsonContent.Schema != nil && jsonContent.Schema.Ref != "" {
+			// Extract type name from $ref
+			parts := strings.Split(jsonContent.Schema.Ref, "/")
+			if len(parts) > 0 {
+				return parts[len(parts)-1]
+			}
+		}
+	}
+	
+	return ""
+}
+
+// getInterfaceName generates interface name from API info
+func getInterfaceName(doc *openapi3.T) string {
+	if doc.Info != nil && doc.Info.Title != "" {
+		// Convert title to PascalCase and add "Contract"
+		title := strings.ReplaceAll(doc.Info.Title, " ", "")
+		return operationIDToMethodName(title) + "Contract"
+	}
+	return "APIContract"
+}
+
+// getInterfaceDescription generates interface description from API info
+func getInterfaceDescription(doc *openapi3.T) string {
+	if doc.Info != nil && doc.Info.Title != "" {
+		return fmt.Sprintf("defines the interface that must be implemented to satisfy the OpenAPI contract for %s", doc.Info.Title)
+	}
+	return "defines the interface that must be implemented to satisfy the OpenAPI contract"
+}
+
+func generateInterface(doc *openapi3.T, packageName, outputDir string) error {
+	// Parse methods from paths dynamically
+	methods := []Method{}
+	for path, pathItem := range doc.Paths.Map() {
+		// Process all HTTP methods in the path
+		operations := map[string]*openapi3.Operation{
+			"GET":    pathItem.Get,
+			"POST":   pathItem.Post,
+			"PUT":    pathItem.Put,
+			"DELETE": pathItem.Delete,
+			"PATCH":  pathItem.Patch,
+		}
+
+		for httpMethod, op := range operations {
+			if op == nil {
+				continue
+			}
+
+			// Extract method details
+			method := extractMethodFromOperation(op, httpMethod, path)
+			if method != nil {
+				methods = append(methods, *method)
 			}
 		}
 	}
@@ -218,9 +345,14 @@ func generateInterface(doc *openapi3.T, packageName, outputDir string) error {
 	}
 
 	// Generate interface file
+	interfaceName := getInterfaceName(doc)
+	interfaceDesc := getInterfaceDescription(doc)
+	
 	data := InterfaceTemplateData{
-		PackageName: packageName,
-		Methods:     methods,
+		PackageName:   packageName,
+		InterfaceName: interfaceName,
+		InterfaceDesc: interfaceDesc,
+		Methods:       methods,
 	}
 
 	interfaceFile, err := os.Create(fmt.Sprintf("%s/interface.go", outputDir))
