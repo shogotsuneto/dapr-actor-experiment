@@ -1,0 +1,30 @@
+# Build artifacts
+bin/
+# Note: 'server' binary is explicitly included for Docker builds
+
+# Version control
+.git
+.gitignore
+
+# Documentation
+README.md
+docs/
+
+# Scripts (not needed in container)
+scripts/
+
+# Docker files
+Dockerfile
+docker-compose*.yml
+.dockerignore
+
+# Go test cache
+.cache
+
+# IDE files
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db

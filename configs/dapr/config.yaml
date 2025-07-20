@@ -1,0 +1,19 @@
+apiVersion: dapr.io/v1alpha1
+kind: Configuration
+metadata:
+  name: daprConfig
+spec:
+  tracing:
+    samplingRate: "1"
+  api:
+    allowed:
+    - name: actors
+      version: v1
+      protocol: http
+  actors:
+    actorIdleTimeout: "1h"
+    actorScanInterval: "30s"
+    drainOngoingCallTimeout: "1m"
+    drainRebalancedActors: true
+    reentrancy:
+      enabled: false

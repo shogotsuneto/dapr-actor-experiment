@@ -1,0 +1,112 @@
+# Docker Compose configuration for Dapr Actor Demo
+#
+# This file provides two modes of operation:
+# 1. Default mode: Runs only the actor service with Redis and Dapr sidecar
+#    Usage: docker compose up -d
+# 2. Client mode: Additionally runs the client application with its own Dapr sidecar
+#    Usage: docker compose --profile client up -d
+#
+# The actor service builds from source code, so no pre-compilation is needed.
+# All services use health checks to ensure proper startup ordering.
+
+services:
+  # Redis for state store
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Dapr placement service for actors
+  placement:
+    image: daprio/dapr:1.14.4
+    command: ["./placement", "-port", "50006", "-log-level", "debug"]
+    ports:
+      - "50006:50006"
+
+  # Actor service (builds from source)
+  actor-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - DAPR_GRPC_PORT=50001
+      - DAPR_GRPC_ENDPOINT=actor-service-dapr:50001
+    depends_on:
+      redis:
+        condition: service_healthy
+      placement:
+        condition: service_started
+
+  # Dapr sidecar for actor service  
+  actor-service-dapr:
+    image: daprio/daprd:1.14.4
+    command: [
+      "./daprd",
+      "-app-id", "actor-service",
+      "-app-port", "8080",
+      "-app-channel-address", "actor-service",
+      "-dapr-http-port", "3500",
+      "-dapr-grpc-port", "50001",
+      "-placement-host-address", "placement:50006",
+      "-resources-path", "/components",
+      "-config", "/config/config.yaml",
+      "-log-level", "debug"
+    ]
+    volumes:
+      - "./configs/dapr:/components"
+      - "./configs/dapr:/config"
+    ports:
+      - "3500:3500"
+      - "50001:50001"
+    depends_on:
+      actor-service:
+        condition: service_started
+      redis:
+        condition: service_healthy
+      placement:
+        condition: service_started
+
+  # Client application
+  client:
+    image: golang:1.24-alpine
+    working_dir: /app
+    volumes:
+      - .:/app
+    environment:
+      - DAPR_HTTP_ENDPOINT=http://client-dapr:3501
+    depends_on:
+      - actor-service-dapr
+    command: |
+      sh -c "
+        apk add --no-cache ca-certificates git &&
+        go mod download &&
+        go run ./cmd/client
+      "
+    profiles:
+      - client
+
+  # Dapr sidecar for client
+  client-dapr:
+    image: daprio/daprd:1.14.4
+    command: [
+      "./daprd",
+      "-app-id", "client",
+      "-dapr-http-port", "3501",
+      "-dapr-grpc-port", "50002",
+      "-log-level", "info"
+    ]
+    depends_on:
+      - actor-service-dapr
+    profiles:
+      - client
+
+networks:
+  default:
+    driver: bridge
