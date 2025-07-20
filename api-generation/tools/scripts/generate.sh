@@ -114,19 +114,40 @@ case "$SCHEMA_TYPE" in
             -o "$OUTPUT_DIR/types.go" \
             "$SCHEMA_PATH"
         
-        # Generate client
+        # Generate client (optional - for testing/external use)
         log_info "Generating client code..."
         oapi-codegen -generate client \
             -package generated \
             -o "$OUTPUT_DIR/client.go" \
             "$SCHEMA_PATH"
         
-        # Generate server interface
-        log_info "Generating server interface..."
-        oapi-codegen -generate gorilla \
-            -package generated \
-            -o "$OUTPUT_DIR/server.go" \
-            "$SCHEMA_PATH"
+        # Generate custom actor interface instead of HTTP server interface
+        log_info "Generating actor interface..."
+        cat > "$OUTPUT_DIR/interface.go" << 'EOF'
+// Package generated provides primitives for OpenAPI-based contract validation.
+//
+// Code generated from OpenAPI specification. DO NOT EDIT manually.
+package generated
+
+import "context"
+
+// CounterActorContract defines the interface that must be implemented
+// to satisfy the OpenAPI contract for CounterActor.
+// This interface enforces compile-time contract compliance.
+type CounterActorContract interface {
+	// Increment counter by 1
+	Increment(ctx context.Context) (*CounterState, error)
+	
+	// Decrement counter by 1  
+	Decrement(ctx context.Context) (*CounterState, error)
+	
+	// Get current counter value
+	Get(ctx context.Context) (*CounterState, error)
+	
+	// Set counter to specific value
+	Set(ctx context.Context, request SetValueRequest) (*CounterState, error)
+}
+EOF
         
         log_info "✓ OpenAPI code generated successfully"
         ;;

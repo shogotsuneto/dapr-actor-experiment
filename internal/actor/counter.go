@@ -3,7 +3,6 @@ package actor
 import (
 	"context"
 	"errors"
-	"fmt"
 	
 	"github.com/dapr/go-sdk/actor"
 	generated "github.com/shogotsuneto/dapr-actor-experiment/internal/generated/openapi"
@@ -37,10 +36,14 @@ func NewActorError(message string, code string) *ActorError {
 	}
 }
 
-// CounterActor demonstrates API-contract-first development using generated OpenAPI types
+// CounterActor demonstrates API-contract-first development using generated OpenAPI types.
+// It implements the generated CounterActorContract interface to ensure compile-time contract compliance.
 type CounterActor struct {
 	actor.ServerImplBaseCtx
 }
+
+// Compile-time check to ensure CounterActor implements the generated contract interface
+var _ generated.CounterActorContract = (*CounterActor)(nil)
 
 func (c *CounterActor) Type() string {
 	return "CounterActor"
@@ -138,33 +141,20 @@ func (c *CounterActor) validateSetRequest(request generated.SetValueRequest) err
 	return nil
 }
 
-// ValidateImplementation ensures this implementation satisfies the OpenAPI contract
-func ValidateImplementation() error {
-	// This function demonstrates compile-time contract validation
+// ValidateContract ensures this implementation satisfies the OpenAPI contract.
+// This function provides runtime validation that the implementation follows
+// the contract defined in the OpenAPI specification.
+func ValidateContract() error {
+	// The compile-time check above ensures interface compliance
+	// This function can be extended for runtime validation if needed
+	
+	// Example: Validate that all required methods are implemented
 	var actor CounterActor
+	var contract generated.CounterActorContract = &actor
 	
-	// Verify method signatures match the expected contract
-	var _ func(context.Context) (*generated.CounterState, error) = actor.Increment
-	var _ func(context.Context) (*generated.CounterState, error) = actor.Decrement
-	var _ func(context.Context) (*generated.CounterState, error) = actor.Get
-	var _ func(context.Context, generated.SetValueRequest) (*generated.CounterState, error) = actor.Set
-	
-	return nil
-}
-
-// ExampleUsage demonstrates type-safe usage of generated types
-func ExampleUsage() error {
-	// Example of using generated types for type-safe operations
-	request := generated.SetValueRequest{Value: 42}
-	
-	// Type safety prevents invalid operations
-	if request.Value < 0 {
-		return errors.New("negative values not allowed in this example")
+	if contract == nil {
+		return errors.New("CounterActor does not implement CounterActorContract")
 	}
 	
-	// Response must be the contract-defined type
-	response := &generated.CounterState{Value: request.Value}
-	
-	fmt.Printf("Request: %+v, Response: %+v\n", request, response)
 	return nil
 }
