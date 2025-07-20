@@ -65,13 +65,15 @@ func main() {
 
 log_success "Contract compliance validated"
 
-# Step 6: Show schema comparisons
-log_step "Available schema examples:"
-echo "  📄 OpenAPI 3.0:     api-generation/schemas/openapi/counter-actor.yaml"
-echo "  📄 Protocol Buffers: api-generation/schemas/protobuf/counter-actor.proto"
-echo "  📄 JSON Schema:     api-generation/schemas/jsonschema/counter-actor.json"
-echo "  📄 GraphQL SDL:     api-generation/schemas/graphql/counter-actor.graphql"
-echo "  📄 AsyncAPI:        api-generation/schemas/asyncapi/counter-actor.yaml"
+# Step 6: Show available schemas
+log_step "Available schemas:"
+echo "  📄 OpenAPI 3.0 (✅ implemented):  api-generation/schemas/openapi/counter-actor.yaml"
+echo ""
+echo "📚 Educational examples (see documentation for comparison):"
+echo "  - Protocol Buffers: For gRPC services"
+echo "  - JSON Schema: For data validation"
+echo "  - GraphQL SDL: For flexible query APIs"
+echo "  - AsyncAPI: For event-driven APIs"
 
 # Step 7: Show usage examples
 log_step "Usage examples:"

@@ -1,5 +1,7 @@
 # API-Contract-First Development Workflow
 
+> **Note**: This workflow demonstrates contract-first development using **OpenAPI 3.0**, which is currently the only implemented and tested schema format in this project.
+
 This document demonstrates the complete workflow for API-contract-first development using the tools and infrastructure provided in this repository.
 
 ## Overview
@@ -130,7 +132,7 @@ type ServerInterface interface {
 }
 ```
 
-### Protocol Buffers (Best for gRPC/High Performance)
+### Protocol Buffers (📚 Example - Not Currently Implemented)
 
 **Best for**: High-performance services, microservices
 
@@ -146,24 +148,9 @@ message CounterState {
 }
 ```
 
-**Generation Command**:
-```bash
-# Requires protoc to be installed
-./tools/scripts/generate.sh protobuf schemas/protobuf/counter-actor.proto
-```
+**Note**: Protocol Buffer generation is not currently implemented. This shows how the same API could be defined using Protocol Buffers.
 
-**Generated Go Code**:
-```go
-type CounterState struct {
-    Value int32 `protobuf:"varint,1,opt,name=value,proto3" json:"value,omitempty"`
-}
-
-type CounterActorServer interface {
-    Increment(context.Context, *empty.Empty) (*CounterState, error)
-}
-```
-
-### JSON Schema (Best for Data Validation)
+### JSON Schema (📚 Example - Not Currently Implemented)
 
 **Best for**: Data validation, configuration schemas
 
@@ -185,12 +172,9 @@ type CounterActorServer interface {
 }
 ```
 
-**Generation Command**:
-```bash
-./tools/scripts/generate.sh jsonschema schemas/jsonschema/counter-actor.json
-```
+**Note**: JSON Schema generation is not currently implemented. This shows how data types could be defined using JSON Schema.
 
-### GraphQL (Best for Flexible APIs)
+### GraphQL (📚 Example - Not Currently Implemented)
 
 **Best for**: GraphQL APIs, client-driven queries
 
@@ -205,10 +189,7 @@ type Mutation {
 }
 ```
 
-**Generation Command**:
-```bash
-./tools/scripts/generate.sh graphql schemas/graphql/counter-actor.graphql
-```
+**Note**: GraphQL generation is not currently implemented. This shows how the same API could be defined using GraphQL Schema Definition Language.
 
 ## Integration with Existing Code
 

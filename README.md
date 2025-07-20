@@ -10,10 +10,10 @@ This project now includes a comprehensive framework for API-contract-first devel
 
 ### ✨ Key Features
 
-- **📝 Multiple Schema Formats**: OpenAPI 3.0, Protocol Buffers, JSON Schema, GraphQL, AsyncAPI
-- **🔧 Automated Code Generation**: Generate Go interfaces, types, and clients from schemas
+- **📝 OpenAPI Schema Support**: Define REST APIs using OpenAPI 3.0 specifications
+- **🔧 Automated Code Generation**: Generate Go interfaces, types, and clients from OpenAPI schemas
 - **🛡️ Type Safety**: Contract-compliant implementations with compile-time validation
-- **📚 Comprehensive Documentation**: Detailed comparisons and workflows
+- **📚 Comprehensive Documentation**: Detailed workflows and examples
 - **🔄 Easy Integration**: Works alongside existing Dapr actor implementations
 
 ### 🚀 Quick Start with Contracts
@@ -37,13 +37,12 @@ See **[API Generation README](api-generation/README.md)** for complete documenta
 ## Overview
 
 This project showcases:
-- **🎯 API-Contract-First Development**: Define APIs with OpenAPI/Protocol Buffers, generate type-safe Go code
+- **🎯 API-Contract-First Development**: Define APIs with OpenAPI specifications, generate type-safe Go code
 - **Dapr Actor Pattern**: Stateful actor implementation with persistent state
 - **Counter Actor**: Simple counter with increment, decrement, get, and set operations
 - **Client Interaction**: Example client demonstrating actor method invocation
 - **Go Standard Project Layout**: Organized codebase following Go community conventions
 - **Docker-Only Setup**: Simple deployment using Docker Compose, no Dapr CLI required
-- **📚 Schema Comparisons**: Examples of OpenAPI, Protocol Buffers, JSON Schema, GraphQL, and AsyncAPI
 
 ## Quick Start
 

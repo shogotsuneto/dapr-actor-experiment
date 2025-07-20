@@ -1,5 +1,7 @@
 # API Schema Definition Methods Comparison
 
+> **Note**: This is an educational comparison of different API schema approaches. Currently, only **OpenAPI 3.0** is implemented and tested in this project. Other schema types are documented here for reference and future consideration.
+
 This document compares various approaches to defining API schemas for contract-first development, specifically in the context of Go services and Dapr actors.
 
 ## Overview

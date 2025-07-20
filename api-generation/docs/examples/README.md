@@ -1,6 +1,8 @@
 # API Generation Examples
 
-This directory contains complete examples demonstrating API-contract-first development with different schema types.
+This directory contains complete examples demonstrating API-contract-first development using OpenAPI 3.0 specifications.
+
+> **Note**: Currently, only OpenAPI 3.0 generation is implemented and tested. Examples of other schema types are provided for educational comparison purposes.
 
 ## Quick Start Example
 
@@ -74,11 +76,11 @@ func (c *CounterActor) Increment(ctx context.Context) (*openapi.CounterState, er
 }
 ```
 
-## Comparison Demo
+## Schema Format Comparison (Educational)
 
-See how the same API can be defined in different schema languages:
+See how the same API concept can be expressed in different schema languages:
 
-### OpenAPI (REST-focused)
+### OpenAPI 3.0 (✅ Currently Implemented)
 ```yaml
 paths:
   /{actorId}/method/increment:
@@ -91,7 +93,7 @@ paths:
                 $ref: '#/components/schemas/CounterState'
 ```
 
-### Protocol Buffers (Performance-focused)
+### Protocol Buffers (📚 Reference Only)
 ```protobuf
 service CounterActor {
   rpc Increment(google.protobuf.Empty) returns (CounterState);
@@ -102,7 +104,7 @@ message CounterState {
 }
 ```
 
-### GraphQL (Query-focused)
+### GraphQL (📚 Reference Only)
 ```graphql
 type Mutation {
   incrementCounter(actorId: ID!): CounterActor
@@ -113,7 +115,7 @@ type CounterActor {
 }
 ```
 
-### JSON Schema (Validation-focused)
+### JSON Schema (📚 Reference Only)
 ```json
 {
   "definitions": {
@@ -129,24 +131,19 @@ type CounterActor {
 
 ## Running the Examples
 
-### 1. Generate All Schemas
+### 1. Generate Code (OpenAPI Only)
 
 ```bash
-# Generate from all schema types
+# Generate from OpenAPI (currently supported)
 ./tools/scripts/generate.sh openapi schemas/openapi/counter-actor.yaml
-./tools/scripts/generate.sh jsonschema schemas/jsonschema/counter-actor.json
-
-# Protocol Buffers (requires protoc)
-if command -v protoc &> /dev/null; then
-    ./tools/scripts/generate.sh protobuf schemas/protobuf/counter-actor.proto
-fi
 ```
 
-### 2. Compare Generated Code
+### 2. See Generated Code
 
 ```bash
 # See what was generated
-find generated/ -name "*.go" -exec echo "=== {} ===" \; -exec head -20 {} \;
+ls -la ../internal/generated/openapi/
+cat ../internal/generated/openapi/types.go
 ```
 
 ### 3. Build Examples
@@ -160,14 +157,13 @@ go build -o bin/server ./cmd/server
 
 ## Key Takeaways
 
-1. **Same API, Different Schemas**: The same business logic can be expressed in multiple schema languages
-2. **Generated Code Varies**: Each tool generates different Go code styles
-3. **Type Safety**: All approaches provide compile-time type safety
-4. **Use Case Matters**: Choose schema type based on your specific needs:
-   - **OpenAPI**: REST APIs, public APIs, documentation
-   - **Protocol Buffers**: High performance, microservices
-   - **JSON Schema**: Data validation, configuration
-   - **GraphQL**: Flexible queries, frontend-driven APIs
+1. **OpenAPI Implementation**: Currently, only OpenAPI 3.0 generation is fully implemented and tested
+2. **Generated Code**: The `oapi-codegen` tool generates clean, type-safe Go code
+3. **Type Safety**: OpenAPI generation provides compile-time type safety
+4. **Future Expansion**: Other schema types could be added when needed:
+   - **Protocol Buffers**: For high performance and microservices
+   - **JSON Schema**: For data validation and configuration
+   - **GraphQL**: For flexible queries and frontend-driven APIs
 
 ## Next Steps
 

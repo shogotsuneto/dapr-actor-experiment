@@ -12,46 +12,28 @@ This module supports generating Go code from various API schema definitions, ena
 
 ## Supported Schema Types
 
-### 1. OpenAPI 3.0 (Recommended)
+### OpenAPI 3.0 (Currently Implemented)
 - **File Extension**: `.yaml`, `.yml`, `.json`
-- **Use Case**: REST APIs, HTTP services
-- **Generation Target**: Go interfaces, types, validators
-- **Tools**: `oapi-codegen`, `go-swagger`
+- **Use Case**: REST APIs, HTTP services, Dapr actor APIs
+- **Generation Target**: Go interfaces, types, validators, client code
+- **Tools**: `oapi-codegen`
+- **Status**: ✅ **Fully implemented and tested**
 
-### 2. Protocol Buffers (gRPC)
-- **File Extension**: `.proto`
-- **Use Case**: gRPC services, high-performance APIs
-- **Generation Target**: Go structs, gRPC service definitions
-- **Tools**: `protoc`, `protoc-gen-go`
+### Future Schema Support
+Additional schema types could be supported in the future:
+- **Protocol Buffers**: For gRPC services and high-performance APIs
+- **JSON Schema**: For data validation and simple type definitions  
+- **GraphQL SDL**: For GraphQL APIs and flexible query interfaces
+- **AsyncAPI**: For event-driven APIs and messaging systems
 
-### 3. JSON Schema
-- **File Extension**: `.json`
-- **Use Case**: Data validation, simple type definitions
-- **Generation Target**: Go structs with validation tags
-- **Tools**: Custom generators, `go-jsonschema`
-
-### 4. GraphQL Schema Definition Language
-- **File Extension**: `.graphql`, `.gql`
-- **Use Case**: GraphQL APIs, flexible query interfaces
-- **Generation Target**: Go resolvers, types
-- **Tools**: `gqlgen`
-
-### 5. AsyncAPI
-- **File Extension**: `.yaml`, `.yml`
-- **Use Case**: Event-driven APIs, message-based systems
-- **Generation Target**: Event handlers, message types
-- **Tools**: Custom templates
+*Currently, only OpenAPI 3.0 is implemented and actively tested.*
 
 ## Directory Structure
 
 ```
 api-generation/                    # API contract-first development tools
 ├── schemas/                       # 📄 API schema definitions (source)
-│   ├── openapi/                   #     OpenAPI 3.0 specifications
-│   ├── protobuf/                  #     Protocol Buffer definitions  
-│   ├── jsonschema/                #     JSON Schema files
-│   ├── graphql/                   #     GraphQL schema definitions
-│   └── asyncapi/                  #     AsyncAPI specifications
+│   └── openapi/                   #     OpenAPI 3.0 specifications (implemented)
 ├── tools/                         # 🔧 Generation tools and scripts
 │   ├── bin/                       #     Installed tool binaries
 │   └── scripts/                   #     Installation and generation scripts
@@ -59,9 +41,7 @@ api-generation/                    # API contract-first development tools
 
 # Generated code location (outside api-generation):
 ../internal/generated/             # 🤖 Generated code output (integration)
-├── openapi/                       #     Generated from OpenAPI schemas
-├── protobuf/                      #     Generated from Protocol Buffers
-└── ...                           #     Other generated code types
+└── openapi/                       #     Generated from OpenAPI schemas
 ```
 
 ## 🎯 Key Principles
@@ -75,9 +55,9 @@ api-generation/                    # API contract-first development tools
 
 ### Tool Installation Strategy
 
-Only currently used tools are installed by default:
-- ✅ **OpenAPI tools**: `oapi-codegen` (actively used)
-- ⏳ **Other tools**: Available on-demand (protoc, gqlgen, etc.)
+Only currently implemented and tested tools are installed:
+- ✅ **OpenAPI tools**: `oapi-codegen` (actively used and tested)
+- ⏳ **Other tools**: Could be added in the future when needed
 │   ## Quick Start
 
 ### 1. Install Tools
@@ -88,7 +68,7 @@ cd api-generation
 
 ### 2. Generate Code from Schema
 ```bash
-# Generate from OpenAPI (most common)
+# Generate from OpenAPI (only currently supported format)
 ./tools/scripts/generate.sh openapi schemas/openapi/counter-actor.yaml
 
 # Generated code appears in ../internal/generated/openapi/

@@ -45,16 +45,16 @@ check_tool() {
 usage() {
     echo "Usage: $0 <schema-type> <schema-file> [output-dir]"
     echo ""
-    echo "Schema types:"
+    echo "Currently supported schema types:"
     echo "  openapi     - Generate from OpenAPI 3.0 specification"
-    echo "  protobuf    - Generate from Protocol Buffer definition"
-    echo "  jsonschema  - Generate from JSON Schema"
-    echo "  graphql     - Generate from GraphQL schema"
+    echo ""
+    echo "Future schema types (not yet implemented):"
+    echo "  protobuf    - Protocol Buffer definition (planned)"
+    echo "  jsonschema  - JSON Schema (planned)" 
+    echo "  graphql     - GraphQL schema (planned)"
     echo ""
     echo "Examples:"
     echo "  $0 openapi schemas/openapi/counter-actor.yaml"
-    echo "  $0 protobuf schemas/protobuf/counter.proto"
-    echo "  $0 jsonschema schemas/jsonschema/counter.json"
     echo ""
 }
 
@@ -132,23 +132,23 @@ case "$SCHEMA_TYPE" in
         ;;
         
     "protobuf")
-        log_step "Generating Protocol Buffer code..."
-        log_error "Protocol Buffer tools not installed. Run install.sh with protobuf support."
-        log_info "To add protobuf support: modify install.sh to include protoc-gen-go tools"
+        log_step "Protocol Buffer generation not yet implemented"
+        log_error "Protocol Buffer support is planned but not yet implemented."
+        log_info "Only OpenAPI generation is currently available."
         exit 1
         ;;
         
     "jsonschema")
-        log_step "Generating JSON Schema code..."
-        log_error "JSON Schema tools not installed. Run install.sh with jsonschema support."
-        log_info "To add jsonschema support: modify install.sh to include go-jsonschema"
+        log_step "JSON Schema generation not yet implemented"
+        log_error "JSON Schema support is planned but not yet implemented."
+        log_info "Only OpenAPI generation is currently available."
         exit 1
         ;;
         
     "graphql")
-        log_step "Generating GraphQL code..."
-        log_error "GraphQL tools not installed. Run install.sh with graphql support."
-        log_info "To add graphql support: modify install.sh to include gqlgen"
+        log_step "GraphQL generation not yet implemented"
+        log_error "GraphQL support is planned but not yet implemented."
+        log_info "Only OpenAPI generation is currently available."
         exit 1
         ;;
         
