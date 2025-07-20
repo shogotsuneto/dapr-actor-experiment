@@ -52,21 +52,21 @@ This generates:
 ### Step 3: Implement Against Contract
 
 ```go
-// internal/actor/contract_counter.go
+// internal/actor/counter.go
 package actor
 
-import "github.com/shogotsuneto/dapr-actor-experiment/api-generation/generated/openapi"
+import "github.com/shogotsuneto/dapr-actor-experiment/internal/generated/openapi"
 
-type ContractCounterActor struct {
+type CounterActor struct {
     actor.ServerImplBaseCtx
 }
 
 // Implement methods using generated types
-func (c *ContractCounterActor) Increment(ctx context.Context) (*openapi.CounterState, error) {
+func (c *CounterActor) Increment(ctx context.Context) (*openapi.CounterState, error) {
     // Implementation must return the contract-defined type
 }
 
-func (c *ContractCounterActor) Set(ctx context.Context, request openapi.SetValueRequest) (*openapi.CounterState, error) {
+func (c *CounterActor) Set(ctx context.Context, request openapi.SetValueRequest) (*openapi.CounterState, error) {
     // Implementation must accept the contract-defined type
 }
 ```
@@ -212,25 +212,12 @@ type Mutation {
 
 ## Integration with Existing Code
 
-### Option 1: Replace Existing Implementation
+### Register the CounterActor
 
 ```go
-// Replace the original CounterActor with ContractCounterActor
+// Register the contract-based CounterActor
 s.RegisterActorImplFactoryContext(func() actor.ServerContext {
-    return &actor.ContractCounterActor{}
-})
-```
-
-### Option 2: Side-by-Side Comparison
-
-```go
-// Register both implementations for comparison
-s.RegisterActorImplFactoryContext(func() actor.ServerContext {
-    return &actor.CounterActor{} // Original
-})
-
-s.RegisterActorImplFactoryContext(func() actor.ServerContext {
-    return &actor.ContractCounterActor{} // Contract-based
+    return &actor.CounterActor{}
 })
 ```
 
@@ -240,7 +227,7 @@ s.RegisterActorImplFactoryContext(func() actor.ServerContext {
 
 ```go
 func TestContractCompliance(t *testing.T) {
-    actor := &ContractCounterActor{}
+    actor := &CounterActor{}
     
     // This ensures the method signatures match the contract
     var _ func(context.Context) (*openapi.CounterState, error) = actor.Increment

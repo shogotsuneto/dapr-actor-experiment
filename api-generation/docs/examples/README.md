@@ -19,7 +19,7 @@ ls -la generated/openapi/
 
 # 4. Build with contract-based implementation
 cd ..
-go build -o bin/contract-server ./examples/contract-server
+go build -o bin/server ./cmd/server
 ```
 
 ## Example: OpenAPI → Go Implementation
@@ -56,19 +56,19 @@ paths:
 ### 3. Implement Using Generated Types
 
 ```go
-// examples/contract-server/main.go
-package main
+// internal/actor/counter.go
+package actor
 
 import (
     "context"
-    "github.com/shogotsuneto/dapr-actor-experiment/api-generation/generated/openapi"
+    "github.com/shogotsuneto/dapr-actor-experiment/internal/generated/openapi"
 )
 
-type ContractActor struct {
+type CounterActor struct {
     // actor.ServerImplBaseCtx
 }
 
-func (c *ContractActor) Increment(ctx context.Context) (*openapi.CounterState, error) {
+func (c *CounterActor) Increment(ctx context.Context) (*openapi.CounterState, error) {
     // Implementation MUST return the contract-defined type
     return &openapi.CounterState{Value: 42}, nil
 }
@@ -152,10 +152,10 @@ find generated/ -name "*.go" -exec echo "=== {} ===" \; -exec head -20 {} \;
 ### 3. Build Examples
 
 ```bash
-# Build contract-based server
+# Build main server with contract-based implementation
 cd ..
 go mod tidy
-go build -o bin/contract-example ./examples/contract-demo
+go build -o bin/server ./cmd/server
 ```
 
 ## Key Takeaways

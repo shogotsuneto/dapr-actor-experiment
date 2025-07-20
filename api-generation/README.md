@@ -108,23 +108,17 @@ func (c *CounterActor) Increment(ctx context.Context) (*generated.CounterState, 
 }
 ```
 
-### 4. Run with Contract-Based Actor
+### 4. Run the Contract-Based Actor
 ```bash
 # Build the main server
 go build -o bin/server ./cmd/server
 
-# Run with contract-generated types
-USE_CONTRACT_ACTOR=true ./bin/server
-
-# Or run basic implementation
+# Run with contract-generated types (default and only mode)
 ./bin/server
 ```
 
 ## Integration with Main Server
 
-The main Dapr server (`cmd/server`) supports both modes:
+The main Dapr server (`cmd/server`) uses the contract-based CounterActor implementation with generated OpenAPI types for type safety and contract compliance.
 
-- **Basic Mode**: Uses manually defined types (`./bin/server`)
-- **Contract Mode**: Uses generated OpenAPI types (`USE_CONTRACT_ACTOR=true ./bin/server`)
-
-Check the `/status` endpoint to see which mode is active.
+Check the `/status` endpoint to see actor information.

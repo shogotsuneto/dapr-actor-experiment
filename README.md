@@ -24,9 +24,9 @@ cd api-generation
 ./tools/scripts/install.sh
 ./tools/scripts/generate.sh openapi schemas/openapi/counter-actor.yaml
 
-# 2. Build contract-based implementation
+# 2. Build and run the server (uses contract-based implementation)
 cd ..
-go build -o bin/contract-demo ./examples/contract-demo
+make build && ./bin/server
 
 # 3. Run demo script
 ./scripts/demo-api-generation.sh
@@ -127,8 +127,6 @@ Following the [Go Standard Project Layout](https://github.com/golang-standards/p
 ├── cmd/                       # Main applications
 │   ├── server/               # Actor service application
 │   └── client/               # Demo client application
-├── examples/                  # Example implementations
-│   └── contract-demo/         # Contract-first demo server
 ├── internal/                  # Private application code
 │   └── actor/                # Actor implementations
 ├── configs/                   # Configuration files
