@@ -62,6 +62,15 @@ install_go_tool() {
 log_info "Installing OpenAPI code generation tools..."
 install_go_tool "github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen" "oapi-codegen"
 
+# Build custom interface generator
+log_info "Building custom interface generator..."
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR/../interface-generator"
+go mod tidy
+go build -o "$BIN_DIR/interface-generator" .
+cd - > /dev/null
+log_info "✓ interface-generator built successfully"
+
 # Check for external dependencies (if needed for future expansion)
 log_info "Checking external dependencies..."
 
