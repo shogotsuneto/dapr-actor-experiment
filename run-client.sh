@@ -10,6 +10,6 @@ fi
 
 # Run the client
 echo "Starting client demo..."
-docker compose --profile client up --build client
+docker compose --profile client up client
 
 echo "Client demo completed!"

@@ -45,10 +45,13 @@ This project showcases:
 ## Quick Start
 
 ### Prerequisites
-- Docker and Docker Compose
-- Git (for cloning)
+- Go 1.19+ (for local development)
+- Docker (for Redis and optional containerization)
+- Dapr CLI (for local development): [Installation Guide](https://docs.dapr.io/getting-started/install-dapr-cli/)
 
-### Running the Demo
+### Option 1: Local Development (Recommended)
+
+This is the most reliable way to test the demo:
 
 1. **Clone and navigate to the repository**:
    ```bash
@@ -56,25 +59,64 @@ This project showcases:
    cd dapr-actor-experiment
    ```
 
-2. **Start the actor service**:
+2. **Start Redis for state storage**:
    ```bash
-   ./run-server.sh
-   ```
-   This will:
-   - Start Redis (state store)
-   - Build and start the actor service
-   - Start Dapr sidecar
-   - Verify all services are healthy
-
-3. **Run the demo client** (in a new terminal):
-   ```bash
-   ./run-client.sh
+   docker run -d --name redis-dapr -p 6379:6379 redis:7-alpine
    ```
 
-4. **Stop the services**:
+3. **Install and initialize Dapr** (if not already done):
    ```bash
-   docker compose down
+   curl -fsSL https://raw.githubusercontent.com/dapr/cli/master/install/install.sh | /bin/bash
+   dapr init
    ```
+
+4. **Build and run the actor service**:
+   ```bash
+   go mod tidy
+   go build -o main .
+   dapr run --app-id actor-service --app-port 8080 --dapr-http-port 3500 \
+     --components-path ./dapr --config ./dapr/config.yaml -- ./main
+   ```
+
+5. **Test with curl** (in a new terminal):
+   ```bash
+   ./test-actor.sh
+   ```
+
+6. **Or run the demo client** (in a new terminal):
+   ```bash
+   cd client
+   dapr run --app-id client --dapr-http-port 3501 -- go run main.go
+   ```
+
+7. **Clean up**:
+   ```bash
+   docker stop redis-dapr && docker rm redis-dapr
+   ```
+
+### Option 2: Quick Local Test
+
+For a guided experience, use the local testing script:
+
+```bash
+./run-local.sh
+```
+
+This script will:
+- Check prerequisites
+- Start Redis
+- Provide instructions for testing
+- Optionally run the demo immediately
+
+### Option 3: Docker Compose (Advanced)
+
+For containerized deployment (requires network access for package downloads):
+
+```bash
+./run-server.sh
+./test-actor.sh
+docker compose down
+```
 
 ## Manual Testing
 
@@ -118,17 +160,20 @@ curl http://localhost:8080/status
 
 ### Project Structure
 ```
-├── main.go              # Actor service implementation
+├── main.go                    # Actor service implementation
 ├── client/
-│   ├── main.go          # Demo client application
-│   └── Dockerfile       # Client container
+│   ├── main.go                # Demo client application
+│   └── Dockerfile             # Client container
 ├── dapr/
-│   ├── statestore.yaml  # Redis state store configuration
-│   └── config.yaml      # Dapr configuration
-├── docker-compose.yml   # Complete setup with Dapr
-├── Dockerfile           # Actor service container
-├── run-server.sh        # Server startup script
-├── run-client.sh        # Client demo script
+│   ├── statestore.yaml        # Redis state store configuration
+│   └── config.yaml            # Dapr configuration
+├── docker-compose.yml         # Full setup with Dapr (requires network access)
+├── docker-compose.simple.yml  # Simplified Docker setup
+├── Dockerfile                 # Actor service container
+├── run-server.sh              # Server startup script
+├── run-client.sh              # Client demo script
+├── run-local.sh               # Local development helper
+├── test-actor.sh              # Simple curl-based testing
 └── README.md
 ```
 
