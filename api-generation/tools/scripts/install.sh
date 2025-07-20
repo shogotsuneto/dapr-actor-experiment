@@ -61,31 +61,23 @@ install_go_tool() {
 # Install OpenAPI tools (currently used)
 log_info "Building custom OpenAPI code generation tools..."
 
-# Build custom types generator
-log_info "Building custom types generator..."
+# Build consolidated generator
+log_info "Building consolidated generator..."
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR/../types-generator"
+cd "$SCRIPT_DIR/../generator"
 go mod tidy
-go build -o "$BIN_DIR/types-generator" .
+go build -o "$BIN_DIR/generator" .
 cd - > /dev/null
-log_info "✓ types-generator built successfully"
-
-# Build custom interface generator
-log_info "Building custom interface generator..."
-cd "$SCRIPT_DIR/../interface-generator"
-go mod tidy
-go build -o "$BIN_DIR/interface-generator" .
-cd - > /dev/null
-log_info "✓ interface-generator built successfully"
+log_info "✓ generator built successfully"
 
 # Check for external dependencies (if needed for future expansion)
 log_info "Checking external dependencies..."
 
-# Note: We use custom generators based on kin-openapi for full control over code generation
+# Note: We use a consolidated generator based on kin-openapi for full control over code generation
 # Additional tools can be installed when needed:
 # - protoc (for Protocol Buffers)
 # - Additional schema validation tools
-log_info "ℹ️  Custom OpenAPI generators built (oapi-codegen replaced with custom implementation)"
+log_info "ℹ️  Consolidated OpenAPI generator built (replaces separate types/interface generators)"
 
 # Create PATH export script
 PATH_SCRIPT="$TOOLS_DIR/scripts/setup-env.sh"

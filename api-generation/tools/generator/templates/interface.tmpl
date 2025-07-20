@@ -1,0 +1,16 @@
+// Package {{.PackageName}} provides primitives for OpenAPI-based contract validation.
+//
+// Code generated from OpenAPI specification. DO NOT EDIT manually.
+package {{.PackageName}}
+
+import "context"
+
+// CounterActorContract defines the interface that must be implemented
+// to satisfy the OpenAPI contract for CounterActor.
+// This interface enforces compile-time contract compliance.
+type CounterActorContract interface {
+{{- range .Methods}}
+	// {{.Comment}}
+	{{.Name}}(ctx context.Context{{if .HasRequest}}, request {{.RequestType}}{{end}}) (*CounterState, error)
+{{- end}}
+}

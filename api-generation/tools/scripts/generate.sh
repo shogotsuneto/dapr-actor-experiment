@@ -105,16 +105,11 @@ log_info ""
 case "$SCHEMA_TYPE" in
     "openapi")
         log_step "Generating OpenAPI code..."
-        check_tool "types-generator"
-        check_tool "interface-generator"
+        check_tool "generator"
         
-        # Generate types using custom generator
-        log_info "Generating Go types..."
-        "$BIN_DIR/types-generator" "$SCHEMA_PATH" "generated" "$OUTPUT_DIR"
-        
-        # Generate actor interface from OpenAPI specification using custom generator
-        log_info "Generating actor interface..."
-        "$BIN_DIR/interface-generator" "$SCHEMA_PATH" "generated" "$OUTPUT_DIR/interface.go"
+        # Generate types and interface using consolidated generator
+        log_info "Generating Go types and interface..."
+        "$BIN_DIR/generator" "$SCHEMA_PATH" "generated" "$OUTPUT_DIR"
         
         log_info "✓ OpenAPI code generated successfully"
         ;;
