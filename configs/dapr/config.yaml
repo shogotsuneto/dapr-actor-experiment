@@ -15,5 +15,6 @@ spec:
     actorScanInterval: "30s"
     drainOngoingCallTimeout: "1m"
     drainRebalancedActors: true
+    stateStore: "statestore"
     reentrancy:
       enabled: false

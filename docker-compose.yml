@@ -23,30 +23,14 @@ services:
 
   # Actor service (using local binary)
   actor-service:
-    image: golang:1.24-alpine
-    working_dir: /app
-    volumes:
-      - .:/app
+    build:
+      context: .
+      dockerfile: Dockerfile
     ports:
       - "8080:8080"
-      - "3500:3500"
-    environment:
-      - DAPR_HTTP_PORT=3500
-      - DAPR_GRPC_PORT=50001
     depends_on:
       redis:
         condition: service_healthy
-    command: |
-      sh -c "
-        apk add --no-cache ca-certificates git &&
-        go mod download &&
-        go run ./cmd/server
-      "
-    healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
 
   # Dapr sidecar for actor service  
   actor-service-dapr:
@@ -55,21 +39,24 @@ services:
       "./daprd",
       "-app-id", "actor-service",
       "-app-port", "8080",
+      "-app-channel-address", "actor-service",
       "-dapr-http-port", "3500",
       "-dapr-grpc-port", "50001",
-      "-components-path", "/components",
+      "-resources-path", "/components",
       "-config", "/config/config.yaml",
-      "-log-level", "info"
+      "-log-level", "debug"
     ]
     volumes:
       - "./configs/dapr:/components"
       - "./configs/dapr:/config"
+    ports:
+      - "3500:3500"
+      - "50001:50001"
     depends_on:
       actor-service:
-        condition: service_healthy
+        condition: service_started
       redis:
         condition: service_healthy
-    network_mode: "service:actor-service"
 
   # Client application
   client:
