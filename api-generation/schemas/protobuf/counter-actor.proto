@@ -1,0 +1,64 @@
+// Counter Actor Protocol Buffer Definition
+// This demonstrates how the same CounterActor API can be defined using Protocol Buffers
+// for high-performance gRPC services.
+
+syntax = "proto3";
+
+package counter;
+option go_package = "github.com/shogotsuneto/dapr-actor-experiment/api-generation/generated/protobuf";
+
+import "google/protobuf/empty.proto";
+
+// CounterActor service definition
+// In a gRPC context, this would be a traditional service.
+// For Dapr actors, this serves as a contract definition that could be
+// adapted to HTTP endpoints or used for type-safe client generation.
+service CounterActor {
+  // Get the current counter value
+  rpc Get(google.protobuf.Empty) returns (CounterState);
+  
+  // Increment the counter by 1
+  rpc Increment(google.protobuf.Empty) returns (CounterState);
+  
+  // Decrement the counter by 1
+  rpc Decrement(google.protobuf.Empty) returns (CounterState);
+  
+  // Set the counter to a specific value
+  rpc Set(SetValueRequest) returns (CounterState);
+}
+
+// Current state of the counter
+message CounterState {
+  // The current counter value
+  int32 value = 1;
+}
+
+// Request to set the counter to a specific value
+message SetValueRequest {
+  // The value to set the counter to
+  int32 value = 1;
+}
+
+// Error response for failed operations
+message ErrorResponse {
+  // Human-readable error message
+  string message = 1;
+  
+  // Machine-readable error code
+  string code = 2;
+  
+  // Additional error details
+  map<string, string> details = 3;
+}
+
+// Metadata for Dapr actor integration
+message ActorMetadata {
+  // Actor type identifier
+  string actor_type = 1;
+  
+  // Actor instance ID
+  string actor_id = 2;
+  
+  // State store name
+  string state_store = 3;
+}
