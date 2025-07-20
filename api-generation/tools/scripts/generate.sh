@@ -70,7 +70,13 @@ fi
 
 # Set default output directory
 if [ -z "$OUTPUT_DIR" ]; then
-    OUTPUT_DIR="$API_GEN_DIR/generated/$SCHEMA_TYPE"
+    # Generate to internal directory for integration with main project
+    if [[ "$API_GEN_DIR" == */api-generation ]]; then
+        PROJECT_ROOT="$(dirname "$API_GEN_DIR")"
+        OUTPUT_DIR="$PROJECT_ROOT/internal/generated/$SCHEMA_TYPE"
+    else
+        OUTPUT_DIR="$API_GEN_DIR/generated/$SCHEMA_TYPE"
+    fi
 fi
 
 # Create output directory
@@ -127,48 +133,23 @@ case "$SCHEMA_TYPE" in
         
     "protobuf")
         log_step "Generating Protocol Buffer code..."
-        check_tool "protoc-gen-go"
-        check_tool "protoc-gen-go-grpc"
-        
-        if ! command -v protoc &> /dev/null; then
-            log_error "protoc not found. Please install Protocol Buffer compiler."
-            exit 1
-        fi
-        
-        log_info "Generating Protocol Buffer code..."
-        protoc --go_out="$OUTPUT_DIR" \
-               --go_opt=paths=source_relative \
-               --go-grpc_out="$OUTPUT_DIR" \
-               --go-grpc_opt=paths=source_relative \
-               "$SCHEMA_PATH"
-        
-        log_info "✓ Protocol Buffer code generated successfully"
+        log_error "Protocol Buffer tools not installed. Run install.sh with protobuf support."
+        log_info "To add protobuf support: modify install.sh to include protoc-gen-go tools"
+        exit 1
         ;;
         
     "jsonschema")
         log_step "Generating JSON Schema code..."
-        check_tool "go-jsonschema"
-        
-        log_info "Generating Go types from JSON Schema..."
-        go-jsonschema \
-            -p generated \
-            -o "$OUTPUT_DIR/types.go" \
-            "$SCHEMA_PATH"
-        
-        log_info "✓ JSON Schema code generated successfully"
+        log_error "JSON Schema tools not installed. Run install.sh with jsonschema support."
+        log_info "To add jsonschema support: modify install.sh to include go-jsonschema"
+        exit 1
         ;;
         
     "graphql")
         log_step "Generating GraphQL code..."
-        check_tool "gqlgen"
-        
-        log_info "Generating GraphQL code..."
-        cd "$OUTPUT_DIR"
-        gqlgen init
-        
-        log_info "✓ GraphQL code generated successfully"
-        log_warn "Note: GraphQL generation creates a complete project structure."
-        log_warn "You may need to customize the generated files for your use case."
+        log_error "GraphQL tools not installed. Run install.sh with graphql support."
+        log_info "To add graphql support: modify install.sh to include gqlgen"
+        exit 1
         ;;
         
     *)

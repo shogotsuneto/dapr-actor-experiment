@@ -6,7 +6,7 @@ import (
 	"fmt"
 	
 	"github.com/dapr/go-sdk/actor"
-	generated "github.com/shogotsuneto/dapr-actor-experiment/api-generation/generated/openapi"
+	generated "github.com/shogotsuneto/dapr-actor-experiment/internal/generated/openapi"
 )
 
 // ContractError implements Go's error interface for contract compliance

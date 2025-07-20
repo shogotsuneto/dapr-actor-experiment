@@ -12,7 +12,7 @@ import (
 	daprd "github.com/dapr/go-sdk/service/http"
 	
 	// Import the generated OpenAPI contract types
-	generated "github.com/shogotsuneto/dapr-actor-experiment/api-generation/generated/openapi"
+	generated "github.com/shogotsuneto/dapr-actor-experiment/internal/generated/openapi"
 )
 
 // ContractDemoActor demonstrates contract-first development

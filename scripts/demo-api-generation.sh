@@ -35,7 +35,7 @@ log_success "OpenAPI code generated"
 
 # Step 3: Show generated files
 log_step "Generated files:"
-find generated/openapi -name "*.go" | sed 's/^/  /'
+find ../internal/generated/openapi -name "*.go" | sed 's/^/  /'
 
 # Step 4: Build contract-based implementation
 log_step "Building contract-based implementation..."
@@ -50,7 +50,7 @@ package main
 import (
     \"context\"
     \"github.com/shogotsuneto/dapr-actor-experiment/internal/actor\"
-    generated \"github.com/shogotsuneto/dapr-actor-experiment/api-generation/generated/openapi\"
+    generated \"github.com/shogotsuneto/dapr-actor-experiment/internal/generated/openapi\"
 )
 func main() {
     var a actor.ContractCounterActor
@@ -79,16 +79,20 @@ echo ""
 echo "1. Generate from different schema types:"
 echo "   cd api-generation"
 echo "   ./tools/scripts/generate.sh openapi schemas/openapi/counter-actor.yaml"
-echo "   ./tools/scripts/generate.sh jsonschema schemas/jsonschema/counter-actor.json"
+echo "   # Generated code will be in ../internal/generated/openapi/"
 echo ""
-echo "2. Run contract-based demo server:"
-echo "   ./bin/contract-demo"
-echo ""
-echo "3. Test with original server (for comparison):"
+echo "2. Run main server with basic types:"
 echo "   make build && ./bin/server"
 echo ""
-echo "4. View contract information:"
-echo "   curl http://localhost:8080/contract-info"
+echo "3. Run main server with contract-generated types:"
+echo "   make build && USE_CONTRACT_ACTOR=true ./bin/server"
+echo ""
+echo "4. Run dedicated contract demo server:"
+echo "   ./bin/contract-demo"
+echo ""
+echo "5. Test endpoints:"
+echo "   curl http://localhost:8080/status  # Shows which actor type is active"
+echo "   curl http://localhost:3500/v1.0/actors/CounterActor/demo-1/method/get"
 echo ""
 
 # Step 8: Show key benefits
@@ -104,10 +108,11 @@ echo ""
 log_success "Demo completed successfully!"
 echo ""
 echo "Next steps:"
-echo "  1. Explore the generated code in api-generation/generated/"
-echo "  2. Compare different schema approaches in api-generation/schemas/"
-echo "  3. Read the workflow documentation in api-generation/docs/"
-echo "  4. Try modifying schemas and regenerating code"
+echo "  1. Explore the generated code in internal/generated/openapi/"
+echo "  2. Compare basic vs contract actors by switching USE_CONTRACT_ACTOR"
+echo "  3. View /status endpoint to see which actor mode is active" 
+echo "  4. Compare different schema approaches in api-generation/schemas/"
+echo "  5. Read the workflow documentation in api-generation/docs/"
 echo ""
 echo "For detailed documentation, see:"
 echo "  📖 api-generation/README.md"

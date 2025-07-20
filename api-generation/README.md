@@ -45,42 +45,86 @@ This module supports generating Go code from various API schema definitions, ena
 ## Directory Structure
 
 ```
-api-generation/
-├── schemas/                    # API schema definitions
-│   ├── openapi/               # OpenAPI specifications
-│   ├── protobuf/              # Protocol Buffer definitions
-│   ├── jsonschema/            # JSON Schema files
-│   ├── graphql/               # GraphQL schema definitions
-│   └── asyncapi/              # AsyncAPI specifications
-├── templates/                 # Code generation templates
-│   ├── openapi/               # OpenAPI generation templates
-│   ├── protobuf/              # Protocol Buffer templates
-│   └── common/                # Shared templates
-├── generated/                 # Generated code output
-│   ├── openapi/               # OpenAPI generated code
-│   ├── protobuf/              # Protocol Buffer generated code
-│   └── interfaces/            # Common interfaces
-├── tools/                     # Generation tools and scripts
-│   ├── generators/            # Custom code generators
-│   ├── validators/            # Schema validators
-│   └── scripts/               # Build and generation scripts
-└── docs/                      # Documentation and comparisons
-    ├── comparisons/           # Schema method comparisons
-    ├── examples/              # Usage examples
-    └── workflows/             # Development workflows
+api-generation/                    # API contract-first development tools
+├── schemas/                       # 📄 API schema definitions (source)
+│   ├── openapi/                   #     OpenAPI 3.0 specifications
+│   ├── protobuf/                  #     Protocol Buffer definitions  
+│   ├── jsonschema/                #     JSON Schema files
+│   ├── graphql/                   #     GraphQL schema definitions
+│   └── asyncapi/                  #     AsyncAPI specifications
+├── tools/                         # 🔧 Generation tools and scripts
+│   ├── bin/                       #     Installed tool binaries
+│   └── scripts/                   #     Installation and generation scripts
+└── docs/                          # 📚 Documentation and examples
+
+# Generated code location (outside api-generation):
+../internal/generated/             # 🤖 Generated code output (integration)
+├── openapi/                       #     Generated from OpenAPI schemas
+├── protobuf/                      #     Generated from Protocol Buffers
+└── ...                           #     Other generated code types
 ```
 
-## Getting Started
+## 🎯 Key Principles
 
-1. **Install Dependencies**: Run `./tools/scripts/install.sh`
-2. **Define Schema**: Place your API schema in the appropriate `schemas/` subdirectory
-3. **Generate Code**: Run `./tools/scripts/generate.sh <schema-type> <schema-file>`
-4. **Use Generated Code**: Import generated interfaces and types in your implementation
+### Separation of Concerns
 
-## Examples
+1. **📄 Schemas** (`schemas/`): Source of truth API contracts
+2. **🔧 Tooling** (`tools/`): Generation and validation tools  
+3. **🤖 Generated Code** (`../internal/generated/`): Output integrated with main project
+4. **📚 Documentation** (`docs/`): Workflows, examples, and guidance
 
-See `docs/examples/` for complete examples of each schema type and generation workflow.
+### Tool Installation Strategy
 
-## Future Plans
+Only currently used tools are installed by default:
+- ✅ **OpenAPI tools**: `oapi-codegen` (actively used)
+- ⏳ **Other tools**: Available on-demand (protoc, gqlgen, etc.)
+│   ## Quick Start
 
-This module is designed to be extracted into a separate repository for broader use across projects requiring API-contract-first development.
+### 1. Install Tools
+```bash
+cd api-generation
+./tools/scripts/install.sh
+```
+
+### 2. Generate Code from Schema
+```bash
+# Generate from OpenAPI (most common)
+./tools/scripts/generate.sh openapi schemas/openapi/counter-actor.yaml
+
+# Generated code appears in ../internal/generated/openapi/
+ls ../internal/generated/openapi/
+# types.go  client.go  server.go
+```
+
+### 3. Use Generated Code in Your Application
+```go
+// Import generated types
+import generated "github.com/shogotsuneto/dapr-actor-experiment/internal/generated/openapi"
+
+// Use generated types for contract compliance
+func (c *CounterActor) Increment(ctx context.Context) (*generated.CounterState, error) {
+    // Implementation MUST match the OpenAPI contract
+    // ...
+}
+```
+
+### 4. Run with Contract-Based Actor
+```bash
+# Build the main server
+go build -o bin/server ./cmd/server
+
+# Run with contract-generated types
+USE_CONTRACT_ACTOR=true ./bin/server
+
+# Or run basic implementation
+./bin/server
+```
+
+## Integration with Main Server
+
+The main Dapr server (`cmd/server`) supports both modes:
+
+- **Basic Mode**: Uses manually defined types (`./bin/server`)
+- **Contract Mode**: Uses generated OpenAPI types (`USE_CONTRACT_ACTOR=true ./bin/server`)
+
+Check the `/status` endpoint to see which mode is active.

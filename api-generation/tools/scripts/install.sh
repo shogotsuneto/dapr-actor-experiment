@@ -58,40 +58,17 @@ install_go_tool() {
     fi
 }
 
-# Install OpenAPI tools
+# Install OpenAPI tools (currently used)
 log_info "Installing OpenAPI code generation tools..."
 install_go_tool "github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen" "oapi-codegen"
-install_go_tool "github.com/go-swagger/go-swagger/cmd/swagger" "swagger"
 
-# Install Protocol Buffer tools
-log_info "Installing Protocol Buffer tools..."
-install_go_tool "google.golang.org/protobuf/cmd/protoc-gen-go" "protoc-gen-go"
-install_go_tool "google.golang.org/grpc/cmd/protoc-gen-go-grpc" "protoc-gen-go-grpc"
-
-# Install JSON Schema tools
-log_info "Installing JSON Schema tools..."
-install_go_tool "github.com/atombender/go-jsonschema" "go-jsonschema"
-
-# Install GraphQL tools
-log_info "Installing GraphQL tools..."
-install_go_tool "github.com/99designs/gqlgen" "gqlgen"
-
-# Install validation tools
-log_info "Installing validation tools..."
-install_go_tool "github.com/go-playground/validator/v10" "validator" || log_warn "Validator is a library, not a binary"
-
-# Check for external dependencies
+# Check for external dependencies (if needed for future expansion)
 log_info "Checking external dependencies..."
 
-# Check for protoc
-if command -v protoc &> /dev/null; then
-    log_info "✓ protoc found: $(protoc --version)"
-else
-    log_warn "protoc not found. Please install Protocol Buffer compiler:"
-    log_warn "  - Ubuntu/Debian: apt-get install protobuf-compiler"
-    log_warn "  - macOS: brew install protobuf"
-    log_warn "  - Or download from: https://github.com/protocolbuffers/protobuf/releases"
-fi
+# Note: Additional tools can be installed when needed:
+# - protoc (for Protocol Buffers)
+# - Additional schema validation tools
+log_info "ℹ️  Only OpenAPI tools installed (other tools available on demand)"
 
 # Create PATH export script
 PATH_SCRIPT="$TOOLS_DIR/scripts/setup-env.sh"
