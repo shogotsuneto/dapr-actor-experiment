@@ -3,11 +3,17 @@ FROM golang:1.24 AS builder
 
 WORKDIR /app
 
-# Copy source code including vendor directory
+# Copy go.mod and go.sum first for better caching
+COPY go.mod go.sum ./
+
+# Download dependencies
+RUN go mod download
+
+# Copy source code
 COPY . .
 
-# Build the binary using vendor dependencies (no network required)
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -mod=vendor -o server ./cmd/server
+# Build the binary
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o server ./cmd/server
 
 # Runtime stage
 FROM alpine:latest

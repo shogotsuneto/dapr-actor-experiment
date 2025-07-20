@@ -35,3 +35,6 @@ Thumbs.db
 /tmp/
 *.tmp
 *.log
+
+# Go vendor directory
+vendor/
