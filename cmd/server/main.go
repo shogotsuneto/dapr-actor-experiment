@@ -6,11 +6,11 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/dapr/go-sdk/actor"
 	"github.com/dapr/go-sdk/service/common"
 	daprd "github.com/dapr/go-sdk/service/http"
 	
 	counteractor "github.com/shogotsuneto/dapr-actor-experiment/internal/actor"
+	generated "github.com/shogotsuneto/dapr-actor-experiment/internal/generated/openapi"
 )
 
 // healthHandler provides a simple health check endpoint
@@ -43,11 +43,12 @@ func main() {
 	// Create Dapr service
 	s := daprd.NewService(":8080")
 	
-	// Register the CounterActor using generated OpenAPI types
-	log.Println("Using CounterActor with OpenAPI contract-generated types")
-	s.RegisterActorImplFactoryContext(func() actor.ServerContext {
+	// Register the CounterActor using generated factory for type safety and contract compliance
+	log.Println("Using CounterActor with generated factory for contract enforcement")
+	factory := generated.NewCounterActorAPIContractFactory[*counteractor.CounterActor]()
+	s.RegisterActorImplFactoryContext(factory.CreateActorImplFactory(func() *counteractor.CounterActor {
 		return &counteractor.CounterActor{}
-	})
+	}))
 	
 	// Add health and status endpoints
 	s.AddServiceInvocationHandler("/health", healthHandler)

@@ -79,9 +79,16 @@ func main() {
 		log.Fatalf("Failed to generate interface: %v", err)
 	}
 
+	// Generate factory
+	err = generateFactory(doc, packageName, outputDir)
+	if err != nil {
+		log.Fatalf("Failed to generate factory: %v", err)
+	}
+
 	fmt.Printf("Generated files:\n")
 	fmt.Printf("  %s/types.go\n", outputDir)
 	fmt.Printf("  %s/interface.go\n", outputDir)
+	fmt.Printf("  %s/factory.go\n", outputDir)
 }
 
 func generateTypes(doc *openapi3.T, packageName, outputDir string) error {
@@ -353,6 +360,39 @@ func generateInterface(doc *openapi3.T, packageName, outputDir string) error {
 	err = tmpl.Execute(interfaceFile, data)
 	if err != nil {
 		return fmt.Errorf("failed to execute interface template: %v", err)
+	}
+
+	return nil
+}
+
+func generateFactory(doc *openapi3.T, packageName, outputDir string) error {
+	// Load template from file
+	templatePath := getTemplatePath("factory.tmpl")
+	tmpl, err := template.ParseFiles(templatePath)
+	if err != nil {
+		return fmt.Errorf("failed to parse factory template: %v", err)
+	}
+
+	// Generate factory file
+	interfaceName := getInterfaceName(doc)
+	interfaceDesc := getInterfaceDescription(doc)
+	
+	data := InterfaceTemplateData{
+		PackageName:   packageName,
+		InterfaceName: interfaceName,
+		InterfaceDesc: interfaceDesc,
+		Methods:       nil, // Factory doesn't need methods
+	}
+
+	factoryFile, err := os.Create(fmt.Sprintf("%s/factory.go", outputDir))
+	if err != nil {
+		return fmt.Errorf("failed to create factory file: %v", err)
+	}
+	defer factoryFile.Close()
+
+	err = tmpl.Execute(factoryFile, data)
+	if err != nil {
+		return fmt.Errorf("failed to execute factory template: %v", err)
 	}
 
 	return nil

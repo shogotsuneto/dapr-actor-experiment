@@ -2,7 +2,6 @@ package actor
 
 import (
 	"context"
-	"errors"
 	
 	"github.com/dapr/go-sdk/actor"
 	generated "github.com/shogotsuneto/dapr-actor-experiment/internal/generated/openapi"
@@ -37,13 +36,10 @@ func NewActorError(message string, code string) *ActorError {
 }
 
 // CounterActor demonstrates API-contract-first development using generated OpenAPI types.
-// It implements the generated CounterActorContract interface to ensure compile-time contract compliance.
+// It implements the generated CounterActorAPIContract interface to ensure compile-time contract compliance.
 type CounterActor struct {
 	actor.ServerImplBaseCtx
 }
-
-// Compile-time check to ensure CounterActor implements the generated contract interface
-var _ generated.CounterActorAPIContract = (*CounterActor)(nil)
 
 func (c *CounterActor) Type() string {
 	return "CounterActor"
@@ -136,24 +132,6 @@ func (c *CounterActor) validateSetRequest(request generated.SetValueRequest) err
 	
 	if request.Value < minInt32 || request.Value > maxInt32 {
 		return NewActorError("Value out of range for int32", "INVALID_INPUT")
-	}
-	
-	return nil
-}
-
-// ValidateContract ensures this implementation satisfies the OpenAPI contract.
-// This function provides runtime validation that the implementation follows
-// the contract defined in the OpenAPI specification.
-func ValidateContract() error {
-	// The compile-time check above ensures interface compliance
-	// This function can be extended for runtime validation if needed
-	
-	// Example: Validate that all required methods are implemented
-	var actor CounterActor
-	var contract generated.CounterActorAPIContract = &actor
-	
-	if contract == nil {
-		return errors.New("CounterActor does not implement CounterActorAPIContract")
 	}
 	
 	return nil
