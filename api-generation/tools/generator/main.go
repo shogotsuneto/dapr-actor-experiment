@@ -174,19 +174,15 @@ func generateTypes(doc *openapi3.T, packageName, outputDir string) error {
 }
 
 // extractMethodFromOperation extracts method information from OpenAPI operation
-func extractMethodFromOperation(op *openapi3.Operation, httpMethod, path string) *Method {
+func extractMethodFromOperation(op *openapi3.Operation, httpMethod, path string) (*Method, error) {
 	// For Dapr actors, extract method name from path (e.g., /{actorId}/method/get -> get)
 	methodName := extractMethodNameFromPath(path)
 	if methodName == "" {
-		// Fallback to operationId if path extraction fails
-		if op.OperationID == "" {
-			return nil
-		}
-		methodName = operationIDToMethodName(op.OperationID)
-	} else {
-		// Capitalize the method name for Go interface (exported method)
-		methodName = strings.Title(methodName)
+		return nil, fmt.Errorf("failed to extract method name from path '%s': path must follow pattern '/{actorId}/method/{methodName}'", path)
 	}
+	
+	// Capitalize the method name for Go interface (exported method)
+	methodName = strings.Title(methodName)
 
 	method := &Method{
 		Name:       methodName,
@@ -209,7 +205,7 @@ func extractMethodFromOperation(op *openapi3.Operation, httpMethod, path string)
 		method.ReturnType = returnType
 	}
 
-	return method
+	return method, nil
 }
 
 // extractMethodNameFromPath extracts the method name from Dapr actor path
@@ -225,35 +221,6 @@ func extractMethodNameFromPath(path string) string {
 	return ""
 }
 
-// operationIDToMethodName converts operationId to Go method name
-func operationIDToMethodName(operationID string) string {
-	// Handle camelCase: split on uppercase letters
-	var parts []string
-	var current strings.Builder
-	
-	for i, r := range operationID {
-		if i > 0 && (r >= 'A' && r <= 'Z') {
-			if current.Len() > 0 {
-				parts = append(parts, current.String())
-				current.Reset()
-			}
-		}
-		current.WriteRune(r)
-	}
-	if current.Len() > 0 {
-		parts = append(parts, current.String())
-	}
-	
-	// Convert to PascalCase
-	var result strings.Builder
-	for _, part := range parts {
-		if len(part) > 0 {
-			result.WriteString(strings.ToUpper(part[:1]) + strings.ToLower(part[1:]))
-		}
-	}
-	
-	return result.String()
-}
 
 // getOperationComment extracts comment from operation summary/description
 func getOperationComment(op *openapi3.Operation) string {
@@ -319,7 +286,7 @@ func getInterfaceName(doc *openapi3.T) string {
 	if doc.Info != nil && doc.Info.Title != "" {
 		// Convert title to PascalCase and add "Contract"
 		title := strings.ReplaceAll(doc.Info.Title, " ", "")
-		return operationIDToMethodName(title) + "Contract"
+		return title + "Contract"
 	}
 	return "APIContract"
 }
@@ -351,10 +318,11 @@ func generateInterface(doc *openapi3.T, packageName, outputDir string) error {
 			}
 
 			// Extract method details
-			method := extractMethodFromOperation(op, httpMethod, path)
-			if method != nil {
-				methods = append(methods, *method)
+			method, err := extractMethodFromOperation(op, httpMethod, path)
+			if err != nil {
+				return fmt.Errorf("failed to extract method from operation %s %s: %v", httpMethod, path, err)
 			}
+			methods = append(methods, *method)
 		}
 	}
 
