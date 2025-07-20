@@ -1,3 +1,14 @@
+# Docker Compose configuration for Dapr Actor Demo
+#
+# This file provides two modes of operation:
+# 1. Default mode: Runs only the actor service with Redis and Dapr sidecar
+#    Usage: docker compose up -d
+# 2. Client mode: Additionally runs the client application with its own Dapr sidecar
+#    Usage: docker compose --profile client up -d
+#
+# The actor service builds from source code, so no pre-compilation is needed.
+# All services use health checks to ensure proper startup ordering.
+
 services:
   # Redis for state store
   redis:

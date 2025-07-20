@@ -33,12 +33,12 @@ cd dapr-actor-experiment
 ./scripts/test-actor.sh
 
 # Cleanup when done
-docker compose -f docker-compose.simple.yml down
+docker compose down
 ```
 
 This approach:
 - Uses Docker Compose for declarative service management
-- Builds Go binaries locally first (no network dependencies in containers)
+- Builds Go applications from source automatically inside containers
 - Uses Redis state store and Dapr sidecar containers
 - Requires only Docker and Docker Compose
 
@@ -47,17 +47,14 @@ This approach:
 You can also run Docker Compose commands directly:
 
 ```bash
-# Build Go applications
-make build
-
-# Start services
-docker compose -f docker-compose.simple.yml up -d
+# Start services (builds from source automatically)
+docker compose up -d
 
 # Test the service  
 ./scripts/test-actor.sh
 
 # Stop services
-docker compose -f docker-compose.simple.yml down
+docker compose down
 ```
 
 ## Building
@@ -93,7 +90,7 @@ Following the [Go Standard Project Layout](https://github.com/golang-standards/p
 ├── scripts/               # Build and deployment scripts
 ├── Makefile               # Build automation
 ├── Dockerfile             # Container build
-└── docker-compose.yml     # Multi-container setup
+└── docker-compose.yml     # Docker Compose setup (supports both server-only and client modes)
 ```
 
 ## Architecture

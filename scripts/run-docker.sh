@@ -19,17 +19,9 @@ fi
 
 echo "✓ Docker and Docker Compose found"
 
-# Build the Go applications first
-echo "Building Go applications..."
-if ! make build; then
-    echo "❌ Failed to build Go applications"
-    exit 1
-fi
-echo "✓ Go applications built"
-
-# Build and start the services using simple compose file
+# Build and start the services using Docker Compose
 echo "Starting services with Docker Compose..."
-docker compose -f docker-compose.simple.yml up -d redis actor-service actor-service-dapr
+docker compose up -d redis actor-service actor-service-dapr
 
 # Wait for services to be ready
 echo "Waiting for services to be ready..."
@@ -41,7 +33,7 @@ if curl -f http://localhost:3500/v1.0/healthz &>/dev/null; then
     echo "✓ Dapr sidecar is ready"
 else
     echo "❌ Dapr sidecar not ready, checking logs..."
-    docker compose -f docker-compose.simple.yml logs actor-service-dapr
+    docker compose logs actor-service-dapr
     exit 1
 fi
 
@@ -49,7 +41,7 @@ if curl -f http://localhost:8080/health &>/dev/null; then
     echo "✓ Actor service is ready"
 else
     echo "❌ Actor service not ready, checking logs..."
-    docker compose -f docker-compose.simple.yml logs actor-service
+    docker compose logs actor-service
     exit 1
 fi
 
@@ -72,4 +64,4 @@ echo "   curl -X POST http://localhost:3500/v1.0/actors/CounterActor/counter-1/m
 echo "        -H 'Content-Type: application/json' -d '{\"value\": 42}'"
 echo ""
 echo "To stop all services:"
-echo "   docker compose -f docker-compose.simple.yml down"
+echo "   docker compose down"
