@@ -21,6 +21,13 @@ services:
       timeout: 5s
       retries: 5
 
+  # Dapr placement service for actors
+  placement:
+    image: daprio/dapr:1.14.4
+    command: ["./placement", "-port", "50006", "-log-level", "debug"]
+    ports:
+      - "50006:50006"
+
   # Actor service (using local binary)
   actor-service:
     build:
@@ -31,6 +38,8 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+      placement:
+        condition: service_started
 
   # Dapr sidecar for actor service  
   actor-service-dapr:
@@ -42,6 +51,7 @@ services:
       "-app-channel-address", "actor-service",
       "-dapr-http-port", "3500",
       "-dapr-grpc-port", "50001",
+      "-placement-host-address", "placement:50006",
       "-resources-path", "/components",
       "-config", "/config/config.yaml",
       "-log-level", "debug"
@@ -57,6 +67,8 @@ services:
         condition: service_started
       redis:
         condition: service_healthy
+      placement:
+        condition: service_started
 
   # Client application
   client:
