@@ -9,24 +9,55 @@ This project showcases:
 - **Counter Actor**: Simple counter with increment, decrement, get, and set operations
 - **Client Interaction**: Example client demonstrating actor method invocation
 - **Go Standard Project Layout**: Organized codebase following Go community conventions
-- **Multiple Deployment Options**: Local development, Docker Compose, and container setups
+- **Docker-Only Setup**: Simple deployment using Docker Compose, no Dapr CLI required
 
-## Project Structure
+## Quick Start
 
-Following the [Go Standard Project Layout](https://github.com/golang-standards/project-layout):
+### Prerequisites
+- Docker and Docker Compose (required)
+- Go 1.19+ (optional, for local development)
 
+### Run the Demo
+
+The simplest way to run the demo:
+
+```bash
+# Clone and navigate to the repository
+git clone https://github.com/shogotsuneto/dapr-actor-experiment.git
+cd dapr-actor-experiment
+
+# Start all services using Docker Compose
+./scripts/run-docker.sh
+
+# Test the service
+./scripts/test-actor.sh
+
+# Cleanup when done
+docker compose -f docker-compose.simple.yml down
 ```
-├── cmd/                    # Main applications
-│   ├── server/            # Actor service application
-│   └── client/            # Demo client application
-├── internal/              # Private application code
-│   └── actor/             # Actor implementations
-├── configs/               # Configuration files
-│   └── dapr/              # Dapr components and config
-├── scripts/               # Build and deployment scripts
-├── Makefile               # Build automation
-├── Dockerfile             # Container build
-└── docker-compose.yml     # Multi-container setup
+
+This approach:
+- Uses Docker Compose for declarative service management
+- Builds Go binaries locally first (no network dependencies in containers)
+- Uses Redis state store and Dapr sidecar containers
+- Requires only Docker and Docker Compose
+
+### Alternative Commands
+
+You can also run Docker Compose commands directly:
+
+```bash
+# Build Go applications
+make build
+
+# Start services
+docker compose -f docker-compose.simple.yml up -d
+
+# Test the service  
+./scripts/test-actor.sh
+
+# Stop services
+docker compose -f docker-compose.simple.yml down
 ```
 
 ## Building
@@ -51,6 +82,24 @@ make clean
 
 # Show help
 make help
+```
+
+## Project Structure
+
+Following the [Go Standard Project Layout](https://github.com/golang-standards/project-layout):
+
+```
+├── cmd/                    # Main applications
+│   ├── server/            # Actor service application
+│   └── client/            # Demo client application
+├── internal/              # Private application code
+│   └── actor/             # Actor implementations
+├── configs/               # Configuration files
+│   └── dapr/              # Dapr components and config
+├── scripts/               # Build and deployment scripts
+├── Makefile               # Build automation
+├── Dockerfile             # Container build
+└── docker-compose.yml     # Multi-container setup
 ```
 
 ## Architecture
@@ -85,108 +134,7 @@ make help
 - Tests multiple actor instances
 - Comprehensive logging of operations
 
-## Quick Start
 
-### Prerequisites
-- Go 1.19+ (for local development)
-- Docker (required for all options)
-- Dapr CLI (optional - see Docker-only option below): [Installation Guide](https://docs.dapr.io/getting-started/install-dapr-cli/)
-
-### Option 1: Docker-Only (No Dapr CLI Required)
-
-Run the complete demo using only Docker containers:
-
-```bash
-# Automated setup - no Dapr CLI needed!
-./scripts/run-docker.sh
-
-# Test the service
-./scripts/test-actor.sh
-
-# Cleanup when done
-./scripts/cleanup-docker.sh
-```
-
-This approach uses Docker containers for:
-- Redis state store
-- Dapr sidecar (from official Dapr Docker image)
-- Go actor service
-
-### Option 2: Local Development with Dapr CLI
-
-This is the most reliable way to test the demo:
-
-1. **Clone and navigate to the repository**:
-   ```bash
-   git clone https://github.com/shogotsuneto/dapr-actor-experiment.git
-   cd dapr-actor-experiment
-   ```
-
-2. **Start Redis for state storage**:
-   ```bash
-   docker run -d --name redis-dapr -p 6379:6379 redis:7-alpine
-   ```
-
-3. **Install and initialize Dapr** (if not already done):
-   ```bash
-   curl -fsSL https://raw.githubusercontent.com/dapr/cli/master/install/install.sh | /bin/bash
-   dapr init
-   ```
-
-4. **Build and run the actor service**:
-   ```bash
-   # Using Makefile (recommended)
-   make run-server
-   
-   # Or manually
-   go mod tidy
-   make build
-   dapr run --app-id actor-service --app-port 8080 --dapr-http-port 3500 \
-     --components-path ./configs/dapr --config ./configs/dapr/config.yaml -- ./bin/server
-   ```
-
-5. **Test with curl** (in a new terminal):
-   ```bash
-   ./scripts/test-actor.sh
-   ```
-
-6. **Or run the demo client** (in a new terminal):
-   ```bash
-   # Using Makefile (recommended)
-   make run-client
-   
-   # Or manually
-   dapr run --app-id client --dapr-http-port 3501 -- ./bin/client
-   ```
-
-7. **Clean up**:
-   ```bash
-   docker stop redis-dapr && docker rm redis-dapr
-   ```
-
-### Option 2: Quick Local Test
-
-For a guided experience, use the local testing script:
-
-```bash
-./scripts/run-local.sh
-```
-
-This script will:
-- Check prerequisites
-- Start Redis
-- Provide instructions for testing
-- Optionally run the demo immediately
-
-### Option 3: Docker Compose (Advanced)
-
-For containerized deployment (requires network access for package downloads):
-
-```bash
-./scripts/run-server.sh
-./scripts/test-actor.sh
-docker compose down
-```
 
 ## Manual Testing
 
@@ -228,53 +176,44 @@ curl http://localhost:8080/status
 
 ## Development
 
-### Project Structure
+## Development
+
+### For Local Development
+
+If you want to modify the code and test changes:
+
+1. **Make your changes** to the Go code in `cmd/server/` or `cmd/client/`
+
+2. **Rebuild and test**:
+   ```bash
+   # Rebuild containers and restart
+   docker compose build
+   docker compose up -d redis actor-service actor-service-dapr
+   
+   # Test your changes
+   ./scripts/test-actor.sh
+   ```
+
+3. **View logs** for debugging:
+   ```bash
+   # Actor service logs
+   docker compose logs -f actor-service
+   
+   # Dapr sidecar logs
+   docker compose logs -f actor-service-dapr
+   ```
+
+### Running Client Demo
+
+To run the client demo:
+
+```bash
+# Start the client with Docker Compose
+docker compose --profile client up client client-dapr
+
+# Or run locally (requires server to be running)
+go run ./cmd/client
 ```
-├── main.go                    # Actor service implementation
-├── client/
-│   ├── main.go                # Demo client application
-│   └── Dockerfile             # Client container
-├── dapr/
-│   ├── statestore.yaml        # Redis state store configuration
-│   └── config.yaml            # Dapr configuration
-├── docker-compose.yml         # Full setup with Dapr (requires network access)
-├── docker-compose.simple.yml  # Simplified Docker setup
-├── Dockerfile                 # Actor service container
-├── run-server.sh              # Server startup script
-├── run-client.sh              # Client demo script
-├── run-local.sh               # Local development helper
-├── test-actor.sh              # Simple curl-based testing
-└── README.md
-```
-
-### Local Development
-
-To run locally without Docker:
-
-1. **Install Dapr CLI**: Follow [Dapr documentation](https://docs.dapr.io/getting-started/install-dapr-cli/)
-
-2. **Initialize Dapr**: 
-   ```bash
-   dapr init
-   ```
-
-3. **Start Redis**:
-   ```bash
-   docker run -d -p 6379:6379 redis:7-alpine
-   ```
-
-4. **Run actor service**:
-   ```bash
-   go mod tidy
-   dapr run --app-id actor-service --app-port 8080 --dapr-http-port 3500 \
-     --components-path ./dapr --config ./dapr/config.yaml -- go run main.go
-   ```
-
-5. **Run client** (in new terminal):
-   ```bash
-   cd client
-   dapr run --app-id client --dapr-http-port 3501 -- go run main.go
-   ```
 
 ## Actor API Reference
 
@@ -349,6 +288,46 @@ This repository includes detailed documentation on various aspects of Dapr actor
 - [Dapr Actors Documentation](https://docs.dapr.io/developing-applications/building-blocks/actors/)
 - [Dapr Go SDK](https://docs.dapr.io/developing-applications/sdks/go/)
 - [Actor Pattern Overview](https://docs.dapr.io/concepts/actor-pattern/)
+
+## Appendix: Dapr CLI Usage (Optional)
+
+For advanced users who prefer using the Dapr CLI directly:
+
+<details>
+<summary>Click to expand Dapr CLI instructions</summary>
+
+### Prerequisites
+- Dapr CLI: [Installation Guide](https://docs.dapr.io/getting-started/install-dapr-cli/)
+
+### Setup
+1. **Initialize Dapr**:
+   ```bash
+   dapr init
+   ```
+
+2. **Start Redis**:
+   ```bash
+   docker run -d --name redis-dapr -p 6379:6379 redis:7-alpine
+   ```
+
+3. **Run actor service**:
+   ```bash
+   make build
+   dapr run --app-id actor-service --app-port 8080 --dapr-http-port 3500 \
+     --components-path ./configs/dapr --config ./configs/dapr/config.yaml -- ./bin/server
+   ```
+
+4. **Run client** (in new terminal):
+   ```bash
+   dapr run --app-id client --dapr-http-port 3501 -- ./bin/client
+   ```
+
+5. **Clean up**:
+   ```bash
+   docker stop redis-dapr && docker rm redis-dapr
+   ```
+
+</details>
 
 ## License
 

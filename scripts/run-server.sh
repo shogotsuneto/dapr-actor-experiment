@@ -1,40 +1,7 @@
 #!/bin/bash
 
-echo "Building and starting Dapr Actor Demo..."
-
-# Build and start the actor service with Redis
-echo "Starting actor service and Redis..."
-docker compose up -d redis actor-service actor-service-dapr
-
-# Wait for services to be ready
-echo "Waiting for services to be ready..."
-sleep 15
-
-# Check service health
-echo "Checking service health..."
-curl -f http://localhost:3500/v1.0/healthz || {
-    echo "Dapr sidecar not ready"
-    echo "Checking logs..."
-    docker compose logs actor-service-dapr
-    exit 1
-}
-
-curl -f http://localhost:8080/health || {
-    echo "Actor service not ready"
-    echo "Checking logs..."
-    docker compose logs actor-service
-    exit 1
-}
-
-echo "Services are ready!"
-echo "Actor service is running on http://localhost:8080"
-echo "Dapr sidecar is running on http://localhost:3500"
+echo "Starting Dapr Actor Demo with Docker Compose..."
 echo ""
-echo "You can test the actor with:"
-echo "  ./scripts/test-actor.sh"
-echo ""
-echo "Or run the client demo with:"
-echo "  ./scripts/run-client.sh"
-echo ""
-echo "To stop services:"
-echo "  docker compose down"
+
+# Use the main Docker script for consistency
+exec "$(dirname "$0")/run-docker.sh"
