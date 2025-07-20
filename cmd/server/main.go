@@ -8,6 +8,7 @@ import (
 
 	"github.com/dapr/go-sdk/service/common"
 	daprd "github.com/dapr/go-sdk/service/http"
+	"github.com/dapr/go-sdk/actor"
 	
 	counteractor "github.com/shogotsuneto/dapr-actor-experiment/internal/actor"
 	generated "github.com/shogotsuneto/dapr-actor-experiment/internal/generated/openapi"
@@ -43,12 +44,13 @@ func main() {
 	// Create Dapr service
 	s := daprd.NewService(":8080")
 	
-	// Register the CounterActor using generated factory for type safety and contract compliance
-	log.Println("Using CounterActor with generated factory for contract enforcement")
-	factory := generated.NewCounterActorAPIContractFactory[*counteractor.CounterActor]()
-	s.RegisterActorImplFactoryContext(factory.CreateActorImplFactory(func() *counteractor.CounterActor {
+	// Register the CounterActor with contract enforcement through generated interface
+	log.Println("Using CounterActor with OpenAPI contract compliance")
+	s.RegisterActorImplFactoryContext(func() actor.ServerContext {
+		// Compile-time check ensures CounterActor implements the generated contract
+		var _ generated.CounterActorAPIContract = (*counteractor.CounterActor)(nil)
 		return &counteractor.CounterActor{}
-	}))
+	})
 	
 	// Add health and status endpoints
 	s.AddServiceInvocationHandler("/health", healthHandler)
