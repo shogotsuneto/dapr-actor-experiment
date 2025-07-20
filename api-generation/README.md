@@ -1,5 +1,7 @@
 # API Generation Tools and Templates
 
+A minimal demo of Dapr actors application in Go, demonstrating actor state management and method invocation patterns with API-contract-first development.
+
 This directory contains tools, templates, and configurations for API-contract-first development.
 
 ## Overview

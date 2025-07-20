@@ -1,5 +1,7 @@
 # API-Contract-First Development Workflow
 
+A minimal demo of Dapr actors application in Go, demonstrating actor state management and method invocation patterns with API-contract-first development.
+
 This document demonstrates the complete workflow for API-contract-first development using OpenAPI 3.0 (the only currently implemented schema format).
 
 ## Overview

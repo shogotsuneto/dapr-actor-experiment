@@ -1,5 +1,7 @@
 # API Schema Definition Methods Comparison
 
+A minimal demo of Dapr actors application in Go, demonstrating actor state management and method invocation patterns with API-contract-first development.
+
 This document compares various approaches to defining API schemas for contract-first development. Currently, only **OpenAPI 3.0** is implemented and tested in this project.
 
 ## Overview
