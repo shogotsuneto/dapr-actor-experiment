@@ -4,12 +4,6 @@
 package generated
 
 
-// SetValueRequest Request to set the counter to a specific value
-type SetValueRequest struct {
-	// The value to set the counter to
-	Value int32 `json:"value"`
-}
-
 // CounterState Current state of the counter actor
 type CounterState struct {
 	// The current counter value
@@ -24,6 +18,12 @@ type Error struct {
 	Details map[string]interface{} `json:"details,omitempty"`
 	// Human-readable error message
 	Error string `json:"error"`
+}
+
+// SetValueRequest Request to set the counter to a specific value
+type SetValueRequest struct {
+	// The value to set the counter to
+	Value int32 `json:"value"`
 }
 
 

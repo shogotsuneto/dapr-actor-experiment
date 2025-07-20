@@ -3,7 +3,10 @@
 // Code generated from OpenAPI specification. DO NOT EDIT manually.
 package {{.PackageName}}
 
-import "context"
+import (
+	"context"
+	"github.com/dapr/go-sdk/actor"
+)
 
 // {{.InterfaceName}} {{.InterfaceDesc}}.
 // This interface enforces compile-time contract compliance.
@@ -12,4 +15,22 @@ type {{.InterfaceName}} interface {
 	// {{.Comment}}
 	{{.Name}}(ctx context.Context{{if .HasRequest}}, request {{.RequestType}}{{end}}) (*{{.ReturnType}}, error)
 {{- end}}
+}
+
+// NewCounterFactoryContext creates a factory function for CounterActor with contract validation.
+// The implementation parameter must implement {{.InterfaceName}} interface.
+// Returns a factory function compatible with Dapr's RegisterActorImplFactoryContext.
+func NewCounterFactoryContext(implementation func() {{.InterfaceName}}) func() actor.ServerContext {
+	return func() actor.ServerContext {
+		// Compile-time check ensures the implementation satisfies the contract
+		impl := implementation()
+		
+		// The implementation must also implement actor.ServerContext
+		if serverCtx, ok := impl.(actor.ServerContext); ok {
+			return serverCtx
+		}
+		
+		// This should never happen if the actor is properly implemented
+		panic("actor implementation must embed actor.ServerImplBaseCtx")
+	}
 }
