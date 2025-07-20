@@ -71,12 +71,6 @@ make build
 # Run tests  
 make test
 
-# Run server with Dapr
-make run-server
-
-# Run client with Dapr
-make run-client
-
 # Clean build artifacts
 make clean
 
