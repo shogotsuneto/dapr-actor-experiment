@@ -35,6 +35,9 @@ services:
       dockerfile: Dockerfile
     ports:
       - "8080:8080"
+    environment:
+      - DAPR_GRPC_PORT=50001
+      - DAPR_GRPC_ENDPOINT=actor-service-dapr:50001
     depends_on:
       redis:
         condition: service_healthy
