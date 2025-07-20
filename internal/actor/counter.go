@@ -9,18 +9,18 @@ import (
 	generated "github.com/shogotsuneto/dapr-actor-experiment/internal/generated/openapi"
 )
 
-// ContractError implements Go's error interface for contract compliance
-type ContractError struct {
+// ActorError implements Go's error interface for actor operations
+type ActorError struct {
 	Message string
 	Code    string
 }
 
-func (e *ContractError) Error() string {
+func (e *ActorError) Error() string {
 	return e.Message
 }
 
 // ToGenerated converts to the generated Error type for responses
-func (e *ContractError) ToGenerated() *generated.Error {
+func (e *ActorError) ToGenerated() *generated.Error {
 	details := map[string]interface{}{}
 	return &generated.Error{
 		Error:   e.Message,
@@ -29,9 +29,9 @@ func (e *ContractError) ToGenerated() *generated.Error {
 	}
 }
 
-// NewContractError creates a contract-compliant error
-func NewContractError(message string, code string) *ContractError {
-	return &ContractError{
+// NewActorError creates an actor error
+func NewActorError(message string, code string) *ActorError {
+	return &ActorError{
 		Message: message,
 		Code:    code,
 	}
@@ -132,14 +132,14 @@ func (c *CounterActor) validateSetRequest(request generated.SetValueRequest) err
 	)
 	
 	if request.Value < minInt32 || request.Value > maxInt32 {
-		return NewContractError("Value out of range for int32", "INVALID_INPUT")
+		return NewActorError("Value out of range for int32", "INVALID_INPUT")
 	}
 	
 	return nil
 }
 
-// ValidateContract ensures this implementation satisfies the OpenAPI contract
-func ValidateContract() error {
+// ValidateImplementation ensures this implementation satisfies the OpenAPI contract
+func ValidateImplementation() error {
 	// This function demonstrates compile-time contract validation
 	var actor CounterActor
 	
