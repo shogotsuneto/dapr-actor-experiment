@@ -3,7 +3,7 @@
 echo "=== Docker-based Dapr Actor Demo (No CLI Required) ==="
 echo ""
 echo "This script runs the Dapr actor demo using Docker Compose."
-echo "Building Go binary locally, then running in Docker containers."
+echo "Using multi-stage Docker build to compile the Go binary inside containers."
 echo ""
 
 # Check if Docker and Docker Compose are available
@@ -17,21 +17,7 @@ if ! docker compose version &> /dev/null; then
     exit 1
 fi
 
-if ! command -v go &> /dev/null; then
-    echo "❌ Go not found. Please install Go first."
-    exit 1
-fi
-
-echo "✓ Docker, Docker Compose, and Go found"
-
-# Build the Go binary
-echo "Building Go binary..."
-if CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o server ./cmd/server; then
-    echo "✓ Go binary built successfully"
-else
-    echo "❌ Failed to build Go binary"
-    exit 1
-fi
+echo "✓ Docker and Docker Compose found"
 
 # Build and start the services using Docker Compose
 echo "Building and starting services with Docker Compose..."
