@@ -108,9 +108,9 @@ case "$SCHEMA_TYPE" in
         check_tool "types-generator"
         check_tool "interface-generator"
         
-        # Generate types and client using custom generator
-        log_info "Generating Go types and client..."
-        "$BIN_DIR/types-generator" "$SCHEMA_PATH" "generated" "$OUTPUT_DIR" "true"
+        # Generate types using custom generator
+        log_info "Generating Go types..."
+        "$BIN_DIR/types-generator" "$SCHEMA_PATH" "generated" "$OUTPUT_DIR"
         
         # Generate actor interface from OpenAPI specification using custom generator
         log_info "Generating actor interface..."

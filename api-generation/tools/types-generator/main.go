@@ -29,161 +29,6 @@ type {{.Name}} struct {
 type {{.Name}} = {{.Type}}
 {{end}}`
 
-const clientTemplate = `// Package {{.PackageName}} provides primitives to interact with the openapi HTTP API.
-//
-// Code generated from OpenAPI specification. DO NOT EDIT manually.
-package {{.PackageName}}
-
-import (
-	"bytes"
-	"context"
-	"encoding/json"
-	"io"
-	"net/http"
-	"net/url"
-	"strings"
-)
-
-// RequestEditorFn is the function signature for the RequestEditor callback function
-type RequestEditorFn func(ctx context.Context, req *http.Request) error
-
-// Doer performs HTTP requests.
-//
-// The standard http.Client implements this interface.
-type HttpRequestDoer interface {
-	Do(req *http.Request) (*http.Response, error)
-}
-
-// Client which conforms to the OpenAPI3 specification for this service.
-type Client struct {
-	// The endpoint of the server conforming to this interface, with scheme,
-	// https://api.deepmap.com for example. This can contain a path relative
-	// to the server, such as https://api.deepmap.com/dev-test, and all the
-	// paths in the swagger spec will be appended to the server.
-	Server string
-
-	// Doer for performing requests, typically a *http.Client with any
-	// customized settings, such as certificate chains.
-	Client HttpRequestDoer
-
-	// A list of callbacks for modifying requests which are generated before sending over
-	// the network.
-	RequestEditors []RequestEditorFn
-}
-
-// ClientOption allows setting custom parameters during construction
-type ClientOption func(*Client) error
-
-// Creates a new Client, with reasonable defaults
-func NewClient(server string, opts ...ClientOption) (*Client, error) {
-	// create a client with sane default values
-	client := Client{
-		Server: server,
-	}
-	// mutate client and add all optional params
-	for _, o := range opts {
-		if err := o(&client); err != nil {
-			return nil, err
-		}
-	}
-	// ensure the server URL always has a trailing slash
-	if !strings.HasSuffix(client.Server, "/") {
-		client.Server += "/"
-	}
-	// create httpClient, if not already present
-	if client.Client == nil {
-		client.Client = &http.Client{}
-	}
-	return &client, nil
-}
-
-// WithHTTPClient allows overriding the default Doer, which is
-// automatically created using http.Client. This is useful for tests.
-func WithHTTPClient(doer HttpRequestDoer) ClientOption {
-	return func(c *Client) error {
-		c.Client = doer
-		return nil
-	}
-}
-
-// WithRequestEditorFn allows setting up a callback function, which will be
-// called right before sending the request. This can be used to mutate the request.
-func WithRequestEditorFn(fn RequestEditorFn) ClientOption {
-	return func(c *Client) error {
-		c.RequestEditors = append(c.RequestEditors, fn)
-		return nil
-	}
-}
-
-{{range .Methods}}
-// {{.Name}} calls the {{.HTTPMethod}} {{.Path}} endpoint
-func (c *Client) {{.Name}}(ctx context.Context, actorId string{{if .HasRequestBody}}, body {{.RequestBodyType}}{{end}}, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := New{{.Name}}Request(c.Server, actorId{{if .HasRequestBody}}, body{{end}})
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// New{{.Name}}Request generates requests for {{.Name}}
-func New{{.Name}}Request(server string, actorId string{{if .HasRequestBody}}, body {{.RequestBodyType}}{{end}}) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := strings.Replace("{{.Path}}", "{actorId}", actorId, 1)
-	if operationPath[0] == '/' {
-		operationPath = operationPath[1:]
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-{{if .HasRequestBody}}
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-{{end}}
-
-	req, err := http.NewRequest("{{.HTTPMethod}}", queryURL.String(), {{if .HasRequestBody}}bodyReader{{else}}nil{{end}})
-	if err != nil {
-		return nil, err
-	}
-
-{{if .HasRequestBody}}
-	req.Header.Add("Content-Type", "application/json")
-{{end}}
-
-	return req, nil
-}
-{{end}}
-
-func (c *Client) applyEditors(ctx context.Context, req *http.Request, additionalEditors []RequestEditorFn) error {
-	for _, r := range c.RequestEditors {
-		if err := r(ctx, req); err != nil {
-			return err
-		}
-	}
-	for _, r := range additionalEditors {
-		if err := r(ctx, req); err != nil {
-			return err
-		}
-	}
-	return nil
-}`
-
 type Field struct {
 	Name    string
 	Type    string
@@ -203,30 +48,20 @@ type TypeAlias struct {
 	OriginalName string
 }
 
-type Method struct {
-	Name            string
-	HTTPMethod      string
-	Path            string
-	HasRequestBody  bool
-	RequestBodyType string
-}
-
 type TemplateData struct {
 	PackageName string
 	Types       []TypeDef
 	TypeAliases []TypeAlias
-	Methods     []Method
 }
 
 func main() {
 	if len(os.Args) < 4 {
-		log.Fatal("Usage: types-generator <openapi-file> <package-name> <output-dir> [generate-client]")
+		log.Fatal("Usage: types-generator <openapi-file> <package-name> <output-dir>")
 	}
 
 	schemaFile := os.Args[1]
 	packageName := os.Args[2]
 	outputDir := os.Args[3]
-	generateClient := len(os.Args) > 4 && os.Args[4] == "true"
 
 	// Load OpenAPI spec
 	loader := openapi3.NewLoader()
@@ -319,60 +154,6 @@ func main() {
 	}
 
 	fmt.Printf("Types generated: %s/types.go\n", outputDir)
-
-	// Generate client file if requested
-	if generateClient {
-		methods := []Method{}
-		for path, pathItem := range doc.Paths.Map() {
-			if pathItem.Get != nil {
-				op := pathItem.Get
-				methods = append(methods, Method{
-					Name:           capitalizeFirst(op.OperationID),
-					HTTPMethod:     "GET",
-					Path:           path,
-					HasRequestBody: false,
-				})
-			}
-			if pathItem.Post != nil {
-				op := pathItem.Post
-				hasBody := op.RequestBody != nil
-				bodyType := ""
-				if hasBody {
-					// Extract request body type from operation
-					if op.OperationID == "setCounterValue" {
-						bodyType = "SetValueRequest"
-					}
-				}
-				methods = append(methods, Method{
-					Name:            capitalizeFirst(op.OperationID),
-					HTTPMethod:      "POST",
-					Path:            path,
-					HasRequestBody:  hasBody,
-					RequestBodyType: bodyType,
-				})
-			}
-		}
-
-		data.Methods = methods
-
-		clientTmpl, err := template.New("client").Parse(clientTemplate)
-		if err != nil {
-			log.Fatalf("Failed to parse client template: %v", err)
-		}
-
-		clientFile, err := os.Create(fmt.Sprintf("%s/client.go", outputDir))
-		if err != nil {
-			log.Fatalf("Failed to create client file: %v", err)
-		}
-		defer clientFile.Close()
-
-		err = clientTmpl.Execute(clientFile, data)
-		if err != nil {
-			log.Fatalf("Failed to execute client template: %v", err)
-		}
-
-		fmt.Printf("Client generated: %s/client.go\n", outputDir)
-	}
 }
 
 func getGoType(schema *openapi3.Schema) string {

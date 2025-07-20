@@ -18,7 +18,7 @@ This module supports generating Go code from various API schema definitions, ena
 
 ### OpenAPI 3.0 (✅ Currently Implemented)
 - **Use Case**: REST APIs, HTTP services, Dapr actor APIs
-- **Generation Target**: Go interfaces, types, validators, client code
+- **Generation Target**: Go interfaces, types, contract validation
 - **Tools**: Custom generators based on `kin-openapi`
 - **Status**: Fully implemented and tested
 
@@ -70,7 +70,7 @@ cd api-generation
 
 # Generated code appears in ../internal/generated/openapi/
 ls ../internal/generated/openapi/
-# types.go  client.go  server.go
+# types.go  interface.go
 ```
 
 ### 3. Use Generated Code in Your Application

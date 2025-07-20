@@ -18,7 +18,7 @@ Contract-first development reverses the traditional approach:
 2. **Type Safety**: Generated types prevent runtime errors
 3. **Documentation**: Contract serves as authoritative documentation
 4. **Validation**: Automatic request/response validation
-5. **Client Generation**: Automatic client SDK generation
+5. **Interface Generation**: Contract-enforced implementation interfaces
 
 ## Complete Example: Counter Actor
 
@@ -57,7 +57,7 @@ cd api-generation
 ./tools/scripts/generate.sh openapi schemas/openapi/counter-actor.yaml
 ```
 
-This generates type definitions, HTTP client, and server interface in `../internal/generated/openapi/`.
+This generates type definitions and contract interface in `../internal/generated/openapi/`.
 
 ### Step 3: Implement Against Contract
 

@@ -96,7 +96,7 @@ log_step "Key benefits demonstrated:"
 echo "  ✅ Type safety: Generated types prevent runtime errors"
 echo "  ✅ Contract compliance: Implementation must match specification"
 echo "  ✅ Documentation: Schema serves as authoritative API docs"
-echo "  ✅ Code generation: Automatic client/server code generation"
+echo "  ✅ Code generation: Automatic type and interface generation"
 echo "  ✅ Validation: Built-in request/response validation"
 echo "  ✅ Multiple formats: Support for OpenAPI, Protocol Buffers, etc."
 
