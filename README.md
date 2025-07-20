@@ -8,7 +8,50 @@ This project showcases:
 - **Dapr Actor Pattern**: Stateful actor implementation with persistent state
 - **Counter Actor**: Simple counter with increment, decrement, get, and set operations
 - **Client Interaction**: Example client demonstrating actor method invocation
-- **Docker Compose Setup**: Complete local testing environment with Dapr sidecar
+- **Go Standard Project Layout**: Organized codebase following Go community conventions
+- **Multiple Deployment Options**: Local development, Docker Compose, and container setups
+
+## Project Structure
+
+Following the [Go Standard Project Layout](https://github.com/golang-standards/project-layout):
+
+```
+├── cmd/                    # Main applications
+│   ├── server/            # Actor service application
+│   └── client/            # Demo client application
+├── internal/              # Private application code
+│   └── actor/             # Actor implementations
+├── configs/               # Configuration files
+│   └── dapr/              # Dapr components and config
+├── scripts/               # Build and deployment scripts
+├── Makefile               # Build automation
+├── Dockerfile             # Container build
+└── docker-compose.yml     # Multi-container setup
+```
+
+## Building
+
+The project includes a Makefile for common tasks:
+
+```bash
+# Build all binaries
+make build
+
+# Run tests  
+make test
+
+# Run server with Dapr
+make run-server
+
+# Run client with Dapr
+make run-client
+
+# Clean build artifacts
+make clean
+
+# Show help
+make help
+```
 
 ## Architecture
 
@@ -72,21 +115,28 @@ This is the most reliable way to test the demo:
 
 4. **Build and run the actor service**:
    ```bash
+   # Using Makefile (recommended)
+   make run-server
+   
+   # Or manually
    go mod tidy
-   go build -o main .
+   make build
    dapr run --app-id actor-service --app-port 8080 --dapr-http-port 3500 \
-     --components-path ./dapr --config ./dapr/config.yaml -- ./main
+     --components-path ./configs/dapr --config ./configs/dapr/config.yaml -- ./bin/server
    ```
 
 5. **Test with curl** (in a new terminal):
    ```bash
-   ./test-actor.sh
+   ./scripts/test-actor.sh
    ```
 
 6. **Or run the demo client** (in a new terminal):
    ```bash
-   cd client
-   dapr run --app-id client --dapr-http-port 3501 -- go run main.go
+   # Using Makefile (recommended)
+   make run-client
+   
+   # Or manually
+   dapr run --app-id client --dapr-http-port 3501 -- ./bin/client
    ```
 
 7. **Clean up**:
@@ -99,7 +149,7 @@ This is the most reliable way to test the demo:
 For a guided experience, use the local testing script:
 
 ```bash
-./run-local.sh
+./scripts/run-local.sh
 ```
 
 This script will:
@@ -113,8 +163,8 @@ This script will:
 For containerized deployment (requires network access for package downloads):
 
 ```bash
-./run-server.sh
-./test-actor.sh
+./scripts/run-server.sh
+./scripts/test-actor.sh
 docker compose down
 ```
 

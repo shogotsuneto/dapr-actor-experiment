@@ -7,11 +7,9 @@ import (
 	"time"
 
 	"github.com/dapr/go-sdk/client"
+	
+	counteractor "github.com/shogotsuneto/dapr-actor-experiment/internal/actor"
 )
-
-type CounterState struct {
-	Value int `json:"value"`
-}
 
 func main() {
 	// Create Dapr client
@@ -39,7 +37,7 @@ func main() {
 		log.Fatalf("Failed to get counter value: %v", err)
 	}
 
-	var state CounterState
+	var state counteractor.CounterState
 	if err := json.Unmarshal(response.Data, &state); err != nil {
 		log.Fatalf("Failed to unmarshal response: %v", err)
 	}

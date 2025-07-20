@@ -30,7 +30,7 @@ echo "To test the demo:"
 echo ""
 echo "1. Start the actor service in one terminal:"
 echo "   dapr run --app-id actor-service --app-port 8080 --dapr-http-port 3500 \\"
-echo "     --components-path ./dapr --config ./dapr/config.yaml -- go run main.go"
+echo "     --components-path ./configs/dapr --config ./configs/dapr/config.yaml -- go run ./cmd/server"
 echo ""
 echo "2. Test with curl in another terminal:"
 echo "   # Get initial value"
@@ -44,8 +44,7 @@ echo "   curl -X POST http://localhost:3500/v1.0/actors/CounterActor/test-1/meth
 echo "     -H 'Content-Type: application/json' -d '{\"value\": 42}'"
 echo ""
 echo "3. Or run the client demo:"
-echo "   cd client"
-echo "   dapr run --app-id client --dapr-http-port 3501 -- go run main.go"
+echo "   dapr run --app-id client --dapr-http-port 3501 -- go run ./cmd/client"
 echo ""
 echo "4. To stop:"
 echo "   docker stop redis-dapr && docker rm redis-dapr"
@@ -55,9 +54,9 @@ echo ""
 echo "If you want to test right now with a pre-built binary:"
 
 # Build the application if needed
-if [ ! -f "./main" ]; then
+if [ ! -f "./bin/server" ]; then
     echo "Building application..."
-    go build -o main .
+    go build -o bin/server ./cmd/server
 fi
 
 echo ""
@@ -67,4 +66,4 @@ echo ""
 
 # Run the application with Dapr
 exec dapr run --app-id actor-service --app-port 8080 --dapr-http-port 3500 \
-  --components-path ./dapr --config ./dapr/config.yaml -- ./main
+  --components-path ./configs/dapr --config ./configs/dapr/config.yaml -- ./bin/server
