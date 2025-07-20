@@ -1,7 +1,6 @@
 # Build artifacts
 bin/
-server
-client
+# Note: 'server' binary is explicitly included for Docker builds
 
 # Version control
 .git

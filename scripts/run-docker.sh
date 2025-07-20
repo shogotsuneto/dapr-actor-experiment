@@ -3,7 +3,7 @@
 echo "=== Docker-based Dapr Actor Demo (No CLI Required) ==="
 echo ""
 echo "This script runs the Dapr actor demo using Docker Compose."
-echo "No local Go installation required - everything builds in Docker!"
+echo "Building Go binary locally, then running in Docker containers."
 echo ""
 
 # Check if Docker and Docker Compose are available
@@ -17,7 +17,21 @@ if ! docker compose version &> /dev/null; then
     exit 1
 fi
 
-echo "✓ Docker and Docker Compose found"
+if ! command -v go &> /dev/null; then
+    echo "❌ Go not found. Please install Go first."
+    exit 1
+fi
+
+echo "✓ Docker, Docker Compose, and Go found"
+
+# Build the Go binary
+echo "Building Go binary..."
+if CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o server ./cmd/server; then
+    echo "✓ Go binary built successfully"
+else
+    echo "❌ Failed to build Go binary"
+    exit 1
+fi
 
 # Build and start the services using Docker Compose
 echo "Building and starting services with Docker Compose..."
@@ -54,13 +68,13 @@ echo "1. Run comprehensive tests:"
 echo "   ./scripts/test-actor.sh"
 echo ""
 echo "2. Get counter value:"
-echo "   curl http://localhost:3500/v1.0/actors/CounterActor/counter-1/method/get"
+echo "   curl http://localhost:3500/v1.0/actors/CounterActor/counter-1/method/Get"
 echo ""
 echo "3. Increment counter:"
-echo "   curl -X POST http://localhost:3500/v1.0/actors/CounterActor/counter-1/method/increment"
+echo "   curl -X POST http://localhost:3500/v1.0/actors/CounterActor/counter-1/method/Increment"
 echo ""
 echo "4. Set counter value:"
-echo "   curl -X POST http://localhost:3500/v1.0/actors/CounterActor/counter-1/method/set \\"
+echo "   curl -X POST http://localhost:3500/v1.0/actors/CounterActor/counter-1/method/Set \\"
 echo "        -H 'Content-Type: application/json' -d '{\"value\": 42}'"
 echo ""
 echo "To stop all services:"

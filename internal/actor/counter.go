@@ -2,8 +2,6 @@ package actor
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 
 	"github.com/dapr/go-sdk/actor"
 )
@@ -18,29 +16,18 @@ type CounterState struct {
 	Value int `json:"value"`
 }
 
+// SetValueRequest represents the request for setting a specific value
+type SetValueRequest struct {
+	Value int `json:"value"`
+}
+
 // Type returns the actor type name
 func (c *CounterActor) Type() string {
 	return "CounterActor"
 }
 
-// InvokeMethod handles method invocations on the actor
-func (c *CounterActor) InvokeMethod(ctx context.Context, methodName string, request []byte) ([]byte, error) {
-	switch methodName {
-	case "increment":
-		return c.increment(ctx)
-	case "decrement":
-		return c.decrement(ctx)
-	case "get":
-		return c.get(ctx)
-	case "set":
-		return c.set(ctx, request)
-	default:
-		return nil, fmt.Errorf("method %s not found", methodName)
-	}
-}
-
-// increment increases the counter value by 1
-func (c *CounterActor) increment(ctx context.Context) ([]byte, error) {
+// Increment increases the counter value by 1
+func (c *CounterActor) Increment(ctx context.Context) (*CounterState, error) {
 	state, err := c.getState(ctx)
 	if err != nil {
 		return nil, err
@@ -52,11 +39,11 @@ func (c *CounterActor) increment(ctx context.Context) ([]byte, error) {
 		return nil, err
 	}
 	
-	return json.Marshal(state)
+	return state, nil
 }
 
-// decrement decreases the counter value by 1
-func (c *CounterActor) decrement(ctx context.Context) ([]byte, error) {
+// Decrement decreases the counter value by 1
+func (c *CounterActor) Decrement(ctx context.Context) (*CounterState, error) {
 	state, err := c.getState(ctx)
 	if err != nil {
 		return nil, err
@@ -68,36 +55,28 @@ func (c *CounterActor) decrement(ctx context.Context) ([]byte, error) {
 		return nil, err
 	}
 	
-	return json.Marshal(state)
+	return state, nil
 }
 
-// get returns the current counter value
-func (c *CounterActor) get(ctx context.Context) ([]byte, error) {
+// Get returns the current counter value
+func (c *CounterActor) Get(ctx context.Context) (*CounterState, error) {
 	state, err := c.getState(ctx)
 	if err != nil {
 		return nil, err
 	}
 	
-	return json.Marshal(state)
+	return state, nil
 }
 
-// set sets the counter to a specific value
-func (c *CounterActor) set(ctx context.Context, request []byte) ([]byte, error) {
-	var setValue struct {
-		Value int `json:"value"`
-	}
-	
-	if err := json.Unmarshal(request, &setValue); err != nil {
-		return nil, err
-	}
-	
-	state := &CounterState{Value: setValue.Value}
+// Set sets the counter to a specific value
+func (c *CounterActor) Set(ctx context.Context, request SetValueRequest) (*CounterState, error) {
+	state := &CounterState{Value: request.Value}
 	
 	if err := c.setState(ctx, state); err != nil {
 		return nil, err
 	}
 	
-	return json.Marshal(state)
+	return state, nil
 }
 
 // getState retrieves the current state from Dapr state store

@@ -1,27 +1,10 @@
-# Build stage
-FROM golang:1.24 AS builder
-
-WORKDIR /app
-
-# Copy go.mod and go.sum first for better caching
-COPY go.mod go.sum ./
-
-# Download dependencies
-RUN go mod download
-
-# Copy source code
-COPY . .
-
-# Build the binary
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o server ./cmd/server
-
-# Runtime stage
+# Runtime stage only - expects binary to be built outside Docker
 FROM alpine:latest
 
 WORKDIR /root/
 
-# Copy the binary from builder stage
-COPY --from=builder /app/server .
+# Copy the binary (should be built with: go build -o server ./cmd/server)
+COPY server .
 
 # Expose port
 EXPOSE 8080
