@@ -4,7 +4,7 @@ echo "Testing Dapr Actor Demo..."
 
 # Check if server is running
 if ! curl -s http://localhost:3500/v1.0/healthz > /dev/null; then
-    echo "Error: Dapr sidecar not running. Please run './run-server.sh' first."
+    echo "Error: Dapr sidecar not running. Please run './scripts/run-docker.sh' first."
     exit 1
 fi
 

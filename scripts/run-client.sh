@@ -4,7 +4,7 @@ echo "Running Dapr Actor Demo Client..."
 
 # Check if server is running
 if ! curl -s http://localhost:3500/v1.0/healthz > /dev/null; then
-    echo "Error: Actor service not running. Please run './scripts/run-server.sh' first."
+    echo "Error: Actor service not running. Please run './scripts/run-docker.sh' first."
     exit 1
 fi
 
