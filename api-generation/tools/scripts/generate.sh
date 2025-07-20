@@ -105,21 +105,12 @@ log_info ""
 case "$SCHEMA_TYPE" in
     "openapi")
         log_step "Generating OpenAPI code..."
-        check_tool "oapi-codegen"
+        check_tool "types-generator"
+        check_tool "interface-generator"
         
-        # Generate types
-        log_info "Generating Go types..."
-        oapi-codegen -generate types \
-            -package generated \
-            -o "$OUTPUT_DIR/types.go" \
-            "$SCHEMA_PATH"
-        
-        # Generate client (optional - for testing/external use)
-        log_info "Generating client code..."
-        oapi-codegen -generate client \
-            -package generated \
-            -o "$OUTPUT_DIR/client.go" \
-            "$SCHEMA_PATH"
+        # Generate types and client using custom generator
+        log_info "Generating Go types and client..."
+        "$BIN_DIR/types-generator" "$SCHEMA_PATH" "generated" "$OUTPUT_DIR" "true"
         
         # Generate actor interface from OpenAPI specification using custom generator
         log_info "Generating actor interface..."

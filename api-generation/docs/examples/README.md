@@ -67,7 +67,7 @@ func (c *CounterActor) Increment(ctx context.Context) (*openapi.CounterState, er
 ## Key Takeaways
 
 1. **OpenAPI Implementation**: Currently, only OpenAPI 3.0 generation is fully implemented and tested
-2. **Generated Code**: The `oapi-codegen` tool generates clean, type-safe Go code
+2. **Generated Code**: Custom generators using `kin-openapi` produce clean, type-safe Go code
 3. **Type Safety**: OpenAPI generation provides compile-time type safety
 4. **Future Expansion**: Other schema types could be added when needed
 

@@ -2,14 +2,9 @@ module github.com/shogotsuneto/dapr-actor-experiment
 
 go 1.24.4
 
-require (
-	github.com/dapr/go-sdk v1.12.0
-	github.com/gorilla/mux v1.8.1
-	github.com/oapi-codegen/runtime v1.1.2
-)
+require github.com/dapr/go-sdk v1.12.0
 
 require (
-	github.com/apapsch/go-jsonmerge/v2 v2.0.0 // indirect
 	github.com/dapr/dapr v1.15.0-rc.17 // indirect
 	github.com/go-chi/chi/v5 v5.1.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect

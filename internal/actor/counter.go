@@ -23,8 +23,8 @@ func (e *ActorError) ToGenerated() *generated.Error {
 	details := map[string]interface{}{}
 	return &generated.Error{
 		Error:   e.Message,
-		Code:    &e.Code,
-		Details: &details,
+		Code:    e.Code,
+		Details: details,
 	}
 }
 

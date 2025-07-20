@@ -29,7 +29,7 @@ Contract-first development requires choosing an appropriate schema definition me
 **Advantages**: Industry standard, excellent tooling, human-readable, built-in validation
 **Disadvantages**: Limited to HTTP/REST, can be verbose
 
-**Go Tools**: `oapi-codegen` (recommended)
+**Go Tools**: Custom generators based on `kin-openapi`
 
 ### 2. Protocol Buffers
 
@@ -78,6 +78,6 @@ Contract-first development requires choosing an appropriate schema definition me
 For our Dapr actor context, we focus on **OpenAPI 3.0** as the primary approach because:
 
 1. **Perfect fit**: Dapr actors use HTTP method invocation
-2. **Tooling maturity**: `oapi-codegen` provides excellent Go generation
+2. **Tooling maturity**: Custom generators provide full control over code generation
 3. **Documentation**: Built-in API documentation via Swagger UI
 4. **Industry standard**: Widely understood and adopted
