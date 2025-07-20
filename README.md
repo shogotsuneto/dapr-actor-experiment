@@ -89,10 +89,30 @@ make help
 
 ### Prerequisites
 - Go 1.19+ (for local development)
-- Docker (for Redis and optional containerization)
-- Dapr CLI (for local development): [Installation Guide](https://docs.dapr.io/getting-started/install-dapr-cli/)
+- Docker (required for all options)
+- Dapr CLI (optional - see Docker-only option below): [Installation Guide](https://docs.dapr.io/getting-started/install-dapr-cli/)
 
-### Option 1: Local Development (Recommended)
+### Option 1: Docker-Only (No Dapr CLI Required)
+
+Run the complete demo using only Docker containers:
+
+```bash
+# Automated setup - no Dapr CLI needed!
+./scripts/run-docker.sh
+
+# Test the service
+./scripts/test-actor.sh
+
+# Cleanup when done
+./scripts/cleanup-docker.sh
+```
+
+This approach uses Docker containers for:
+- Redis state store
+- Dapr sidecar (from official Dapr Docker image)
+- Go actor service
+
+### Option 2: Local Development with Dapr CLI
 
 This is the most reliable way to test the demo:
 
@@ -309,6 +329,20 @@ docker compose logs -f actor-service-dapr
 # Redis logs
 docker compose logs -f redis
 ```
+
+## Documentation
+
+This repository includes detailed documentation on various aspects of Dapr actors:
+
+### Architecture and Concepts
+- **[Client vs Curl](docs/client-vs-curl.md)** - Understand the difference between using the Go client (Dapr SDK) vs direct HTTP calls with curl
+- **[Event Sourcing](docs/event-sourcing.md)** - Learn whether this implementation uses event sourcing and understand the state-based approach
+- **[Akka Comparison](docs/akka-comparison.md)** - Compare Dapr actors with Akka actors, including mailbox concepts and architectural differences
+
+### Key Insights
+- **Does this use event sourcing?** No - this is a state-based implementation. See [Event Sourcing documentation](docs/event-sourcing.md) for details.
+- **How does it compare to Akka?** Both implement the actor model but serve different use cases. See [Akka Comparison](docs/akka-comparison.md) for a detailed analysis.
+- **Client vs curl difference?** Both send identical HTTP requests to Dapr sidecar, but the Go client provides type safety and better error handling. See [Client vs Curl](docs/client-vs-curl.md) for details.
 
 ## Learning Resources
 

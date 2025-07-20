@@ -1,0 +1,295 @@
+# Dapr Actors vs Akka Comparison
+
+## High-Level Comparison
+
+| Aspect | Dapr Actors | Akka Actors |
+|--------|-------------|-------------|
+| **Language** | Any (Go, C#, Java, Python, etc.) | Scala/Java primarily |
+| **Runtime** | Sidecar process (language-agnostic) | JVM-based |
+| **State Persistence** | Automatic via state stores | Manual or using Akka Persistence |
+| **Location Transparency** | HTTP/gRPC via sidecar | Built into runtime |
+| **Ecosystem** | Cloud-native, microservices focused | JVM ecosystem |
+
+## Actor Model Implementation
+
+### Message Processing
+
+**Akka Actors:**
+```scala
+class CounterActor extends Actor {
+  var count = 0
+  
+  def receive = {
+    case "increment" => 
+      count += 1
+      sender() ! count
+    case "get" =>
+      sender() ! count
+    case msg => 
+      log.warning(s"Unknown message: $msg")
+  }
+}
+```
+
+**Dapr Actors:**
+```go
+func (c *CounterActor) Increment() (*CounterResponse, error) {
+    state, err := c.GetState("counter")
+    if err != nil {
+        return nil, err
+    }
+    
+    state.Value++
+    
+    if err := c.SaveState("counter", state); err != nil {
+        return nil, err
+    }
+    
+    return &CounterResponse{Value: state.Value}, nil
+}
+```
+
+### Key Differences in Message Handling
+
+## Mailbox and Message Queuing
+
+### Akka: Explicit Mailbox System
+
+**Akka has explicit mailboxes:**
+- Each actor has a **mailbox** that queues incoming messages
+- Messages are processed **one at a time** in order (single-threaded per actor)
+- Different mailbox implementations available (bounded, unbounded, priority)
+- Built-in **backpressure** when mailbox is full
+
+```scala
+// Akka mailbox configuration
+akka.actor.default-mailbox {
+  mailbox-type = "akka.dispatch.BoundedMailbox"
+  mailbox-capacity = 1000
+  mailbox-push-timeout-time = 10s
+}
+
+// Sending messages to actor mailbox
+actorRef ! "increment"  // Messages queued in mailbox
+actorRef ! "get"        // Processed sequentially
+```
+
+### Dapr: HTTP-Based Message Queuing
+
+**Dapr uses HTTP request queuing:**
+- Messages are **HTTP requests** to the Dapr sidecar
+- Sidecar **serializes** requests to each actor instance
+- No explicit mailbox concept - handled by HTTP server
+- **One request at a time** per actor instance (similar guarantee)
+
+```bash
+# Multiple concurrent requests to same actor
+curl POST /v1.0/actors/CounterActor/counter-1/method/increment  # Request 1
+curl POST /v1.0/actors/CounterActor/counter-1/method/increment  # Request 2
+# Dapr ensures these are processed sequentially for counter-1
+```
+
+## Actor Lifecycle and State
+
+### Akka Actor Lifecycle
+
+```scala
+class CounterActor extends Actor {
+  var count = 0
+  
+  override def preStart(): Unit = {
+    // Initialize actor
+    log.info("Counter actor starting")
+  }
+  
+  override def postStop(): Unit = {
+    // Cleanup resources
+    log.info("Counter actor stopping")
+  }
+  
+  override def preRestart(reason: Throwable, message: Option[Any]): Unit = {
+    // Handle restart
+    count = 0  // Reset state on restart
+  }
+}
+```
+
+### Dapr Actor Lifecycle
+
+```go
+// Dapr actor activation (similar to preStart)
+func (c *CounterActor) OnActivate() error {
+    log.Println("CounterActor activated")
+    // Load persisted state automatically
+    return nil
+}
+
+// Dapr actor deactivation (similar to postStop)
+func (c *CounterActor) OnDeactivate() error {
+    log.Println("CounterActor deactivated") 
+    // State automatically persisted
+    return nil
+}
+
+// No explicit restart - handled by Dapr runtime
+```
+
+## State Persistence
+
+### Akka: Manual State Management
+
+```scala
+// Using Akka Persistence
+class PersistentCounterActor extends PersistentActor {
+  override def persistenceId: String = "counter-1"
+  
+  var state = CounterState(0)
+  
+  val receiveCommand: Receive = {
+    case "increment" =>
+      persist(Incremented(1)) { event =>
+        state = state.increment(event.amount)
+        sender() ! state.count
+      }
+  }
+  
+  val receiveRecover: Receive = {
+    case event: Incremented =>
+      state = state.increment(event.amount)
+  }
+}
+```
+
+### Dapr: Automatic State Management
+
+```go
+// State is automatically persisted by Dapr
+func (c *CounterActor) Increment() (*CounterResponse, error) {
+    // Dapr automatically loads state
+    state, _ := c.GetState("counter")
+    state.Value++
+    // Dapr automatically persists state
+    c.SaveState("counter", state)
+    return &CounterResponse{Value: state.Value}, nil
+}
+```
+
+## Supervision and Error Handling
+
+### Akka: Hierarchical Supervision
+
+```scala
+class SupervisorActor extends Actor {
+  override val supervisorStrategy = OneForOneStrategy() {
+    case _: ArithmeticException => Resume
+    case _: NullPointerException => Restart
+    case _: Exception => Escalate
+  }
+  
+  val child = context.actorOf(Props[CounterActor], "counter")
+}
+```
+
+### Dapr: Service-Level Error Handling
+
+```go
+// Error handling in Dapr is at the service level
+func (c *CounterActor) Increment() (*CounterResponse, error) {
+    state, err := c.GetState("counter")
+    if err != nil {
+        // Return error - Dapr runtime handles retry/failure
+        return nil, fmt.Errorf("failed to get state: %w", err)
+    }
+    // ... rest of method
+}
+```
+
+## Location Transparency
+
+### Akka: Actor References
+
+```scala
+// Actor can be local or remote - same interface
+val actorRef: ActorRef = system.actorSelection("akka://app@host:port/user/counter")
+actorRef ! "increment"  // Works regardless of location
+```
+
+### Dapr: HTTP Service Discovery
+
+```bash
+# Dapr handles service discovery via sidecar
+curl http://localhost:3500/v1.0/actors/CounterActor/counter-1/method/increment
+# Dapr routes to correct service instance
+```
+
+## Clustering and Distribution
+
+### Akka: Built-in Clustering
+
+```scala
+// Akka Cluster configuration
+akka.cluster {
+  seed-nodes = [
+    "akka://ClusterSystem@host1:2551",
+    "akka://ClusterSystem@host2:2551"
+  ]
+}
+
+// Actors automatically distributed across cluster
+val sharding = ClusterSharding(system).start(...)
+```
+
+### Dapr: Placement Service
+
+```yaml
+# Dapr placement service handles actor distribution
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: statestore
+spec:
+  type: state.redis
+  metadata:
+  - name: redisHost
+    value: redis:6379
+```
+
+## Performance Characteristics
+
+| Aspect | Akka | Dapr |
+|--------|------|------|
+| **Message Throughput** | Very high (in-memory) | Good (HTTP overhead) |
+| **Latency** | Very low (nanoseconds) | Low (milliseconds) |
+| **Memory Usage** | Efficient (JVM) | Higher (sidecar + app) |
+| **Network Overhead** | Minimal (local) | HTTP serialization |
+
+## When to Choose Which?
+
+### Choose Akka When:
+
+- **JVM Ecosystem**: Already using Scala/Java
+- **High Performance**: Need maximum throughput/minimum latency
+- **Complex Actor Hierarchies**: Deep supervision trees
+- **Mature Ecosystem**: Need battle-tested clustering
+- **Fine-grained Control**: Custom mailboxes, dispatchers
+
+### Choose Dapr When:
+
+- **Language Flexibility**: Want to use Go, Python, C#, etc.
+- **Cloud-Native**: Microservices architecture
+- **State Management**: Want automatic persistence
+- **Platform Independence**: Kubernetes, Docker, bare metal
+- **Simpler Operations**: Less configuration complexity
+
+## Summary
+
+While both implement the actor model, they serve different use cases:
+
+- **Akka** is a mature, high-performance actor framework deeply integrated with the JVM ecosystem
+- **Dapr** is a cloud-native, language-agnostic platform that makes the actor pattern accessible across different languages and deployment environments
+
+The "mailbox" concept exists in both:
+- **Akka**: Explicit mailbox data structures with configurable behavior
+- **Dapr**: Implicit message queuing via HTTP request serialization by the sidecar
+
+Choose based on your language preferences, performance requirements, and infrastructure constraints.

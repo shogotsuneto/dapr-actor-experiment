@@ -35,7 +35,7 @@ ehthumbs.db
 Thumbs.db
 
 # Docker
-.dockerignore
+# Note: .dockerignore should not be ignored as it's needed for build security
 
 # Temporary files
 /tmp/
