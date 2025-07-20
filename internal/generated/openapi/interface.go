@@ -21,10 +21,10 @@ type CounterActorAPIContract interface {
 	Set(ctx context.Context, request SetValueRequest) (*CounterState, error)
 }
 
-// NewCounterFactoryContext creates a factory function for CounterActor with contract validation.
+// NewCounterActorFactoryContext creates a factory function for CounterActor with contract validation.
 // The implementation parameter must implement CounterActorAPIContract interface.
 // Returns a factory function compatible with Dapr's RegisterActorImplFactoryContext.
-func NewCounterFactoryContext(implementation func() CounterActorAPIContract) func() actor.ServerContext {
+func NewCounterActorFactoryContext(implementation func() CounterActorAPIContract) func() actor.ServerContext {
 	return func() actor.ServerContext {
 		// Compile-time check ensures the implementation satisfies the contract
 		impl := implementation()

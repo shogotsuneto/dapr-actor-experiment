@@ -48,6 +48,7 @@ type InterfaceTemplateData struct {
 	PackageName     string
 	InterfaceName   string
 	InterfaceDesc   string
+	ActorName       string
 	Methods         []Method
 }
 
@@ -281,6 +282,38 @@ func extractReturnType(op *openapi3.Operation) string {
 	return ""
 }
 
+// getActorName extracts actor name from OpenAPI spec
+func getActorName(doc *openapi3.T) string {
+	// First try to get from x-dapr-actor extension
+	if doc.Extensions != nil {
+		if dapConfig, exists := doc.Extensions["x-dapr-actor"]; exists {
+			if dapMap, ok := dapConfig.(map[string]interface{}); ok {
+				if actorType, exists := dapMap["type"]; exists {
+					if actorTypeStr, ok := actorType.(string); ok {
+						return actorTypeStr
+					}
+				}
+			}
+		}
+	}
+	
+	// Fallback: extract from title (e.g., "CounterActor API" -> "CounterActor")
+	if doc.Info != nil && doc.Info.Title != "" {
+		title := doc.Info.Title
+		// Remove common suffixes
+		for _, suffix := range []string{" API", " Service", " Interface"} {
+			if strings.HasSuffix(title, suffix) {
+				title = strings.TrimSuffix(title, suffix)
+				break
+			}
+		}
+		// Convert to PascalCase
+		return strings.ReplaceAll(title, " ", "")
+	}
+	
+	return "Actor"
+}
+
 // getInterfaceName generates interface name from API info
 func getInterfaceName(doc *openapi3.T) string {
 	if doc.Info != nil && doc.Info.Title != "" {
@@ -336,11 +369,13 @@ func generateInterface(doc *openapi3.T, packageName, outputDir string) error {
 	// Generate interface file
 	interfaceName := getInterfaceName(doc)
 	interfaceDesc := getInterfaceDescription(doc)
+	actorName := getActorName(doc)
 	
 	data := InterfaceTemplateData{
 		PackageName:   packageName,
 		InterfaceName: interfaceName,
 		InterfaceDesc: interfaceDesc,
+		ActorName:     actorName,
 		Methods:       methods,
 	}
 

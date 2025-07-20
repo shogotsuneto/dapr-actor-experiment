@@ -45,7 +45,7 @@ func main() {
 	
 	// Register the CounterActor using generated factory with contract enforcement
 	log.Println("Using CounterActor with OpenAPI contract compliance")
-	s.RegisterActorImplFactoryContext(generated.NewCounterFactoryContext(func() generated.CounterActorAPIContract {
+	s.RegisterActorImplFactoryContext(generated.NewCounterActorFactoryContext(func() generated.CounterActorAPIContract {
 		return &counteractor.CounterActor{}
 	}))
 	
