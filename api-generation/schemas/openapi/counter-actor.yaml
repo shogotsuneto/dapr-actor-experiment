@@ -33,6 +33,8 @@ paths:
       description: |
         Retrieves the current value of the counter for this actor instance.
         If the actor has never been used, returns 0 as the default value.
+      tags:
+        - "ActorType:CounterActor"
       parameters:
         - $ref: '#/components/parameters/ActorId'
       responses:
@@ -53,6 +55,8 @@ paths:
       description: |
         Increases the counter value by 1 and returns the new value.
         This operation is atomic and thread-safe within the actor instance.
+      tags:
+        - "ActorType:CounterActor"
       parameters:
         - $ref: '#/components/parameters/ActorId'
       responses:
@@ -73,6 +77,8 @@ paths:
       description: |
         Decreases the counter value by 1 and returns the new value.
         This operation is atomic and thread-safe within the actor instance.
+      tags:
+        - "ActorType:CounterActor"
       parameters:
         - $ref: '#/components/parameters/ActorId'
       responses:
@@ -93,6 +99,8 @@ paths:
       description: |
         Sets the counter to a specific value provided in the request body.
         This completely replaces the current counter value.
+      tags:
+        - "ActorType:CounterActor"
       parameters:
         - $ref: '#/components/parameters/ActorId'
       requestBody:
@@ -205,30 +213,3 @@ components:
           example:
             error: "Internal server error"
             code: "INTERNAL_ERROR"
-
-# Extension for Dapr-specific metadata
-x-dapr-actor:
-  type: "CounterActor"
-  stateStore: "statestore"
-  methods:
-    - name: "get"
-      httpMethod: "GET"
-    - name: "increment"
-      httpMethod: "POST"
-    - name: "decrement"
-      httpMethod: "POST"
-    - name: "set"
-      httpMethod: "POST"
-      requiresBody: true
-
-# Generation hints for code generators
-x-code-generation:
-  package: "generated"
-  types:
-    interface: "CounterActorContract"
-    implementation: "CounterActorImpl"
-  generate:
-    - interfaces
-    - types
-    - validators
-    - mock

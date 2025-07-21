@@ -284,13 +284,22 @@ func extractReturnType(op *openapi3.Operation) string {
 
 // getActorType extracts actor type from OpenAPI spec
 func getActorType(doc *openapi3.T) string {
-	// First try to get from x-dapr-actor extension
-	if doc.Extensions != nil {
-		if dapConfig, exists := doc.Extensions["x-dapr-actor"]; exists {
-			if dapMap, ok := dapConfig.(map[string]interface{}); ok {
-				if actorType, exists := dapMap["type"]; exists {
-					if actorTypeStr, ok := actorType.(string); ok {
-						return actorTypeStr
+	// First try to get from tags in operations (e.g., "ActorType:CounterActor")
+	for _, pathItem := range doc.Paths.Map() {
+		operations := []*openapi3.Operation{
+			pathItem.Get, pathItem.Post, pathItem.Put, pathItem.Delete, pathItem.Patch,
+		}
+		
+		for _, op := range operations {
+			if op == nil || op.Tags == nil {
+				continue
+			}
+			
+			for _, tag := range op.Tags {
+				if strings.HasPrefix(tag, "ActorType:") {
+					actorType := strings.TrimPrefix(tag, "ActorType:")
+					if actorType != "" {
+						return actorType
 					}
 				}
 			}
