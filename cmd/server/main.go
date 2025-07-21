@@ -6,11 +6,11 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/dapr/go-sdk/actor"
 	"github.com/dapr/go-sdk/service/common"
 	daprd "github.com/dapr/go-sdk/service/http"
 	
 	counteractor "github.com/shogotsuneto/dapr-actor-experiment/internal/actor"
+	generated "github.com/shogotsuneto/dapr-actor-experiment/internal/generated/openapi"
 )
 
 // healthHandler provides a simple health check endpoint
@@ -25,9 +25,10 @@ func healthHandler(ctx context.Context, in *common.InvocationEvent) (out *common
 // statusHandler provides status information about the actor service
 func statusHandler(ctx context.Context, in *common.InvocationEvent) (out *common.Content, err error) {
 	response := map[string]string{
-		"status":     "running",
-		"service":    "dapr-actor-demo",
-		"actor_type": "CounterActor",
+		"status":      "running",
+		"service":     "dapr-actor-demo",
+		"actor_type":  generated.ActorType,
+		"description": "Using OpenAPI contract-generated types for type safety and contract compliance",
 	}
 	
 	data, _ := json.Marshal(response)
@@ -42,16 +43,18 @@ func main() {
 	// Create Dapr service
 	s := daprd.NewService(":8080")
 	
-	// Register the actor using FactoryContext
-	s.RegisterActorImplFactoryContext(func() actor.ServerContext {
+	// Register the actor using generated factory with contract enforcement
+	log.Printf("Using %s with OpenAPI contract compliance", generated.ActorType)
+	s.RegisterActorImplFactoryContext(generated.NewCounterActorFactoryContext(func() generated.CounterActorAPIContract {
 		return &counteractor.CounterActor{}
-	})
+	}))
 	
 	// Add health and status endpoints
 	s.AddServiceInvocationHandler("/health", healthHandler)
 	s.AddServiceInvocationHandler("/status", statusHandler)
 	
 	log.Println("Starting Dapr Actor Service on port 8080...")
+	log.Println("Actor implementation uses OpenAPI contract-generated types for type safety")
 	
 	// Start the service
 	if err := s.Start(); err != nil && err != http.ErrServerClosed {
