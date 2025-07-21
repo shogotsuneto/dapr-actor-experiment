@@ -132,18 +132,6 @@ func generateTypes(doc *openapi3.T, packageName, outputDir string) error {
 				}
 			}
 		}
-
-		// Add some standard aliases based on response types
-		typeAliases = append(typeAliases, TypeAlias{
-			Name:         "BadRequest",
-			Type:         "Error",
-			OriginalName: "BadRequest",
-		})
-		typeAliases = append(typeAliases, TypeAlias{
-			Name:         "ServerError", 
-			Type:         "Error",
-			OriginalName: "ServerError",
-		})
 	}
 
 	// Load template from file

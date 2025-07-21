@@ -47,7 +47,7 @@ paths:
               example:
                 value: 42
         '500':
-          $ref: '#/components/responses/ServerError'
+          description: Internal server error
 
   /{actorId}/method/increment:
     post:
@@ -69,7 +69,7 @@ paths:
               example:
                 value: 43
         '500':
-          $ref: '#/components/responses/ServerError'
+          description: Internal server error
 
   /{actorId}/method/decrement:
     post:
@@ -91,7 +91,7 @@ paths:
               example:
                 value: 41
         '500':
-          $ref: '#/components/responses/ServerError'
+          description: Internal server error
 
   /{actorId}/method/set:
     post:
@@ -120,10 +120,8 @@ paths:
                 $ref: '#/components/schemas/CounterState'
               example:
                 value: 100
-        '400':
-          $ref: '#/components/responses/BadRequest'
         '500':
-          $ref: '#/components/responses/ServerError'
+          description: Internal server error
 
 components:
   parameters:
@@ -172,44 +170,3 @@ components:
           maximum: 2147483647
           example: 100
       additionalProperties: false
-
-    Error:
-      type: object
-      description: Error response format
-      required:
-        - error
-      properties:
-        error:
-          type: string
-          description: Human-readable error message
-          example: "Invalid request format"
-        code:
-          type: string
-          description: Machine-readable error code
-          example: "INVALID_INPUT"
-        details:
-          type: object
-          description: Additional error details
-          additionalProperties: true
-      additionalProperties: false
-
-  responses:
-    BadRequest:
-      description: Invalid request format or parameters
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/Error'
-          example:
-            error: "Invalid request format"
-            code: "INVALID_INPUT"
-
-    ServerError:
-      description: Internal server error
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/Error'
-          example:
-            error: "Internal server error"
-            code: "INTERNAL_ERROR"
