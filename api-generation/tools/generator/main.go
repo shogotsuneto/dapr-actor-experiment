@@ -38,6 +38,13 @@ type Method struct {
 	ReturnType  string
 }
 
+type ActorInterface struct {
+	ActorType     string
+	InterfaceName string
+	InterfaceDesc string
+	Methods       []Method
+}
+
 type TypesTemplateData struct {
 	PackageName string
 	Types       []TypeDef
@@ -45,11 +52,8 @@ type TypesTemplateData struct {
 }
 
 type InterfaceTemplateData struct {
-	PackageName     string
-	InterfaceName   string
-	InterfaceDesc   string
-	ActorType       string
-	Methods         []Method
+	PackageName string
+	Actors      []ActorInterface
 }
 
 func main() {
@@ -270,9 +274,11 @@ func extractReturnType(op *openapi3.Operation) string {
 	return ""
 }
 
-// getActorType extracts actor type from OpenAPI spec
-func getActorType(doc *openapi3.T) string {
-	// First try to get from tags in operations (e.g., "ActorType:CounterActor")
+// getActorTypes extracts all actor types from OpenAPI spec
+func getActorTypes(doc *openapi3.T) []string {
+	actorTypeSet := make(map[string]bool)
+	
+	// Extract from tags in operations (e.g., "ActorType:CounterActor")
 	for _, pathItem := range doc.Paths.Map() {
 		operations := []*openapi3.Operation{
 			pathItem.Get, pathItem.Post, pathItem.Put, pathItem.Delete, pathItem.Patch,
@@ -287,28 +293,38 @@ func getActorType(doc *openapi3.T) string {
 				if strings.HasPrefix(tag, "ActorType:") {
 					actorType := strings.TrimPrefix(tag, "ActorType:")
 					if actorType != "" {
-						return actorType
+						actorTypeSet[actorType] = true
 					}
 				}
 			}
 		}
 	}
 	
-	// Fallback: extract from title (e.g., "CounterActor API" -> "CounterActor")
-	if doc.Info != nil && doc.Info.Title != "" {
-		title := doc.Info.Title
-		// Remove common suffixes
-		for _, suffix := range []string{" API", " Service", " Interface"} {
-			if strings.HasSuffix(title, suffix) {
-				title = strings.TrimSuffix(title, suffix)
-				break
-			}
-		}
-		// Convert to PascalCase
-		return strings.ReplaceAll(title, " ", "")
+	// Convert set to slice
+	var actorTypes []string
+	for actorType := range actorTypeSet {
+		actorTypes = append(actorTypes, actorType)
 	}
 	
-	return "Actor"
+	// Fallback if no actor types found
+	if len(actorTypes) == 0 {
+		if doc.Info != nil && doc.Info.Title != "" {
+			title := doc.Info.Title
+			// Remove common suffixes
+			for _, suffix := range []string{" API", " Service", " Interface"} {
+				if strings.HasSuffix(title, suffix) {
+					title = strings.TrimSuffix(title, suffix)
+					break
+				}
+			}
+			// Convert to PascalCase
+			actorTypes = append(actorTypes, strings.ReplaceAll(title, " ", ""))
+		} else {
+			actorTypes = append(actorTypes, "Actor")
+		}
+	}
+	
+	return actorTypes
 }
 
 // getInterfaceName generates interface name from API info
@@ -330,8 +346,12 @@ func getInterfaceDescription(doc *openapi3.T) string {
 }
 
 func generateInterface(doc *openapi3.T, packageName, outputDir string) error {
-	// Parse methods from paths dynamically
-	methods := []Method{}
+	// Get all actor types
+	actorTypes := getActorTypes(doc)
+	
+	// Group methods by actor type
+	actorMethodsMap := make(map[string][]Method)
+	
 	for path, pathItem := range doc.Paths.Map() {
 		// Process all HTTP methods in the path
 		operations := map[string]*openapi3.Operation{
@@ -347,13 +367,48 @@ func generateInterface(doc *openapi3.T, packageName, outputDir string) error {
 				continue
 			}
 
+			// Find which actor type this operation belongs to
+			var operationActorType string
+			if op.Tags != nil {
+				for _, tag := range op.Tags {
+					if strings.HasPrefix(tag, "ActorType:") {
+						operationActorType = strings.TrimPrefix(tag, "ActorType:")
+						break
+					}
+				}
+			}
+			
+			if operationActorType == "" {
+				continue // Skip operations without actor type
+			}
+
 			// Extract method details
 			method, err := extractMethodFromOperation(op, httpMethod, path)
 			if err != nil {
 				return fmt.Errorf("failed to extract method from operation %s %s: %v", httpMethod, path, err)
 			}
-			methods = append(methods, *method)
+			
+			actorMethodsMap[operationActorType] = append(actorMethodsMap[operationActorType], *method)
 		}
+	}
+
+	// Create actor interfaces
+	var actors []ActorInterface
+	for _, actorType := range actorTypes {
+		methods := actorMethodsMap[actorType]
+		if len(methods) == 0 {
+			continue // Skip actor types with no methods
+		}
+		
+		interfaceName := actorType + "APIContract"
+		interfaceDesc := fmt.Sprintf("defines the interface that must be implemented to satisfy the OpenAPI contract for %s", actorType)
+		
+		actors = append(actors, ActorInterface{
+			ActorType:     actorType,
+			InterfaceName: interfaceName,
+			InterfaceDesc: interfaceDesc,
+			Methods:       methods,
+		})
 	}
 
 	// Load template from file
@@ -364,16 +419,9 @@ func generateInterface(doc *openapi3.T, packageName, outputDir string) error {
 	}
 
 	// Generate interface file
-	interfaceName := getInterfaceName(doc)
-	interfaceDesc := getInterfaceDescription(doc)
-	actorType := getActorType(doc)
-	
 	data := InterfaceTemplateData{
-		PackageName:   packageName,
-		InterfaceName: interfaceName,
-		InterfaceDesc: interfaceDesc,
-		ActorType:     actorType,
-		Methods:       methods,
+		PackageName: packageName,
+		Actors:      actors,
 	}
 
 	interfaceFile, err := os.Create(fmt.Sprintf("%s/interface.go", outputDir))
