@@ -12,12 +12,12 @@ type CounterState struct {
 
 // Error Error response format
 type Error struct {
-	// Machine-readable error code
-	Code string `json:"code,omitempty"`
 	// Additional error details
 	Details map[string]interface{} `json:"details,omitempty"`
 	// Human-readable error message
 	Error string `json:"error"`
+	// Machine-readable error code
+	Code string `json:"code,omitempty"`
 }
 
 // SetValueRequest Request to set the counter to a specific value

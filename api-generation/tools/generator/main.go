@@ -48,7 +48,7 @@ type InterfaceTemplateData struct {
 	PackageName     string
 	InterfaceName   string
 	InterfaceDesc   string
-	ActorName       string
+	ActorType       string
 	Methods         []Method
 }
 
@@ -282,8 +282,8 @@ func extractReturnType(op *openapi3.Operation) string {
 	return ""
 }
 
-// getActorName extracts actor name from OpenAPI spec
-func getActorName(doc *openapi3.T) string {
+// getActorType extracts actor type from OpenAPI spec
+func getActorType(doc *openapi3.T) string {
 	// First try to get from x-dapr-actor extension
 	if doc.Extensions != nil {
 		if dapConfig, exists := doc.Extensions["x-dapr-actor"]; exists {
@@ -369,13 +369,13 @@ func generateInterface(doc *openapi3.T, packageName, outputDir string) error {
 	// Generate interface file
 	interfaceName := getInterfaceName(doc)
 	interfaceDesc := getInterfaceDescription(doc)
-	actorName := getActorName(doc)
+	actorType := getActorType(doc)
 	
 	data := InterfaceTemplateData{
 		PackageName:   packageName,
 		InterfaceName: interfaceName,
 		InterfaceDesc: interfaceDesc,
-		ActorName:     actorName,
+		ActorType:     actorType,
 		Methods:       methods,
 	}
 

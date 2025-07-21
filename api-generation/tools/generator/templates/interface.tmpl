@@ -17,10 +17,10 @@ type {{.InterfaceName}} interface {
 {{- end}}
 }
 
-// New{{.ActorName}}FactoryContext creates a factory function for {{.ActorName}} with contract validation.
+// New{{.ActorType}}FactoryContext creates a factory function for {{.ActorType}} with contract validation.
 // The implementation parameter must implement {{.InterfaceName}} interface.
 // Returns a factory function compatible with Dapr's RegisterActorImplFactoryContext.
-func New{{.ActorName}}FactoryContext(implementation func() {{.InterfaceName}}) func() actor.ServerContext {
+func New{{.ActorType}}FactoryContext(implementation func() {{.InterfaceName}}) func() actor.ServerContext {
 	return func() actor.ServerContext {
 		// Compile-time check ensures the implementation satisfies the contract
 		impl := implementation()
