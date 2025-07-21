@@ -27,7 +27,7 @@ func statusHandler(ctx context.Context, in *common.InvocationEvent) (out *common
 	response := map[string]string{
 		"status":      "running",
 		"service":     "dapr-actor-demo",
-		"actor_type":  "CounterActor",
+		"actor_type":  generated.ActorType,
 		"description": "Using OpenAPI contract-generated types for type safety and contract compliance",
 	}
 	
@@ -43,8 +43,8 @@ func main() {
 	// Create Dapr service
 	s := daprd.NewService(":8080")
 	
-	// Register the CounterActor using generated factory with contract enforcement
-	log.Println("Using CounterActor with OpenAPI contract compliance")
+	// Register the actor using generated factory with contract enforcement
+	log.Printf("Using %s with OpenAPI contract compliance", generated.ActorType)
 	s.RegisterActorImplFactoryContext(generated.NewCounterActorFactoryContext(func() generated.CounterActorAPIContract {
 		return &counteractor.CounterActor{}
 	}))

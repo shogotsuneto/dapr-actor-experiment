@@ -5,8 +5,12 @@ package {{.PackageName}}
 
 import (
 	"context"
+	"fmt"
 	"github.com/dapr/go-sdk/actor"
 )
+
+// ActorType is the Dapr actor type identifier for {{.ActorType}}
+const ActorType = "{{.ActorType}}"
 
 // {{.InterfaceName}} {{.InterfaceDesc}}.
 // This interface enforces compile-time contract compliance.
@@ -20,6 +24,7 @@ type {{.InterfaceName}} interface {
 // New{{.ActorType}}FactoryContext creates a factory function for {{.ActorType}} with contract validation.
 // The implementation parameter must implement {{.InterfaceName}} interface.
 // Returns a factory function compatible with Dapr's RegisterActorImplFactoryContext.
+// The generated factory ensures the actor Type() method returns the correct actor type.
 func New{{.ActorType}}FactoryContext(implementation func() {{.InterfaceName}}) func() actor.ServerContext {
 	return func() actor.ServerContext {
 		// Compile-time check ensures the implementation satisfies the contract
@@ -27,6 +32,10 @@ func New{{.ActorType}}FactoryContext(implementation func() {{.InterfaceName}}) f
 		
 		// The implementation must also implement actor.ServerContext
 		if serverCtx, ok := impl.(actor.ServerContext); ok {
+			// Verify the actor type matches the contract
+			if serverCtx.Type() != ActorType {
+				panic(fmt.Sprintf("actor implementation Type() returns '%s', expected '%s'", serverCtx.Type(), ActorType))
+			}
 			return serverCtx
 		}
 		
