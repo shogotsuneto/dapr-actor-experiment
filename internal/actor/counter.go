@@ -2,41 +2,19 @@ package actor
 
 import (
 	"context"
+	"errors"
 	
 	"github.com/dapr/go-sdk/actor"
 	generated "github.com/shogotsuneto/dapr-actor-experiment/internal/generated/openapi"
 )
 
-// ActorError implements Go's error interface for actor operations
-type ActorError struct {
-	Message string
-	Code    string
-}
 
-func (e *ActorError) Error() string {
-	return e.Message
-}
-
-// ToGenerated converts to the generated Error type for responses
-func (e *ActorError) ToGenerated() *generated.Error {
-	details := map[string]interface{}{}
-	return &generated.Error{
-		Error:   e.Message,
-		Code:    e.Code,
-		Details: details,
-	}
-}
-
-// NewActorError creates an actor error
-func NewActorError(message string, code string) *ActorError {
-	return &ActorError{
-		Message: message,
-		Code:    code,
-	}
-}
 
 // CounterActor demonstrates API-contract-first development using generated OpenAPI types.
 // It implements the generated CounterActorAPIContract interface to ensure compile-time contract compliance.
+//
+// Note: Dapr actors return errors as strings through the HTTP layer, so custom error types
+// with structured data cannot be returned directly. Use standard Go errors for actor methods.
 type CounterActor struct {
 	actor.ServerImplBaseCtx
 }
@@ -131,7 +109,7 @@ func (c *CounterActor) validateSetRequest(request generated.SetValueRequest) err
 	)
 	
 	if request.Value < minInt32 || request.Value > maxInt32 {
-		return NewActorError("Value out of range for int32", "INVALID_INPUT")
+		return errors.New("value out of range for int32")
 	}
 	
 	return nil
