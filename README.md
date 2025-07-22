@@ -33,7 +33,7 @@ cd dapr-actor-experiment
 ./scripts/run-docker.sh
 
 # Test the service
-./scripts/test-actor.sh
+./scripts/test-multi-actors.sh
 
 # Cleanup when done
 docker compose down
@@ -54,7 +54,7 @@ You can also run Docker Compose commands directly:
 docker compose up -d
 
 # Test the service  
-./scripts/test-actor.sh
+./scripts/test-multi-actors.sh
 
 # Stop services
 docker compose down
@@ -227,7 +227,7 @@ If you want to modify the code and test changes:
    docker compose up -d redis actor-service actor-service-dapr
    
    # Test your changes
-   ./scripts/test-actor.sh
+   ./scripts/test-multi-actors.sh
    ```
 
 3. **View logs** for debugging:
