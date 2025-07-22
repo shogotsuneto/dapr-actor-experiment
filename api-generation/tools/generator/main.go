@@ -56,6 +56,11 @@ type InterfaceTemplateData struct {
 	Actors      []ActorInterface
 }
 
+type SingleActorTemplateData struct {
+	PackageName string
+	Actor       ActorInterface
+}
+
 func main() {
 	if len(os.Args) < 4 {
 		log.Fatal("Usage: generator <openapi-file> <package-name> <output-dir>")
@@ -78,15 +83,17 @@ func main() {
 		log.Fatalf("Failed to generate types: %v", err)
 	}
 
-	// Generate interface
-	err = generateInterface(doc, packageName, outputDir)
+	// Generate interfaces (one file per actor)
+	generatedFiles, err := generateInterfaces(doc, packageName, outputDir)
 	if err != nil {
-		log.Fatalf("Failed to generate interface: %v", err)
+		log.Fatalf("Failed to generate interfaces: %v", err)
 	}
 
 	fmt.Printf("Generated files:\n")
 	fmt.Printf("  %s/types.go\n", outputDir)
-	fmt.Printf("  %s/interface.go\n", outputDir)
+	for _, file := range generatedFiles {
+		fmt.Printf("  %s\n", file)
+	}
 }
 
 func generateTypes(doc *openapi3.T, packageName, outputDir string) error {
@@ -345,7 +352,19 @@ func getInterfaceDescription(doc *openapi3.T) string {
 	return "defines the interface that must be implemented to satisfy the OpenAPI contract"
 }
 
-func generateInterface(doc *openapi3.T, packageName, outputDir string) error {
+// toSnakeCase converts PascalCase to snake_case
+func toSnakeCase(s string) string {
+	var result strings.Builder
+	for i, r := range s {
+		if i > 0 && 'A' <= r && r <= 'Z' {
+			result.WriteRune('_')
+		}
+		result.WriteRune(r)
+	}
+	return strings.ToLower(result.String())
+}
+
+func generateInterfaces(doc *openapi3.T, packageName, outputDir string) ([]string, error) {
 	// Get all actor types
 	actorTypes := getActorTypes(doc)
 	
@@ -385,15 +404,23 @@ func generateInterface(doc *openapi3.T, packageName, outputDir string) error {
 			// Extract method details
 			method, err := extractMethodFromOperation(op, httpMethod, path)
 			if err != nil {
-				return fmt.Errorf("failed to extract method from operation %s %s: %v", httpMethod, path, err)
+				return nil, fmt.Errorf("failed to extract method from operation %s %s: %v", httpMethod, path, err)
 			}
 			
 			actorMethodsMap[operationActorType] = append(actorMethodsMap[operationActorType], *method)
 		}
 	}
 
-	// Create actor interfaces
-	var actors []ActorInterface
+	// Load template from file
+	templatePath := getTemplatePath("single_actor_interface.tmpl")
+	tmpl, err := template.ParseFiles(templatePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse single actor interface template: %v", err)
+	}
+
+	var generatedFiles []string
+
+	// Generate one interface file per actor
 	for _, actorType := range actorTypes {
 		methods := actorMethodsMap[actorType]
 		if len(methods) == 0 {
@@ -403,39 +430,39 @@ func generateInterface(doc *openapi3.T, packageName, outputDir string) error {
 		interfaceName := actorType + "APIContract"
 		interfaceDesc := fmt.Sprintf("defines the interface that must be implemented to satisfy the OpenAPI contract for %s", actorType)
 		
-		actors = append(actors, ActorInterface{
+		actor := ActorInterface{
 			ActorType:     actorType,
 			InterfaceName: interfaceName,
 			InterfaceDesc: interfaceDesc,
 			Methods:       methods,
-		})
+		}
+
+		// Generate filename in snake_case
+		filename := fmt.Sprintf("%s.go", toSnakeCase(actorType))
+		filepath := fmt.Sprintf("%s/%s", outputDir, filename)
+		
+		// Generate interface file for this actor
+		data := SingleActorTemplateData{
+			PackageName: packageName,
+			Actor:       actor,
+		}
+
+		interfaceFile, err := os.Create(filepath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create interface file %s: %v", filepath, err)
+		}
+
+		err = tmpl.Execute(interfaceFile, data)
+		interfaceFile.Close()
+		
+		if err != nil {
+			return nil, fmt.Errorf("failed to execute interface template for %s: %v", actorType, err)
+		}
+		
+		generatedFiles = append(generatedFiles, filepath)
 	}
 
-	// Load template from file
-	templatePath := getTemplatePath("interface.tmpl")
-	tmpl, err := template.ParseFiles(templatePath)
-	if err != nil {
-		return fmt.Errorf("failed to parse interface template: %v", err)
-	}
-
-	// Generate interface file
-	data := InterfaceTemplateData{
-		PackageName: packageName,
-		Actors:      actors,
-	}
-
-	interfaceFile, err := os.Create(fmt.Sprintf("%s/interface.go", outputDir))
-	if err != nil {
-		return fmt.Errorf("failed to create interface file: %v", err)
-	}
-	defer interfaceFile.Close()
-
-	err = tmpl.Execute(interfaceFile, data)
-	if err != nil {
-		return fmt.Errorf("failed to execute interface template: %v", err)
-	}
-
-	return nil
+	return generatedFiles, nil
 }
 
 func getTemplatePath(templateName string) string {
