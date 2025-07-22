@@ -209,7 +209,7 @@ For API-contract-first development with code generation:
 ```bash
 # Generate types and interfaces from OpenAPI schema
 cd api-generation && ./tools/scripts/install.sh
-./tools/scripts/generate.sh openapi schemas/openapi/counter-actor.yaml
+./tools/scripts/generate.sh openapi schemas/openapi/multi-actors.yaml
 ```
 
 See **[API Generation README](api-generation/README.md)** for comprehensive documentation.

@@ -54,7 +54,7 @@ usage() {
     echo "  graphql     - GraphQL schema (planned)"
     echo ""
     echo "Examples:"
-    echo "  $0 openapi schemas/openapi/counter-actor.yaml"
+    echo "  $0 openapi schemas/openapi/multi-actors.yaml"
     echo ""
 }
 

@@ -14,7 +14,7 @@ cd api-generation
 ./tools/scripts/install.sh
 
 # 2. Generate from OpenAPI
-./tools/scripts/generate.sh openapi schemas/openapi/counter-actor.yaml
+./tools/scripts/generate.sh openapi schemas/openapi/multi-actors.yaml
 
 # 3. See generated code
 ls -la ../internal/generated/openapi/
@@ -28,7 +28,7 @@ cd .. && go build -o bin/server ./cmd/server
 ### 1. Start with the Contract
 
 ```yaml
-# schemas/openapi/counter-actor.yaml
+# schemas/openapi/multi-actors.yaml
 openapi: 3.0.3
 info:
   title: CounterActor API
@@ -51,7 +51,7 @@ paths:
 ### 2. Generate and Implement
 
 ```bash
-./tools/scripts/generate.sh openapi schemas/openapi/counter-actor.yaml
+./tools/scripts/generate.sh openapi schemas/openapi/multi-actors.yaml
 ```
 
 ```go

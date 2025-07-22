@@ -66,7 +66,7 @@ cd api-generation
 ### 2. Generate Code from Schema
 ```bash
 # Generate from OpenAPI (only currently supported format)
-./tools/scripts/generate.sh openapi schemas/openapi/counter-actor.yaml
+./tools/scripts/generate.sh openapi schemas/openapi/multi-actors.yaml
 
 # Generated code appears in ../internal/generated/openapi/
 ls ../internal/generated/openapi/
