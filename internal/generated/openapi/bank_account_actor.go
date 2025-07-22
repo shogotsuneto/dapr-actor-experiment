@@ -15,16 +15,16 @@ const ActorTypeBankAccountActor = "BankAccountActor"
 // BankAccountActorAPIContract defines the interface that must be implemented to satisfy the OpenAPI contract for BankAccountActor.
 // This interface enforces compile-time contract compliance.
 type BankAccountActorAPIContract interface {
+	// Deposit money to account
+	Deposit(ctx context.Context, request DepositRequest) (*BankAccountState, error)
+	// Get current account balance
+	GetBalance(ctx context.Context) (*BankAccountState, error)
+	// Create new bank account
+	CreateAccount(ctx context.Context, request CreateAccountRequest) (*BankAccountState, error)
 	// Get transaction history
 	GetHistory(ctx context.Context) (*TransactionHistory, error)
 	// Withdraw money from account
 	Withdraw(ctx context.Context, request WithdrawRequest) (*BankAccountState, error)
-	// Create new bank account
-	CreateAccount(ctx context.Context, request CreateAccountRequest) (*BankAccountState, error)
-	// Get current account balance
-	GetBalance(ctx context.Context) (*BankAccountState, error)
-	// Deposit money to account
-	Deposit(ctx context.Context, request DepositRequest) (*BankAccountState, error)
 }
 
 // NewBankAccountActorFactoryContext creates a factory function for BankAccountActor with contract validation.

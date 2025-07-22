@@ -412,10 +412,10 @@ func generateInterfaces(doc *openapi3.T, packageName, outputDir string) ([]strin
 	}
 
 	// Load template from file
-	templatePath := getTemplatePath("single_actor_interface.tmpl")
+	templatePath := getTemplatePath("interface.tmpl")
 	tmpl, err := template.ParseFiles(templatePath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse single actor interface template: %v", err)
+		return nil, fmt.Errorf("failed to parse interface template: %v", err)
 	}
 
 	var generatedFiles []string

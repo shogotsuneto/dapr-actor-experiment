@@ -15,14 +15,14 @@ const ActorTypeCounterActor = "CounterActor"
 // CounterActorAPIContract defines the interface that must be implemented to satisfy the OpenAPI contract for CounterActor.
 // This interface enforces compile-time contract compliance.
 type CounterActorAPIContract interface {
-	// Increment counter by 1
-	Increment(ctx context.Context) (*CounterState, error)
-	// Get current counter value
-	Get(ctx context.Context) (*CounterState, error)
 	// Set counter to specific value
 	Set(ctx context.Context, request SetValueRequest) (*CounterState, error)
 	// Decrement counter by 1
 	Decrement(ctx context.Context) (*CounterState, error)
+	// Increment counter by 1
+	Increment(ctx context.Context) (*CounterState, error)
+	// Get current counter value
+	Get(ctx context.Context) (*CounterState, error)
 }
 
 // NewCounterActorFactoryContext creates a factory function for CounterActor with contract validation.

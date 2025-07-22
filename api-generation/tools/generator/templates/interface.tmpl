@@ -9,27 +9,23 @@ import (
 	"github.com/dapr/go-sdk/actor"
 )
 
-{{range .Actors}}
-// ActorType{{.ActorType}} is the Dapr actor type identifier for {{.ActorType}}
-const ActorType{{.ActorType}} = "{{.ActorType}}"
+// ActorType{{.Actor.ActorType}} is the Dapr actor type identifier for {{.Actor.ActorType}}
+const ActorType{{.Actor.ActorType}} = "{{.Actor.ActorType}}"
 
-{{end}}
-
-{{range .Actors}}
-// {{.InterfaceName}} {{.InterfaceDesc}}.
+// {{.Actor.InterfaceName}} {{.Actor.InterfaceDesc}}.
 // This interface enforces compile-time contract compliance.
-type {{.InterfaceName}} interface {
-{{- range .Methods}}
+type {{.Actor.InterfaceName}} interface {
+{{- range .Actor.Methods}}
 	// {{.Comment}}
 	{{.Name}}(ctx context.Context{{if .HasRequest}}, request {{.RequestType}}{{end}}) (*{{.ReturnType}}, error)
 {{- end}}
 }
 
-// New{{.ActorType}}FactoryContext creates a factory function for {{.ActorType}} with contract validation.
-// The implementation parameter must implement {{.InterfaceName}} interface.
+// New{{.Actor.ActorType}}FactoryContext creates a factory function for {{.Actor.ActorType}} with contract validation.
+// The implementation parameter must implement {{.Actor.InterfaceName}} interface.
 // Returns a factory function compatible with Dapr's RegisterActorImplFactoryContext.
 // The generated factory ensures the actor Type() method returns the correct actor type.
-func New{{.ActorType}}FactoryContext(implementation func() {{.InterfaceName}}) func() actor.ServerContext {
+func New{{.Actor.ActorType}}FactoryContext(implementation func() {{.Actor.InterfaceName}}) func() actor.ServerContext {
 	return func() actor.ServerContext {
 		// Compile-time check ensures the implementation satisfies the contract
 		impl := implementation()
@@ -37,8 +33,8 @@ func New{{.ActorType}}FactoryContext(implementation func() {{.InterfaceName}}) f
 		// The implementation must also implement actor.ServerContext
 		if serverCtx, ok := impl.(actor.ServerContext); ok {
 			// Verify the actor type matches the contract
-			if serverCtx.Type() != ActorType{{.ActorType}} {
-				panic(fmt.Sprintf("actor implementation Type() returns '%s', expected '%s'", serverCtx.Type(), ActorType{{.ActorType}}))
+			if serverCtx.Type() != ActorType{{.Actor.ActorType}} {
+				panic(fmt.Sprintf("actor implementation Type() returns '%s', expected '%s'", serverCtx.Type(), ActorType{{.Actor.ActorType}}))
 			}
 			return serverCtx
 		}
@@ -47,5 +43,3 @@ func New{{.ActorType}}FactoryContext(implementation func() {{.InterfaceName}}) f
 		panic("actor implementation must embed actor.ServerImplBaseCtx")
 	}
 }
-
-{{end}}
