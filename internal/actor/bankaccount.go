@@ -144,7 +144,7 @@ func (b *BankAccountActor) CreateAccount(ctx context.Context, request generated.
 	
 	// Update in-memory cached state for fast access
 	b.cachedState = &generated.BankAccountState{
-		AccountId: "placeholder-id", // TODO: Get actual actor ID
+		AccountId: b.ID(),
 		OwnerName: request.OwnerName,
 		Balance:   request.InitialDeposit,
 		IsActive:  true,
@@ -261,7 +261,7 @@ func (b *BankAccountActor) GetHistory(ctx context.Context) (*generated.Transacti
 	}
 	
 	return &generated.TransactionHistory{
-		AccountId: "placeholder-id", // TODO: Get actual actor ID
+		AccountId: b.ID(),
 		Events:    apiEvents,
 	}, nil
 }
@@ -323,7 +323,7 @@ func (b *BankAccountActor) computeStateFromEvents(ctx context.Context) (*generat
 	
 	// Initialize state
 	state := &generated.BankAccountState{
-		AccountId: "placeholder-id", // TODO: Get actual actor ID
+		AccountId: b.ID(),
 		Balance:   0,
 		IsActive:  true,
 	}
