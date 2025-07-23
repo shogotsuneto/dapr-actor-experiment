@@ -35,6 +35,10 @@ cd dapr-actor-experiment
 # Test the service
 ./scripts/test-multi-actors.sh
 
+# Or test individual actor types:
+# ./scripts/test-counter-actor.sh
+# ./scripts/test-bank-account-actor.sh
+
 # Cleanup when done
 docker compose down
 ```
@@ -55,6 +59,10 @@ docker compose up -d
 
 # Test the service  
 ./scripts/test-multi-actors.sh
+
+# Or test individual actor types:
+# ./scripts/test-counter-actor.sh  
+# ./scripts/test-bank-account-actor.sh
 
 # Stop services
 docker compose down
@@ -185,6 +193,10 @@ Use the comprehensive test script to test both actor types:
 ```bash
 # Test both state-based and event-sourced patterns
 ./scripts/test-multi-actors.sh
+
+# Or test individual actor types:
+# ./scripts/test-counter-actor.sh
+# ./scripts/test-bank-account-actor.sh
 ```
 
 ### Health Checks
@@ -227,7 +239,10 @@ If you want to modify the code and test changes:
    docker compose up -d redis actor-service actor-service-dapr
    
    # Test your changes
-   ./scripts/test-multi-actors.sh
+   ./scripts/test-multi-actors.sh  # Test all actors
+   # OR
+   ./scripts/test-counter-actor.sh      # Test CounterActor only
+   ./scripts/test-bank-account-actor.sh # Test BankAccountActor only
    ```
 
 3. **View logs** for debugging:

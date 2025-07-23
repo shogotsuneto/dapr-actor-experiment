@@ -185,5 +185,10 @@ go test ./internal/actor
 
 Or use the comprehensive test script:
 ```bash
+# Test all actors
 ./scripts/test-multi-actors.sh
+
+# Or test individual actor types:
+./scripts/test-counter-actor.sh      # CounterActor only  
+./scripts/test-bank-account-actor.sh # BankAccountActor only
 ```

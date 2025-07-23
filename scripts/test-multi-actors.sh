@@ -11,73 +11,30 @@ fi
 
 echo "✓ Dapr sidecar is running"
 
-# Test CounterActor (state-based)
+# Get the script directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Run CounterActor tests
 echo ""
-echo "1. Testing CounterActor (State-based pattern):"
-echo "----------------------------------------------"
+echo "=================================="
+echo "Running CounterActor Tests..."
+echo "=================================="
+bash "$SCRIPT_DIR/test-counter-actor.sh"
 
-echo "Getting initial counter value:"
-curl -s http://localhost:3500/v1.0/actors/CounterActor/test-counter/method/Get | jq '.'
-
-echo -e "\nIncrementing counter:"
-curl -s -X POST http://localhost:3500/v1.0/actors/CounterActor/test-counter/method/Increment | jq '.'
-
-echo -e "\nSetting counter to 42:"
-curl -s -X POST http://localhost:3500/v1.0/actors/CounterActor/test-counter/method/Set \
-  -H "Content-Type: application/json" \
-  -d '{"value": 42}' | jq '.'
-
-echo -e "\nGetting final counter value:"
-curl -s http://localhost:3500/v1.0/actors/CounterActor/test-counter/method/Get | jq '.'
-
-# Test BankAccountActor (event-sourced)
+# Run BankAccountActor tests
 echo ""
-echo "2. Testing BankAccountActor (Event-sourced pattern):"
-echo "---------------------------------------------------"
-
-echo "Creating bank account:"
-curl -s -X POST http://localhost:3500/v1.0/actors/BankAccountActor/account-123/method/CreateAccount \
-  -H "Content-Type: application/json" \
-  -d '{"ownerName": "John Doe", "initialDeposit": 1000.00}' | jq '.'
-
-echo -e "\nDepositing money:"
-curl -s -X POST http://localhost:3500/v1.0/actors/BankAccountActor/account-123/method/Deposit \
-  -H "Content-Type: application/json" \
-  -d '{"amount": 250.00, "description": "Salary deposit"}' | jq '.'
-
-echo -e "\nWithdrawing money:"
-curl -s -X POST http://localhost:3500/v1.0/actors/BankAccountActor/account-123/method/Withdraw \
-  -H "Content-Type: application/json" \
-  -d '{"amount": 50.00, "description": "ATM withdrawal"}' | jq '.'
-
-echo -e "\nGetting current balance:"
-curl -s http://localhost:3500/v1.0/actors/BankAccountActor/account-123/method/GetBalance | jq '.'
-
-echo -e "\nGetting transaction history (Event Sourcing!):"
-curl -s http://localhost:3500/v1.0/actors/BankAccountActor/account-123/method/GetHistory | jq '.'
-
-# Test service status
 echo ""
-echo "3. Testing different actor instances (State isolation):"
-echo "------------------------------------------------------"
+echo "=================================="
+echo "Running BankAccountActor Tests..."
+echo "=================================="
+bash "$SCRIPT_DIR/test-bank-account-actor.sh"
 
-echo "Testing second counter instance:"
-curl -s http://localhost:3500/v1.0/actors/CounterActor/test-counter-2/method/Get | jq '.'
-
-echo -e "\nIncrementing second counter:"
-curl -s -X POST http://localhost:3500/v1.0/actors/CounterActor/test-counter-2/method/Increment | jq '.'
-
-echo -e "\nComparing both counters (should be different):"
-echo "Counter 1:"
-curl -s http://localhost:3500/v1.0/actors/CounterActor/test-counter/method/Get | jq '.'
-echo "Counter 2:"
-curl -s http://localhost:3500/v1.0/actors/CounterActor/test-counter-2/method/Get | jq '.'
-
-# Test service status
+# Summary
 echo ""
-echo "4. Service Status:"
-echo "-----------------"
-curl -s http://localhost:8080/status | jq '.' 2>/dev/null || echo "Application endpoint not available"
+echo ""
+echo "=========================================="
+echo "Multi-Actor Implementation Test Summary"
+echo "=========================================="
 
 echo ""
 echo "✓ All tests completed successfully!"
@@ -86,9 +43,14 @@ echo "This demonstrates:"
 echo "  - Multiple actor types in single application"
 echo "  - State-based persistence (CounterActor)"
 echo "  - Event-sourced persistence (BankAccountActor)"
-echo "  - Independent actor instances"
+echo "  - Independent actor instances with isolated state"
 echo "  - Different persistence patterns side-by-side"
+echo "  - Multiple instances per actor type"
 echo ""
 echo "Key Differences Demonstrated:"
 echo "- CounterActor: State-based (stores only current value)"
 echo "- BankAccountActor: Event-sourced (stores events, shows full history)"
+echo ""
+echo "For individual testing:"
+echo "- Run './scripts/test-counter-actor.sh' for CounterActor only"
+echo "- Run './scripts/test-bank-account-actor.sh' for BankAccountActor only"
