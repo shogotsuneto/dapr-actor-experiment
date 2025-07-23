@@ -12,24 +12,24 @@ import (
 // ActorTypeCounterActor is the Dapr actor type identifier for CounterActor
 const ActorTypeCounterActor = "CounterActor"
 
-// CounterActorAPIContract defines the interface that must be implemented to satisfy the OpenAPI schema for CounterActor.
+// CounterActorAPISchema defines the interface that must be implemented to satisfy the OpenAPI schema for CounterActor.
 // This interface enforces compile-time schema compliance.
-type CounterActorAPIContract interface {
-	// Set counter to specific value
-	Set(ctx context.Context, request SetValueRequest) (*CounterState, error)
-	// Get current counter value
-	Get(ctx context.Context) (*CounterState, error)
+type CounterActorAPISchema interface {
 	// Decrement counter by 1
 	Decrement(ctx context.Context) (*CounterState, error)
+	// Get current counter value
+	Get(ctx context.Context) (*CounterState, error)
 	// Increment counter by 1
 	Increment(ctx context.Context) (*CounterState, error)
+	// Set counter to specific value
+	Set(ctx context.Context, request SetValueRequest) (*CounterState, error)
 }
 
 // NewCounterActorFactoryContext creates a factory function for CounterActor with schema validation.
-// The implementation parameter must implement CounterActorAPIContract interface.
+// The implementation parameter must implement CounterActorAPISchema interface.
 // Returns a factory function compatible with Dapr's RegisterActorImplFactoryContext.
 // The generated factory ensures the actor Type() method returns the correct actor type.
-func NewCounterActorFactoryContext(implementation func() CounterActorAPIContract) func() actor.ServerContext {
+func NewCounterActorFactoryContext(implementation func() CounterActorAPISchema) func() actor.ServerContext {
 	return func() actor.ServerContext {
 		// Compile-time check ensures the implementation satisfies the schema
 		impl := implementation()
