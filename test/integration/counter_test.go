@@ -2,9 +2,7 @@ package integration
 
 import (
 	"context"
-	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -15,21 +13,11 @@ func TestCounterActor(t *testing.T) {
 		t.Skip("Skipping integration test in short mode")
 	}
 
-	// Setup
-	composeFile := filepath.Join("..", "..", "docker-compose.yml")
-	dockerManager := NewDockerComposeManager(composeFile)
+	// Setup Dapr client - assumes services are already running
 	daprClient := NewDaprClient("http://localhost:3500")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-	defer cancel()
-
-	// Start services
-	require.NoError(t, dockerManager.StartServices(ctx), "Failed to start Docker services")
-	defer func() {
-		if err := dockerManager.StopServices(context.Background()); err != nil {
-			t.Logf("Failed to stop services: %v", err)
-		}
-	}()
+	// Verify services are available
+	require.NoError(t, daprClient.CheckHealth(), "Dapr services must be running. Start with: docker compose -f test/integration/docker-compose.test.yml up -d")
 
 	t.Run("TestCounterActorBasicOperations", func(t *testing.T) {
 		testCounterActorBasicOperations(t, daprClient)

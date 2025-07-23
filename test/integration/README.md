@@ -1,6 +1,6 @@
 # Integration Tests
 
-This directory contains integration tests that replace the shell scripts in `./scripts/test*.sh`. The tests use actual Dapr endpoints via Docker Compose setup and include snapshot testing capabilities for fast execution.
+This directory contains integration tests that replace the shell scripts in `./scripts/test*.sh`. The tests use a dedicated Docker Compose setup with actual Dapr endpoints and include snapshot testing capabilities for fast execution.
 
 ## Overview
 
@@ -11,42 +11,114 @@ The integration tests validate:
 - **State isolation** between actor instances
 - **Event sourcing** capabilities of BankAccountActor
 
+## Simplified Architecture
+
+The test setup uses a dedicated `docker-compose.test.yml` file that runs only the services needed for testing:
+- **Redis** (state store)
+- **Dapr placement service** (for actor distribution)
+- **Actor service** (built from source)
+- **Dapr sidecar** (for HTTP API access)
+
+Tests run either on the host or can be containerized, while the services being tested run in containers with proper Dapr sidecar and placement service configuration.
+
 ## Test Structure
 
 ```
 test/integration/
-├── README.md                 # This file
-├── docker.go                 # Docker Compose management utilities
-├── client.go                 # Dapr HTTP client utilities
-├── snapshot.go               # Snapshot testing utilities
-├── counter_test.go            # CounterActor integration tests
-├── bankaccount_test.go        # BankAccountActor integration tests
-├── multi_test.go              # Multi-actor integration tests
-├── snapshot_test.go           # Snapshot testing demonstrations
+├── README.md                      # This file
+├── docker-compose.test.yml        # Dedicated compose file for testing
+├── client.go                      # Dapr HTTP client utilities
+├── snapshot.go                    # Snapshot testing utilities
+├── counter_test.go                # CounterActor integration tests
+├── bankaccount_test.go             # BankAccountActor integration tests
+├── multi_test.go                   # Multi-actor integration tests
+├── snapshot_test.go                # Snapshot testing demonstrations
+├── quick_test.go                   # Fast tests for running services
+├── snapshot_simple_test.go         # Simple snapshot examples
 └── testdata/
-    └── snapshots/             # Stored test snapshots
+    └── snapshots/                  # Stored test snapshots
 ```
 
 ## Running Tests
 
-### All Integration Tests
+### Option 1: Automated (Recommended)
+The Make target handles service lifecycle automatically:
 ```bash
 make test-integration
 ```
 
-### Specific Test Suites
+### Option 2: Manual Control
+Start services manually and run tests multiple times:
 ```bash
-# Run only CounterActor tests
-go test -v ./test/integration -run TestCounterActor
+# Start test services
+docker compose -f test/integration/docker-compose.test.yml up -d
 
-# Run only BankAccountActor tests
+# Run tests (can repeat multiple times)
+make test-integration-quick
+
+# Or run specific tests
+go test -v ./test/integration -run TestCounterActor
 go test -v ./test/integration -run TestBankAccountActor
 
-# Run only multi-actor tests
-go test -v ./test/integration -run TestMultiActorIntegration
+# Stop services when done
+docker compose -f test/integration/docker-compose.test.yml down
+```
 
-# Run snapshot tests
-go test -v ./test/integration -run TestActorSnapshotIntegration
+## Benefits of Simplified Architecture
+
+### Before (Complex Setup)
+- ❌ Each test managed full Docker lifecycle
+- ❌ Long test startup/teardown times
+- ❌ Complex Docker management code in Go
+- ❌ Resource intensive (starting/stopping services repeatedly)
+- ❌ Tests tightly coupled to infrastructure
+
+### After (Simplified Setup)
+- ✅ Dedicated test compose file
+- ✅ Services start once, tests run multiple times
+- ✅ Clean separation between test code and infrastructure
+- ✅ Fast test execution with manual service control
+- ✅ Simple Docker configuration focused on testing needs
+
+### Test Performance
+- **Automated mode**: ~2-3 minutes (includes service startup/teardown)
+- **Manual mode**: ~10-15 seconds (services already running)
+
+## Service Requirements
+
+For tests to pass, the following services must be healthy:
+- **Dapr sidecar**: `http://localhost:3500/v1.0/healthz`
+- **Actor service**: `http://localhost:8080/health`
+
+Tests automatically verify service availability and provide clear error messages if services are not running.
+
+## Troubleshooting
+
+### Services not starting
+```bash
+# Check service logs
+docker compose -f test/integration/docker-compose.test.yml logs
+
+# Check specific service
+docker compose -f test/integration/docker-compose.test.yml logs actor-service-dapr
+```
+
+### Tests failing with connection errors
+```bash
+# Verify services are healthy
+curl http://localhost:3500/v1.0/healthz
+curl http://localhost:8080/health
+
+# Check if ports are available
+netstat -tlnp | grep :3500
+netstat -tlnp | grep :8080
+```
+
+### Reset test environment
+```bash
+# Clean restart
+docker compose -f test/integration/docker-compose.test.yml down -v
+docker compose -f test/integration/docker-compose.test.yml up -d --build
 ```
 
 ### Short Mode (Skip Integration Tests)

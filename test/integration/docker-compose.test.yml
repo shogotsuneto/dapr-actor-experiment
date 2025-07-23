@@ -1,0 +1,80 @@
+# Docker Compose configuration for Integration Testing
+#
+# This is a dedicated compose file for running integration tests.
+# It starts the minimal required services for testing:
+# - Redis (state store)
+# - Dapr placement service
+# - Actor service with Dapr sidecar
+#
+# Usage:
+#   docker compose -f test/integration/docker-compose.test.yml up -d
+#   go test -v ./test/integration/...
+#   docker compose -f test/integration/docker-compose.test.yml down
+
+services:
+  # Redis for state store
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # Dapr placement service for actors
+  placement:
+    image: daprio/dapr:1.14.4
+    command: ["./placement", "-port", "50006", "-log-level", "info"]
+    ports:
+      - "50006:50006"
+
+  # Actor service (builds from source)
+  actor-service:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - DAPR_GRPC_PORT=50001
+      - DAPR_GRPC_ENDPOINT=actor-service-dapr:50001
+    depends_on:
+      redis:
+        condition: service_healthy
+      placement:
+        condition: service_started
+
+  # Dapr sidecar for actor service  
+  actor-service-dapr:
+    image: daprio/daprd:1.14.4
+    command: [
+      "./daprd",
+      "-app-id", "actor-service",
+      "-app-port", "8080",
+      "-app-channel-address", "actor-service",
+      "-dapr-http-port", "3500",
+      "-dapr-grpc-port", "50001",
+      "-placement-host-address", "placement:50006",
+      "-resources-path", "/components",
+      "-config", "/config/config.yaml",
+      "-log-level", "info"
+    ]
+    volumes:
+      - "../../configs/dapr:/components"
+      - "../../configs/dapr:/config"
+    ports:
+      - "3500:3500"
+      - "50001:50001"
+    depends_on:
+      actor-service:
+        condition: service_started
+      redis:
+        condition: service_healthy
+      placement:
+        condition: service_started
+
+networks:
+  default:
+    driver: bridge

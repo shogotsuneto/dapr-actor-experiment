@@ -152,3 +152,31 @@ type WithdrawRequest struct {
 type SetValueRequest struct {
 	Value int `json:"value"`
 }
+
+// CheckHealth verifies that Dapr services are available
+func (c *DaprClient) CheckHealth() error {
+	// Check Dapr sidecar health
+	resp, err := c.httpClient.Get(c.baseURL + "/v1.0/healthz")
+	if err != nil {
+		return fmt.Errorf("failed to connect to Dapr sidecar at %s: %w", c.baseURL, err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("Dapr sidecar health check failed with status %d", resp.StatusCode)
+	}
+
+	// Check actor service health
+	actorServiceURL := "http://localhost:8080/health"
+	resp, err = c.httpClient.Get(actorServiceURL)
+	if err != nil {
+		return fmt.Errorf("failed to connect to actor service: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("actor service health check failed with status %d", resp.StatusCode)
+	}
+
+	return nil
+}

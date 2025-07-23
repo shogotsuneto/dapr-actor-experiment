@@ -1,4 +1,4 @@
-.PHONY: build clean test test-unit test-integration help
+.PHONY: build clean test test-unit test-integration test-integration-quick help
 
 # Default target
 all: build
@@ -27,15 +27,28 @@ test-unit:
 # Run integration tests (requires Docker)
 test-integration:
 	@echo "Running integration tests..."
-	@echo "Note: This will start Docker Compose services and may take several minutes"
-	@go test -v ./test/integration/... -timeout=10m
+	@echo "Starting test services with Docker Compose..."
+	@docker compose -f test/integration/docker-compose.test.yml up -d --build
+	@echo "Waiting for services to be ready..."
+	@sleep 15
+	@echo "Running tests..."
+	@go test -v ./test/integration/... -timeout=5m || (echo "Tests failed, stopping services..." && docker compose -f test/integration/docker-compose.test.yml down && exit 1)
+	@echo "Stopping test services..."
+	@docker compose -f test/integration/docker-compose.test.yml down
+
+# Run integration tests assuming services are already running
+test-integration-quick:
+	@echo "Running integration tests (assuming services are running)..."
+	@echo "Make sure services are started with: docker compose -f test/integration/docker-compose.test.yml up -d"
+	@go test -v ./test/integration/... -timeout=2m
 
 # Display help
 help:
 	@echo "Available targets:"
-	@echo "  build           - Build server and client binaries"
-	@echo "  clean           - Remove build artifacts"
-	@echo "  test            - Run all tests (unit + integration)"
-	@echo "  test-unit       - Run unit tests only"
-	@echo "  test-integration - Run integration tests (requires Docker)"
-	@echo "  help            - Show this help message"
+	@echo "  build                   - Build server and client binaries"
+	@echo "  clean                   - Remove build artifacts"
+	@echo "  test                    - Run all tests (unit + integration)"
+	@echo "  test-unit               - Run unit tests only"
+	@echo "  test-integration        - Run integration tests (starts/stops Docker services)"
+	@echo "  test-integration-quick  - Run integration tests (assumes services running)"
+	@echo "  help                    - Show this help message"
