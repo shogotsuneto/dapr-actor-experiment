@@ -12,26 +12,26 @@ import (
 // ActorTypeBankAccountActor is the Dapr actor type identifier for BankAccountActor
 const ActorTypeBankAccountActor = "BankAccountActor"
 
-// BankAccountActorAPISchema defines the interface that must be implemented to satisfy the OpenAPI schema for BankAccountActor.
+// BankAccountActorAPI defines the interface that must be implemented to satisfy the OpenAPI schema for BankAccountActor.
 // This interface enforces compile-time schema compliance.
-type BankAccountActorAPISchema interface {
-	// Get current account balance
-	GetBalance(ctx context.Context) (*BankAccountState, error)
-	// Withdraw money from account
-	Withdraw(ctx context.Context, request WithdrawRequest) (*BankAccountState, error)
+type BankAccountActorAPI interface {
 	// Deposit money to account
 	Deposit(ctx context.Context, request DepositRequest) (*BankAccountState, error)
 	// Get transaction history
 	GetHistory(ctx context.Context) (*TransactionHistory, error)
+	// Withdraw money from account
+	Withdraw(ctx context.Context, request WithdrawRequest) (*BankAccountState, error)
 	// Create new bank account
 	CreateAccount(ctx context.Context, request CreateAccountRequest) (*BankAccountState, error)
+	// Get current account balance
+	GetBalance(ctx context.Context) (*BankAccountState, error)
 }
 
 // NewBankAccountActorFactoryContext creates a factory function for BankAccountActor with schema validation.
-// The implementation parameter must implement BankAccountActorAPISchema interface.
+// The implementation parameter must implement BankAccountActorAPI interface.
 // Returns a factory function compatible with Dapr's RegisterActorImplFactoryContext.
 // The generated factory ensures the actor Type() method returns the correct actor type.
-func NewBankAccountActorFactoryContext(implementation func() BankAccountActorAPISchema) func() actor.ServerContext {
+func NewBankAccountActorFactoryContext(implementation func() BankAccountActorAPI) func() actor.ServerContext {
 	return func() actor.ServerContext {
 		// Compile-time check ensures the implementation satisfies the schema
 		impl := implementation()

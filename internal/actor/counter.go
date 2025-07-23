@@ -11,7 +11,7 @@ import (
 
 
 // CounterActor demonstrates schema-first development using generated OpenAPI types.
-// It implements the generated CounterActorAPISchema interface to ensure compile-time schema compliance.
+// It implements the generated CounterActorAPI interface to ensure compile-time schema compliance.
 //
 // Note: Dapr actors return errors as strings through the HTTP layer, so custom error types
 // with structured data cannot be returned directly. Use standard Go errors for actor methods.

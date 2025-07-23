@@ -341,7 +341,7 @@ func getInterfaceName(doc *openapi3.T) string {
 		title := strings.ReplaceAll(doc.Info.Title, " ", "")
 		return title + "Contract"
 	}
-	return "APISchema"
+	return "API"
 }
 
 // getInterfaceDescription generates interface description from API info
@@ -427,7 +427,7 @@ func generateInterfaces(doc *openapi3.T, packageName, outputDir string) ([]strin
 			continue // Skip actor types with no methods
 		}
 		
-		interfaceName := actorType + "APISchema"
+		interfaceName := actorType + "API"
 		interfaceDesc := fmt.Sprintf("defines the interface that must be implemented to satisfy the OpenAPI schema for %s", actorType)
 		
 		actor := ActorInterface{

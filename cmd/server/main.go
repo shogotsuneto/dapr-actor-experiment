@@ -49,13 +49,13 @@ func main() {
 	
 	// Register CounterActor using generated factory with contract enforcement
 	log.Printf("Registering %s with state-based pattern", generated.ActorTypeCounterActor)
-	s.RegisterActorImplFactoryContext(generated.NewCounterActorFactoryContext(func() generated.CounterActorAPISchema {
+	s.RegisterActorImplFactoryContext(generated.NewCounterActorFactoryContext(func() generated.CounterActorAPI {
 		return &counteractor.CounterActor{}
 	}))
 	
 	// Register BankAccountActor using generated factory with contract enforcement
 	log.Printf("Registering %s with event sourcing pattern", generated.ActorTypeBankAccountActor)
-	s.RegisterActorImplFactoryContext(generated.NewBankAccountActorFactoryContext(func() generated.BankAccountActorAPISchema {
+	s.RegisterActorImplFactoryContext(generated.NewBankAccountActorFactoryContext(func() generated.BankAccountActorAPI {
 		return &counteractor.BankAccountActor{}
 	}))
 	
