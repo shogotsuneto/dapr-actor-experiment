@@ -9,7 +9,9 @@ A minimal demo of Dapr actors application in Go, demonstrating actor state manag
 This project showcases:
 - **API-Contract-First Development**: Define APIs with OpenAPI specifications, generate type-safe Go code
 - **Dapr Actor Pattern**: Stateful actor implementation with persistent state
-- **Counter Actor**: Simple counter with increment, decrement, get, and set operations
+- **Multiple Actor Types**: Support for different actor patterns in a single application
+- **Counter Actor**: Simple state-based counter with increment, decrement, get, and set operations
+- **Bank Account Actor**: Event-sourced bank account demonstrating transaction history and audit trails
 - **Docker-Only Setup**: Simple deployment using Docker Compose, no Dapr CLI required
 
 ## Quick Start
@@ -31,7 +33,11 @@ cd dapr-actor-experiment
 ./scripts/run-docker.sh
 
 # Test the service
-./scripts/test-actor.sh
+./scripts/test-multi-actors.sh
+
+# Or test individual actor types:
+# ./scripts/test-counter-actor.sh
+# ./scripts/test-bank-account-actor.sh
 
 # Cleanup when done
 docker compose down
@@ -52,7 +58,11 @@ You can also run Docker Compose commands directly:
 docker compose up -d
 
 # Test the service  
-./scripts/test-actor.sh
+./scripts/test-multi-actors.sh
+
+# Or test individual actor types:
+# ./scripts/test-counter-actor.sh  
+# ./scripts/test-bank-account-actor.sh
 
 # Stop services
 docker compose down
@@ -113,10 +123,12 @@ make help
 ## Features
 
 ### Actor Implementation
-- **CounterActor**: Stateful actor with persistent counter value using generated OpenAPI types
-- **Operations**: `get`, `increment`, `decrement`, `set`
+- **CounterActor**: State-based actor with persistent counter value using generated OpenAPI types
+- **BankAccountActor**: Event-sourced actor with transaction history and full audit trail
+- **Operations**: CounterActor (`get`, `increment`, `decrement`, `set`), BankAccountActor (`createAccount`, `deposit`, `withdraw`, `getBalance`, `getHistory`)
 - **State Persistence**: Automatic state management via Dapr state store
-- **Type Safety**: Contract-compliant implementation with compile-time validation
+- **Event Sourcing**: BankAccountActor demonstrates event sourcing with complete transaction history
+- **Type Safety**: Contract-compliant implementation with compile-time validation for multiple actor types
 
 ### Demo Client
 - Demonstrates all actor operations with comprehensive logging
@@ -149,6 +161,44 @@ curl -X POST http://localhost:3500/v1.0/actors/CounterActor/counter-1/method/set
 curl http://localhost:3500/v1.0/actors/CounterActor/counter-2/method/get
 ```
 
+### Testing BankAccountActor (Event-Sourced)
+
+```bash
+# Create bank account
+curl -X POST http://localhost:3500/v1.0/actors/BankAccountActor/account-123/method/createAccount \
+  -H "Content-Type: application/json" \
+  -d '{"ownerName": "John Doe", "initialDeposit": 1000.0}'
+
+# Deposit money
+curl -X POST http://localhost:3500/v1.0/actors/BankAccountActor/account-123/method/deposit \
+  -H "Content-Type: application/json" \
+  -d '{"amount": 250.0, "description": "Salary deposit"}'
+
+# Withdraw money
+curl -X POST http://localhost:3500/v1.0/actors/BankAccountActor/account-123/method/withdraw \
+  -H "Content-Type: application/json" \
+  -d '{"amount": 50.0, "description": "ATM withdrawal"}'
+
+# Get current balance
+curl http://localhost:3500/v1.0/actors/BankAccountActor/account-123/method/getBalance
+
+# Get transaction history (shows event sourcing power!)
+curl http://localhost:3500/v1.0/actors/BankAccountActor/account-123/method/getHistory
+```
+
+### Automated Testing
+
+Use the comprehensive test script to test both actor types:
+
+```bash
+# Test both state-based and event-sourced patterns
+./scripts/test-multi-actors.sh
+
+# Or test individual actor types:
+# ./scripts/test-counter-actor.sh
+# ./scripts/test-bank-account-actor.sh
+```
+
 ### Health Checks
 
 ```bash
@@ -171,7 +221,7 @@ For API-contract-first development with code generation:
 ```bash
 # Generate types and interfaces from OpenAPI schema
 cd api-generation && ./tools/scripts/install.sh
-./tools/scripts/generate.sh openapi schemas/openapi/counter-actor.yaml
+./tools/scripts/generate.sh openapi schemas/openapi/multi-actors.yaml
 ```
 
 See **[API Generation README](api-generation/README.md)** for comprehensive documentation.
@@ -189,7 +239,10 @@ If you want to modify the code and test changes:
    docker compose up -d redis actor-service actor-service-dapr
    
    # Test your changes
-   ./scripts/test-actor.sh
+   ./scripts/test-multi-actors.sh  # Test all actors
+   # OR
+   ./scripts/test-counter-actor.sh      # Test CounterActor only
+   ./scripts/test-bank-account-actor.sh # Test BankAccountActor only
    ```
 
 3. **View logs** for debugging:
@@ -272,12 +325,14 @@ docker compose logs -f redis
 This repository includes detailed documentation on various aspects of Dapr actors:
 
 ### Architecture and Concepts
+- **[Multiple Actors](docs/multiple-actors.md)** - Complete guide to multiple actor types, state-based vs event-sourced patterns
 - **[Client vs Curl](docs/client-vs-curl.md)** - Understand the difference between using the Go client (Dapr SDK) vs direct HTTP calls with curl
 - **[Event Sourcing](docs/event-sourcing.md)** - Learn whether this implementation uses event sourcing and understand the state-based approach
 - **[Akka Comparison](docs/akka-comparison.md)** - Compare Dapr actors with Akka actors, including mailbox concepts and architectural differences
 
 ### Key Insights
-- **Does this use event sourcing?** No - this is a state-based implementation. See [Event Sourcing documentation](docs/event-sourcing.md) for details.
+- **Multiple Actor Types**: This implementation now supports both state-based (CounterActor) and event-sourced (BankAccountActor) patterns. See [Multiple Actors documentation](docs/multiple-actors.md) for details.
+- **Event Sourcing vs State-Based**: CounterActor uses state-based persistence while BankAccountActor demonstrates full event sourcing with audit trails.
 - **How does it compare to Akka?** Both implement the actor model but serve different use cases. See [Akka Comparison](docs/akka-comparison.md) for a detailed analysis.
 - **Client vs curl difference?** Both send identical HTTP requests to Dapr sidecar, but the Go client provides type safety and better error handling. See [Client vs Curl](docs/client-vs-curl.md) for details.
 

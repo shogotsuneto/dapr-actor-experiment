@@ -20,7 +20,7 @@ type CounterActor struct {
 }
 
 func (c *CounterActor) Type() string {
-	return generated.ActorType
+	return generated.ActorTypeCounterActor
 }
 
 func (c *CounterActor) Increment(ctx context.Context) (*generated.CounterState, error) {

@@ -9,20 +9,20 @@ import (
 	"github.com/dapr/go-sdk/actor"
 )
 
-// ActorType is the Dapr actor type identifier for CounterActor
-const ActorType = "CounterActor"
+// ActorTypeCounterActor is the Dapr actor type identifier for CounterActor
+const ActorTypeCounterActor = "CounterActor"
 
-// CounterActorAPIContract defines the interface that must be implemented to satisfy the OpenAPI contract for CounterActor API.
+// CounterActorAPIContract defines the interface that must be implemented to satisfy the OpenAPI contract for CounterActor.
 // This interface enforces compile-time contract compliance.
 type CounterActorAPIContract interface {
-	// Decrement counter by 1
-	Decrement(ctx context.Context) (*CounterState, error)
-	// Get current counter value
-	Get(ctx context.Context) (*CounterState, error)
-	// Increment counter by 1
-	Increment(ctx context.Context) (*CounterState, error)
 	// Set counter to specific value
 	Set(ctx context.Context, request SetValueRequest) (*CounterState, error)
+	// Decrement counter by 1
+	Decrement(ctx context.Context) (*CounterState, error)
+	// Increment counter by 1
+	Increment(ctx context.Context) (*CounterState, error)
+	// Get current counter value
+	Get(ctx context.Context) (*CounterState, error)
 }
 
 // NewCounterActorFactoryContext creates a factory function for CounterActor with contract validation.
@@ -37,8 +37,8 @@ func NewCounterActorFactoryContext(implementation func() CounterActorAPIContract
 		// The implementation must also implement actor.ServerContext
 		if serverCtx, ok := impl.(actor.ServerContext); ok {
 			// Verify the actor type matches the contract
-			if serverCtx.Type() != ActorType {
-				panic(fmt.Sprintf("actor implementation Type() returns '%s', expected '%s'", serverCtx.Type(), ActorType))
+			if serverCtx.Type() != ActorTypeCounterActor {
+				panic(fmt.Sprintf("actor implementation Type() returns '%s', expected '%s'", serverCtx.Type(), ActorTypeCounterActor))
 			}
 			return serverCtx
 		}

@@ -27,7 +27,7 @@ Contract-first development reverses the traditional approach:
 Create an OpenAPI specification:
 
 ```yaml
-# api-generation/schemas/openapi/counter-actor.yaml
+# api-generation/schemas/openapi/multi-actors.yaml
 openapi: 3.0.3
 info:
   title: CounterActor API
@@ -54,7 +54,7 @@ paths:
 
 ```bash
 cd api-generation
-./tools/scripts/generate.sh openapi schemas/openapi/counter-actor.yaml
+./tools/scripts/generate.sh openapi schemas/openapi/multi-actors.yaml
 ```
 
 This generates type definitions and contract interface in `../internal/generated/openapi/`.

@@ -7,7 +7,7 @@
 This demo provides **two different ways** to interact with Dapr actors:
 
 1. **Go Client** (`cmd/client/main.go`) - Uses Dapr Go SDK
-2. **Curl Commands** (`scripts/test-actor.sh`) - Raw HTTP calls
+2. **Curl Commands** (`scripts/test-multi-actors.sh`, `scripts/test-counter-actor.sh`, `scripts/test-bank-account-actor.sh`) - Raw HTTP calls
 
 Both ultimately send **HTTP requests** to the Dapr sidecar, but they differ in how they construct and send those requests.
 
@@ -56,7 +56,7 @@ User-Agent: dapr-sdk-go/1.x.x
 ### How It Works
 
 ```bash
-# scripts/test-actor.sh
+# scripts/test-multi-actors.sh (and individual test scripts)
 curl -X POST \
   "http://localhost:3500/v1.0/actors/CounterActor/counter-1/method/increment" \
   -H "Content-Type: application/json" \
