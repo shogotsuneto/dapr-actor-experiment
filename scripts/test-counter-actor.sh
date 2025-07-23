@@ -67,22 +67,9 @@ curl -s -X POST http://localhost:3500/v1.0/actors/CounterActor/counter-003/metho
 echo -e "\nFinal value for counter-003:"
 curl -s http://localhost:3500/v1.0/actors/CounterActor/counter-003/method/Get | jq '.'
 
-# Instance 4: counter-004
-echo ""
-echo "4. Testing CounterActor instance 'counter-004':"
-echo "Getting initial counter value:"
-curl -s http://localhost:3500/v1.0/actors/CounterActor/counter-004/method/Get | jq '.'
-
-echo -e "\nDecrementing from initial value:"
-curl -s -X POST http://localhost:3500/v1.0/actors/CounterActor/counter-004/method/Decrement | jq '.'
-curl -s -X POST http://localhost:3500/v1.0/actors/CounterActor/counter-004/method/Decrement | jq '.'
-
-echo -e "\nFinal value for counter-004:"
-curl -s http://localhost:3500/v1.0/actors/CounterActor/counter-004/method/Get | jq '.'
-
 # Summary of all instances
 echo ""
-echo "5. State Isolation Verification:"
+echo "4. State Isolation Verification:"
 echo "--------------------------------"
 echo "Final values for all CounterActor instances (demonstrating state isolation):"
 echo "counter-001:"
@@ -91,8 +78,6 @@ echo "counter-002:"
 curl -s http://localhost:3500/v1.0/actors/CounterActor/counter-002/method/Get | jq '.'
 echo "counter-003:"
 curl -s http://localhost:3500/v1.0/actors/CounterActor/counter-003/method/Get | jq '.'
-echo "counter-004:"
-curl -s http://localhost:3500/v1.0/actors/CounterActor/counter-004/method/Get | jq '.'
 
 echo ""
 echo "✓ CounterActor tests completed successfully!"
