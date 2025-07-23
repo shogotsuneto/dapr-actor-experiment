@@ -76,8 +76,14 @@ The project includes a Makefile for common tasks:
 # Build all binaries
 make build
 
-# Run tests  
+# Run all tests (unit + integration)
 make test
+
+# Run unit tests only
+make test-unit
+
+# Run integration tests (requires Docker)
+make test-integration
 
 # Clean build artifacts
 make clean
@@ -85,6 +91,25 @@ make clean
 # Show help
 make help
 ```
+
+### Integration Tests
+
+The project includes comprehensive integration tests that replace the shell scripts in `./scripts/test*.sh`. These tests use actual Dapr endpoints via Docker Compose setup and include snapshot testing for fast execution.
+
+```bash
+# Run all integration tests
+make test-integration
+
+# Run specific test suites
+go test -v ./test/integration -run TestCounterActor
+go test -v ./test/integration -run TestBankAccountActor
+go test -v ./test/integration -run TestMultiActorIntegration
+
+# Run snapshot tests with updates
+UPDATE_SNAPSHOTS=true go test -v ./test/integration -run TestSnapshotFunctionalityAssumeRunning
+```
+
+See [Integration Tests README](test/integration/README.md) for detailed documentation.
 
 ## Project Structure
 
@@ -188,6 +213,9 @@ curl http://localhost:3500/v1.0/actors/BankAccountActor/account-123/method/getHi
 
 ### Automated Testing
 
+The project includes both shell script tests and comprehensive Go integration tests:
+
+#### Shell Scripts (Legacy)
 Use the comprehensive test script to test both actor types:
 
 ```bash
@@ -198,6 +226,24 @@ Use the comprehensive test script to test both actor types:
 # ./scripts/test-counter-actor.sh
 # ./scripts/test-bank-account-actor.sh
 ```
+
+#### Go Integration Tests (Recommended)
+Modern integration tests with better error handling and CI/CD integration:
+
+```bash
+# Run all integration tests
+make test-integration
+
+# Run specific test suites  
+go test -v ./test/integration -run TestCounterActor
+go test -v ./test/integration -run TestBankAccountActor
+go test -v ./test/integration -run TestMultiActorIntegration
+
+# Snapshot testing for fast regression testing
+UPDATE_SNAPSHOTS=true go test -v ./test/integration -run TestSnapshotFunctionalityAssumeRunning
+```
+
+See [Integration Tests README](test/integration/README.md) for comprehensive documentation.
 
 ### Health Checks
 
