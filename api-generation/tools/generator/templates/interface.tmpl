@@ -1,4 +1,4 @@
-// Package {{.PackageName}} provides primitives for OpenAPI-based contract validation.
+// Package {{.PackageName}} provides primitives for OpenAPI-based schema validation.
 //
 // Code generated from OpenAPI specification. DO NOT EDIT manually.
 package {{.PackageName}}
@@ -13,7 +13,7 @@ import (
 const ActorType{{.Actor.ActorType}} = "{{.Actor.ActorType}}"
 
 // {{.Actor.InterfaceName}} {{.Actor.InterfaceDesc}}.
-// This interface enforces compile-time contract compliance.
+// This interface enforces compile-time schema compliance.
 type {{.Actor.InterfaceName}} interface {
 {{- range .Actor.Methods}}
 	// {{.Comment}}
@@ -21,18 +21,18 @@ type {{.Actor.InterfaceName}} interface {
 {{- end}}
 }
 
-// New{{.Actor.ActorType}}FactoryContext creates a factory function for {{.Actor.ActorType}} with contract validation.
+// New{{.Actor.ActorType}}FactoryContext creates a factory function for {{.Actor.ActorType}} with schema validation.
 // The implementation parameter must implement {{.Actor.InterfaceName}} interface.
 // Returns a factory function compatible with Dapr's RegisterActorImplFactoryContext.
 // The generated factory ensures the actor Type() method returns the correct actor type.
 func New{{.Actor.ActorType}}FactoryContext(implementation func() {{.Actor.InterfaceName}}) func() actor.ServerContext {
 	return func() actor.ServerContext {
-		// Compile-time check ensures the implementation satisfies the contract
+		// Compile-time check ensures the implementation satisfies the schema
 		impl := implementation()
 		
 		// The implementation must also implement actor.ServerContext
 		if serverCtx, ok := impl.(actor.ServerContext); ok {
-			// Verify the actor type matches the contract
+			// Verify the actor type matches the schema
 			if serverCtx.Type() != ActorType{{.Actor.ActorType}} {
 				panic(fmt.Sprintf("actor implementation Type() returns '%s', expected '%s'", serverCtx.Type(), ActorType{{.Actor.ActorType}}))
 			}

@@ -347,9 +347,9 @@ func getInterfaceName(doc *openapi3.T) string {
 // getInterfaceDescription generates interface description from API info
 func getInterfaceDescription(doc *openapi3.T) string {
 	if doc.Info != nil && doc.Info.Title != "" {
-		return fmt.Sprintf("defines the interface that must be implemented to satisfy the OpenAPI contract for %s", doc.Info.Title)
+		return fmt.Sprintf("defines the interface that must be implemented to satisfy the OpenAPI schema for %s", doc.Info.Title)
 	}
-	return "defines the interface that must be implemented to satisfy the OpenAPI contract"
+	return "defines the interface that must be implemented to satisfy the OpenAPI schema"
 }
 
 // toSnakeCase converts PascalCase to snake_case
@@ -428,7 +428,7 @@ func generateInterfaces(doc *openapi3.T, packageName, outputDir string) ([]strin
 		}
 		
 		interfaceName := actorType + "APIContract"
-		interfaceDesc := fmt.Sprintf("defines the interface that must be implemented to satisfy the OpenAPI contract for %s", actorType)
+		interfaceDesc := fmt.Sprintf("defines the interface that must be implemented to satisfy the OpenAPI schema for %s", actorType)
 		
 		actor := ActorInterface{
 			ActorType:     actorType,
