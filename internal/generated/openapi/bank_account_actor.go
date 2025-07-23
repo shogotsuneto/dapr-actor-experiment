@@ -1,4 +1,4 @@
-// Package generated provides primitives for OpenAPI-based contract validation.
+// Package generated provides primitives for OpenAPI-based schema validation.
 //
 // Code generated from OpenAPI specification. DO NOT EDIT manually.
 package generated
@@ -12,33 +12,33 @@ import (
 // ActorTypeBankAccountActor is the Dapr actor type identifier for BankAccountActor
 const ActorTypeBankAccountActor = "BankAccountActor"
 
-// BankAccountActorAPIContract defines the interface that must be implemented to satisfy the OpenAPI contract for BankAccountActor.
-// This interface enforces compile-time contract compliance.
-type BankAccountActorAPIContract interface {
+// BankAccountActorAPI defines the interface that must be implemented to satisfy the OpenAPI schema for BankAccountActor.
+// This interface enforces compile-time schema compliance.
+type BankAccountActorAPI interface {
 	// Deposit money to account
 	Deposit(ctx context.Context, request DepositRequest) (*BankAccountState, error)
-	// Get current account balance
-	GetBalance(ctx context.Context) (*BankAccountState, error)
-	// Create new bank account
-	CreateAccount(ctx context.Context, request CreateAccountRequest) (*BankAccountState, error)
 	// Get transaction history
 	GetHistory(ctx context.Context) (*TransactionHistory, error)
 	// Withdraw money from account
 	Withdraw(ctx context.Context, request WithdrawRequest) (*BankAccountState, error)
+	// Create new bank account
+	CreateAccount(ctx context.Context, request CreateAccountRequest) (*BankAccountState, error)
+	// Get current account balance
+	GetBalance(ctx context.Context) (*BankAccountState, error)
 }
 
-// NewBankAccountActorFactoryContext creates a factory function for BankAccountActor with contract validation.
-// The implementation parameter must implement BankAccountActorAPIContract interface.
+// NewBankAccountActorFactoryContext creates a factory function for BankAccountActor with schema validation.
+// The implementation parameter must implement BankAccountActorAPI interface.
 // Returns a factory function compatible with Dapr's RegisterActorImplFactoryContext.
 // The generated factory ensures the actor Type() method returns the correct actor type.
-func NewBankAccountActorFactoryContext(implementation func() BankAccountActorAPIContract) func() actor.ServerContext {
+func NewBankAccountActorFactoryContext(implementation func() BankAccountActorAPI) func() actor.ServerContext {
 	return func() actor.ServerContext {
-		// Compile-time check ensures the implementation satisfies the contract
+		// Compile-time check ensures the implementation satisfies the schema
 		impl := implementation()
 		
 		// The implementation must also implement actor.ServerContext
 		if serverCtx, ok := impl.(actor.ServerContext); ok {
-			// Verify the actor type matches the contract
+			// Verify the actor type matches the schema
 			if serverCtx.Type() != ActorTypeBankAccountActor {
 				panic(fmt.Sprintf("actor implementation Type() returns '%s', expected '%s'", serverCtx.Type(), ActorTypeBankAccountActor))
 			}

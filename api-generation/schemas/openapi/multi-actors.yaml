@@ -12,7 +12,7 @@ info:
     - State-based actors (CounterActor) - stores current state only
     - Event-sourced actors (BankAccountActor) - stores events and reconstructs state
     
-    **Generated from**: This specification serves as the contract-first definition
+    **Generated from**: This specification serves as the schema-first definition
     for generating Go interfaces and types for multiple actor types.
   version: 1.0.0
   contact:

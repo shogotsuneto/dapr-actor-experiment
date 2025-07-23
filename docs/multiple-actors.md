@@ -121,8 +121,8 @@ const ActorTypeCounterActor = "CounterActor"
 const ActorTypeBankAccountActor = "BankAccountActor"
 
 // Separate interfaces for each actor
-type CounterActorAPIContract interface { ... }
-type BankAccountActorAPIContract interface { ... }
+type CounterActorAPI interface { ... }
+type BankAccountActorAPI interface { ... }
 
 // Separate factory functions
 func NewCounterActorFactoryContext(...) func() actor.ServerContext
