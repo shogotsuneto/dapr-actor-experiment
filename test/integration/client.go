@@ -120,57 +120,6 @@ func (c *DaprClient) InvokeActorMethodWithResponse(ctx context.Context, req Acto
 	return nil
 }
 
-// CounterState represents the counter actor state
-type CounterState struct {
-	Value int `json:"value"`
-}
-
-// BankAccountBalance represents the bank account balance response
-type BankAccountBalance struct {
-	Balance   float64 `json:"balance"`
-	OwnerName string  `json:"ownerName"`
-	AccountID string  `json:"accountId"`
-}
-
-// BankAccountHistory represents the bank account transaction history
-// This matches the TransactionHistory type from the generated API
-type BankAccountHistory struct {
-	AccountId string        `json:"accountId"`
-	Events    []AccountEvent `json:"events"`
-}
-
-// AccountEvent represents a single account event
-// This matches the AccountEvent type from the generated API
-type AccountEvent struct {
-	EventId   string                 `json:"eventId"`
-	EventType string                 `json:"eventType"`
-	Timestamp string                 `json:"timestamp"`
-	Data      map[string]interface{} `json:"data"`
-}
-
-// CreateAccountRequest represents a create account request
-type CreateAccountRequest struct {
-	OwnerName      string  `json:"ownerName"`
-	InitialDeposit float64 `json:"initialDeposit"`
-}
-
-// DepositRequest represents a deposit request
-type DepositRequest struct {
-	Amount      float64 `json:"amount"`
-	Description string  `json:"description"`
-}
-
-// WithdrawRequest represents a withdraw request
-type WithdrawRequest struct {
-	Amount      float64 `json:"amount"`
-	Description string  `json:"description"`
-}
-
-// SetValueRequest represents a set counter value request
-type SetValueRequest struct {
-	Value int `json:"value"`
-}
-
 // CheckHealth verifies that Dapr services are available
 func (c *DaprClient) CheckHealth() error {
 	// Check Dapr sidecar health

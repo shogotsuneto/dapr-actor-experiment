@@ -6,6 +6,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	generated "github.com/shogotsuneto/dapr-actor-experiment/internal/generated/openapi"
 )
 
 func TestBankAccountActor(t *testing.T) {
@@ -42,7 +44,7 @@ func testBankAccountActorBasicOperations(t *testing.T, client *DaprClient) {
 		ActorType: "BankAccountActor",
 		ActorID:   actorID,
 		Method:    "CreateAccount",
-		Data: CreateAccountRequest{
+		Data: generated.CreateAccountRequest{
 			OwnerName:      "Test User",
 			InitialDeposit: 1000.0,
 		},
@@ -50,7 +52,7 @@ func testBankAccountActorBasicOperations(t *testing.T, client *DaprClient) {
 	require.NoError(t, err)
 
 	// Test 2: Get initial balance
-	var balance BankAccountBalance
+	var balance generated.BankAccountState
 	err = client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
 		ActorType: "BankAccountActor",
 		ActorID:   actorID,
@@ -66,7 +68,7 @@ func testBankAccountActorBasicOperations(t *testing.T, client *DaprClient) {
 		ActorType: "BankAccountActor",
 		ActorID:   actorID,
 		Method:    "Deposit",
-		Data: DepositRequest{
+		Data: generated.DepositRequest{
 			Amount:      500.0,
 			Description: "Test deposit",
 		},
@@ -88,7 +90,7 @@ func testBankAccountActorBasicOperations(t *testing.T, client *DaprClient) {
 		ActorType: "BankAccountActor",
 		ActorID:   actorID,
 		Method:    "Withdraw",
-		Data: WithdrawRequest{
+		Data: generated.WithdrawRequest{
 			Amount:      200.0,
 			Description: "Test withdrawal",
 		},
@@ -160,7 +162,7 @@ func testBankAccountActorStateIsolation(t *testing.T, client *DaprClient) {
 				ActorType: "BankAccountActor",
 				ActorID:   account.actorID,
 				Method:    "CreateAccount",
-				Data: CreateAccountRequest{
+				Data: generated.CreateAccountRequest{
 					OwnerName:      account.ownerName,
 					InitialDeposit: account.initialDeposit,
 				},
@@ -175,7 +177,7 @@ func testBankAccountActorStateIsolation(t *testing.T, client *DaprClient) {
 						ActorType: "BankAccountActor",
 						ActorID:   account.actorID,
 						Method:    "Deposit",
-						Data: DepositRequest{
+						Data: generated.DepositRequest{
 							Amount:      op.Amount,
 							Description: op.Description,
 						},
@@ -185,7 +187,7 @@ func testBankAccountActorStateIsolation(t *testing.T, client *DaprClient) {
 						ActorType: "BankAccountActor",
 						ActorID:   account.actorID,
 						Method:    "Withdraw",
-						Data: WithdrawRequest{
+						Data: generated.WithdrawRequest{
 							Amount:      op.Amount,
 							Description: op.Description,
 						},
@@ -195,7 +197,7 @@ func testBankAccountActorStateIsolation(t *testing.T, client *DaprClient) {
 			}
 
 			// Verify final balance
-			var balance BankAccountBalance
+			var balance generated.BankAccountState
 			err = client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
 				ActorType: "BankAccountActor",
 				ActorID:   account.actorID,
@@ -218,7 +220,7 @@ func testBankAccountActorEventSourcing(t *testing.T, client *DaprClient) {
 		ActorType: "BankAccountActor",
 		ActorID:   actorID,
 		Method:    "CreateAccount",
-		Data: CreateAccountRequest{
+		Data: generated.CreateAccountRequest{
 			OwnerName:      "Event Sourcing Test",
 			InitialDeposit: 1000.0,
 		},
@@ -240,7 +242,7 @@ func testBankAccountActorEventSourcing(t *testing.T, client *DaprClient) {
 				ActorType: "BankAccountActor",
 				ActorID:   actorID,
 				Method:    "Deposit",
-				Data: DepositRequest{
+				Data: generated.DepositRequest{
 					Amount:      op.Amount,
 					Description: op.Description,
 				},
@@ -250,7 +252,7 @@ func testBankAccountActorEventSourcing(t *testing.T, client *DaprClient) {
 				ActorType: "BankAccountActor",
 				ActorID:   actorID,
 				Method:    "Withdraw",
-				Data: WithdrawRequest{
+				Data: generated.WithdrawRequest{
 					Amount:      op.Amount,
 					Description: op.Description,
 				},
@@ -260,7 +262,7 @@ func testBankAccountActorEventSourcing(t *testing.T, client *DaprClient) {
 	}
 
 	// Get transaction history to verify event sourcing
-	var history BankAccountHistory
+	var history generated.TransactionHistory
 	err = client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
 		ActorType: "BankAccountActor",
 		ActorID:   actorID,
@@ -276,8 +278,17 @@ func testBankAccountActorEventSourcing(t *testing.T, client *DaprClient) {
 	foundDeposits := 0
 	foundWithdrawals := 0
 	foundAccountCreated := 0
-	for _, event := range history.Events {
-		switch event.EventType {
+	for _, eventInterface := range history.Events {
+		// Convert interface{} to map[string]interface{} (JSON unmarshaling result)
+		eventMap, ok := eventInterface.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		eventType, ok := eventMap["eventType"].(string)
+		if !ok {
+			continue
+		}
+		switch eventType {
 		case "AccountCreated":
 			foundAccountCreated++
 		case "MoneyDeposited":
@@ -291,7 +302,7 @@ func testBankAccountActorEventSourcing(t *testing.T, client *DaprClient) {
 	assert.GreaterOrEqual(t, foundWithdrawals, 2, "Should have at least 2 withdrawal events")
 
 	// Verify final balance matches expected calculation
-	var balance BankAccountBalance
+	var balance generated.BankAccountState
 	err = client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
 		ActorType: "BankAccountActor",
 		ActorID:   actorID,

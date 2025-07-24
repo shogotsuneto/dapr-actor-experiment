@@ -8,6 +8,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	generated "github.com/shogotsuneto/dapr-actor-experiment/internal/generated/openapi"
 )
 
 // TestActorServicesAssumeRunning tests the integration without managing Docker services
@@ -25,7 +27,7 @@ func TestActorServicesAssumeRunning(t *testing.T) {
 		actorID := "quick-test-counter"
 
 		// Test get initial value
-		var state CounterState
+		var state generated.CounterState
 		err := daprClient.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
 			ActorType: "CounterActor",
 			ActorID:   actorID,
@@ -62,7 +64,7 @@ func TestActorServicesAssumeRunning(t *testing.T) {
 			ActorType: "BankAccountActor",
 			ActorID:   actorID,
 			Method:    "CreateAccount",
-			Data: CreateAccountRequest{
+			Data: generated.CreateAccountRequest{
 				OwnerName:      "Quick Test User",
 				InitialDeposit: 500.0,
 			},
@@ -70,7 +72,7 @@ func TestActorServicesAssumeRunning(t *testing.T) {
 		require.NoError(t, err)
 
 		// Test get balance
-		var balance BankAccountBalance
+		var balance generated.BankAccountState
 		err = daprClient.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
 			ActorType: "BankAccountActor",
 			ActorID:   actorID,
