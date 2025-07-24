@@ -94,7 +94,7 @@ make help
 
 ### Integration Tests
 
-The project includes comprehensive integration tests that replace the shell scripts in `./scripts/test*.sh`. These tests use actual Dapr endpoints via Docker Compose setup and include snapshot testing for fast execution.
+The project includes comprehensive integration tests that replace the shell scripts in `./scripts/test*.sh`. These tests use actual Dapr endpoints via Docker Compose setup.
 
 ```bash
 # Run all integration tests
@@ -104,9 +104,6 @@ make test-integration
 go test -v ./test/integration -run TestCounterActor
 go test -v ./test/integration -run TestBankAccountActor
 go test -v ./test/integration -run TestMultiActorIntegration
-
-# Run snapshot tests with updates
-UPDATE_SNAPSHOTS=true go test -v ./test/integration -run TestSnapshotFunctionalityAssumeRunning
 ```
 
 See [Integration Tests README](test/integration/README.md) for detailed documentation.
@@ -238,9 +235,6 @@ make test-integration
 go test -v ./test/integration -run TestCounterActor
 go test -v ./test/integration -run TestBankAccountActor
 go test -v ./test/integration -run TestMultiActorIntegration
-
-# Snapshot testing for fast regression testing
-UPDATE_SNAPSHOTS=true go test -v ./test/integration -run TestSnapshotFunctionalityAssumeRunning
 ```
 
 See [Integration Tests README](test/integration/README.md) for comprehensive documentation.

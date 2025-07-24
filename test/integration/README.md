@@ -1,6 +1,6 @@
 # Integration Tests
 
-This directory contains integration tests that replace the shell scripts in `./scripts/test*.sh`. The tests use a dedicated Docker Compose setup with actual Dapr endpoints and include snapshot testing capabilities for fast execution.
+This directory contains integration tests that replace the shell scripts in `./scripts/test*.sh`. The tests use a dedicated Docker Compose setup with actual Dapr endpoints.
 
 ## Overview
 
@@ -28,15 +28,10 @@ test/integration/
 ├── README.md                      # This file
 ├── docker-compose.test.yml        # Dedicated compose file for testing
 ├── client.go                      # Dapr HTTP client utilities
-├── snapshot.go                    # Snapshot testing utilities
 ├── counter_test.go                # CounterActor integration tests
 ├── bankaccount_test.go             # BankAccountActor integration tests
 ├── multi_test.go                   # Multi-actor integration tests
-├── snapshot_test.go                # Snapshot testing demonstrations
-├── quick_test.go                   # Fast tests for running services
-├── snapshot_simple_test.go         # Simple snapshot examples
-└── testdata/
-    └── snapshots/                  # Stored test snapshots
+└── quick_test.go                   # Fast tests for running services
 ```
 
 ## Running Tests
@@ -126,24 +121,6 @@ docker compose -f test/integration/docker-compose.test.yml up -d --build
 go test -short ./test/integration/...
 ```
 
-## Snapshot Testing
-
-The integration tests include snapshot testing capabilities for fast test execution:
-
-### Creating Snapshots
-On first run, snapshots are automatically created for response data.
-
-### Updating Snapshots
-```bash
-UPDATE_SNAPSHOTS=true go test -v ./test/integration -run TestActorSnapshotIntegration
-```
-
-### Benefits of Snapshot Testing
-- Fast execution by comparing JSON responses against stored snapshots
-- Easy to detect unexpected changes in API responses
-- Ideal for regression testing
-- Reduces test maintenance overhead
-
 ## Comparison with Shell Scripts
 
 | Shell Scripts | Integration Tests |
@@ -160,7 +137,6 @@ UPDATE_SNAPSHOTS=true go test -v ./test/integration -run TestActorSnapshotIntegr
 4. **CI/CD Integration**: Standard Go testing tools work out of the box
 5. **Maintainability**: Structured, reusable test code
 6. **Assertion Library**: Rich assertions with `testify`
-7. **Snapshot Testing**: Fast regression testing capabilities
 
 ## Docker Requirements
 
@@ -243,19 +219,6 @@ func TestNewFeature(t *testing.T) {
     // Test implementation
     // ...
 }
-```
-
-### Snapshot Testing Pattern
-```go
-WithSnapshotTesting(t, func(t *testing.T, snapshotter *SnapshotTester) {
-    resp, err := client.InvokeActorMethod(ctx, ActorMethodRequest{
-        ActorType: "MyActor",
-        ActorID:   "test-id",
-        Method:    "MyMethod",
-    })
-    require.NoError(t, err)
-    snapshotter.MatchJSONSnapshot(t, "my_method_response", resp.Body)
-})
 ```
 
 ## Future Enhancements

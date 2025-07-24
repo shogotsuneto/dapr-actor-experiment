@@ -1,7 +1,0 @@
-{
-  "accountId": "snapshot-demo-bank",
-  "balance": 1000,
-  "createdAt": "2025-07-23T07:02:58Z",
-  "isActive": true,
-  "ownerName": "Snapshot Demo User"
-}
