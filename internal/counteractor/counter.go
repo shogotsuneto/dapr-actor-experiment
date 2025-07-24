@@ -1,11 +1,10 @@
-package actor
+package counteractor
 
 import (
 	"context"
 	"errors"
 	
 	"github.com/dapr/go-sdk/actor"
-	generated "github.com/shogotsuneto/dapr-actor-experiment/internal/generated/openapi"
 )
 
 
@@ -20,10 +19,10 @@ type CounterActor struct {
 }
 
 func (c *CounterActor) Type() string {
-	return generated.ActorTypeCounterActor
+	return ActorTypeCounterActor
 }
 
-func (c *CounterActor) Increment(ctx context.Context) (*generated.CounterState, error) {
+func (c *CounterActor) Increment(ctx context.Context) (*CounterState, error) {
 	state, err := c.getState(ctx)
 	if err != nil {
 		return nil, err
@@ -38,7 +37,7 @@ func (c *CounterActor) Increment(ctx context.Context) (*generated.CounterState, 
 	return state, nil
 }
 
-func (c *CounterActor) Decrement(ctx context.Context) (*generated.CounterState, error) {
+func (c *CounterActor) Decrement(ctx context.Context) (*CounterState, error) {
 	state, err := c.getState(ctx)
 	if err != nil {
 		return nil, err
@@ -53,7 +52,7 @@ func (c *CounterActor) Decrement(ctx context.Context) (*generated.CounterState, 
 	return state, nil
 }
 
-func (c *CounterActor) Get(ctx context.Context) (*generated.CounterState, error) {
+func (c *CounterActor) Get(ctx context.Context) (*CounterState, error) {
 	state, err := c.getState(ctx)
 	if err != nil {
 		return nil, err
@@ -62,12 +61,12 @@ func (c *CounterActor) Get(ctx context.Context) (*generated.CounterState, error)
 	return state, nil
 }
 
-func (c *CounterActor) Set(ctx context.Context, request generated.SetValueRequest) (*generated.CounterState, error) {
+func (c *CounterActor) Set(ctx context.Context, request SetValueRequest) (*CounterState, error) {
 	if err := c.validateSetRequest(request); err != nil {
 		return nil, err
 	}
 	
-	state := &generated.CounterState{Value: request.Value}
+	state := &CounterState{Value: request.Value}
 	
 	if err := c.setState(ctx, state); err != nil {
 		return nil, err
@@ -76,9 +75,9 @@ func (c *CounterActor) Set(ctx context.Context, request generated.SetValueReques
 	return state, nil
 }
 
-func (c *CounterActor) getState(ctx context.Context) (*generated.CounterState, error) {
+func (c *CounterActor) getState(ctx context.Context) (*CounterState, error) {
 	stateKey := "counter"
-	var state generated.CounterState
+	var state CounterState
 	
 	ok, err := c.GetStateManager().Contains(ctx, stateKey)
 	if err != nil {
@@ -86,7 +85,7 @@ func (c *CounterActor) getState(ctx context.Context) (*generated.CounterState, e
 	}
 	
 	if !ok {
-		return &generated.CounterState{Value: 0}, nil
+		return &CounterState{Value: 0}, nil
 	}
 	
 	err = c.GetStateManager().Get(ctx, stateKey, &state)
@@ -97,12 +96,12 @@ func (c *CounterActor) getState(ctx context.Context) (*generated.CounterState, e
 	return &state, nil
 }
 
-func (c *CounterActor) setState(ctx context.Context, state *generated.CounterState) error {
+func (c *CounterActor) setState(ctx context.Context, state *CounterState) error {
 	stateKey := "counter"
 	return c.GetStateManager().Set(ctx, stateKey, state)
 }
 
-func (c *CounterActor) validateSetRequest(request generated.SetValueRequest) error {
+func (c *CounterActor) validateSetRequest(request SetValueRequest) error {
 	const (
 		minInt32 = -2147483648
 		maxInt32 = 2147483647

@@ -1,7 +1,7 @@
-// Package generated provides primitives for OpenAPI-based schema validation.
+// Package bankaccountactor provides primitives for OpenAPI-based schema validation.
 //
 // Code generated from OpenAPI specification. DO NOT EDIT manually.
-package generated
+package bankaccountactor
 
 import (
 	"context"

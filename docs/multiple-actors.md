@@ -180,7 +180,8 @@ curl http://localhost:3500/v1.0/actors/BankAccountActor/account-123/method/getHi
 
 Run the test suite to verify both patterns:
 ```bash
-go test ./internal/actor
+go test ./internal/counteractor
+go test ./internal/bankaccountactor
 ```
 
 Or use the comprehensive test script:

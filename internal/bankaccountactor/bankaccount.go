@@ -1,4 +1,4 @@
-package actor
+package bankaccountactor
 
 import (
 	"context"
@@ -9,7 +9,6 @@ import (
 
 	"github.com/dapr/go-sdk/actor"
 	"github.com/google/uuid"
-	generated "github.com/shogotsuneto/dapr-actor-experiment/internal/generated/openapi"
 )
 
 // BankAccountActor demonstrates event sourcing pattern with in-memory state caching.
@@ -30,7 +29,7 @@ type BankAccountActor struct {
 	actor.ServerImplBaseCtx
 	
 	// Ephemeral in-memory state for fast access (cached from events)
-	cachedState    *generated.BankAccountState
+	cachedState    *BankAccountState
 	stateLoaded    bool  // Track if state has been loaded from events
 	accountExists  bool  // Track if account exists to avoid repeated checks
 }
@@ -70,7 +69,7 @@ type StoredEvent struct {
 }
 
 func (b *BankAccountActor) Type() string {
-	return generated.ActorTypeBankAccountActor
+	return ActorTypeBankAccountActor
 }
 
 // ensureStateLoaded loads and caches state from events if not already loaded.
@@ -105,14 +104,14 @@ func (b *BankAccountActor) ensureStateLoaded(ctx context.Context) error {
 
 // getCachedState returns the in-memory cached state for fast O(1) access.
 // This leverages the actor pattern's stateful nature for optimal performance.
-func (b *BankAccountActor) getCachedState() (*generated.BankAccountState, error) {
+func (b *BankAccountActor) getCachedState() (*BankAccountState, error) {
 	if !b.accountExists {
 		return nil, errors.New("account does not exist - create account first")
 	}
 	return b.cachedState, nil
 }
 
-func (b *BankAccountActor) CreateAccount(ctx context.Context, request generated.CreateAccountRequest) (*generated.BankAccountState, error) {
+func (b *BankAccountActor) CreateAccount(ctx context.Context, request CreateAccountRequest) (*BankAccountState, error) {
 	// Ensure state is loaded
 	if err := b.ensureStateLoaded(ctx); err != nil {
 		return nil, err
@@ -143,7 +142,7 @@ func (b *BankAccountActor) CreateAccount(ctx context.Context, request generated.
 	}
 	
 	// Update in-memory cached state for fast access
-	b.cachedState = &generated.BankAccountState{
+	b.cachedState = &BankAccountState{
 		AccountId: b.ID(),
 		OwnerName: request.OwnerName,
 		Balance:   request.InitialDeposit,
@@ -155,7 +154,7 @@ func (b *BankAccountActor) CreateAccount(ctx context.Context, request generated.
 	return b.cachedState, nil
 }
 
-func (b *BankAccountActor) Deposit(ctx context.Context, request generated.DepositRequest) (*generated.BankAccountState, error) {
+func (b *BankAccountActor) Deposit(ctx context.Context, request DepositRequest) (*BankAccountState, error) {
 	// Validate request
 	if request.Amount <= 0 {
 		return nil, errors.New("deposit amount must be positive")
@@ -186,7 +185,7 @@ func (b *BankAccountActor) Deposit(ctx context.Context, request generated.Deposi
 	return b.cachedState, nil
 }
 
-func (b *BankAccountActor) Withdraw(ctx context.Context, request generated.WithdrawRequest) (*generated.BankAccountState, error) {
+func (b *BankAccountActor) Withdraw(ctx context.Context, request WithdrawRequest) (*BankAccountState, error) {
 	// Validate request
 	if request.Amount <= 0 {
 		return nil, errors.New("withdrawal amount must be positive")
@@ -223,7 +222,7 @@ func (b *BankAccountActor) Withdraw(ctx context.Context, request generated.Withd
 	return b.cachedState, nil
 }
 
-func (b *BankAccountActor) GetBalance(ctx context.Context) (*generated.BankAccountState, error) {
+func (b *BankAccountActor) GetBalance(ctx context.Context) (*BankAccountState, error) {
 	// Ensure state is loaded
 	if err := b.ensureStateLoaded(ctx); err != nil {
 		return nil, err
@@ -233,7 +232,7 @@ func (b *BankAccountActor) GetBalance(ctx context.Context) (*generated.BankAccou
 	return b.getCachedState()
 }
 
-func (b *BankAccountActor) GetHistory(ctx context.Context) (*generated.TransactionHistory, error) {
+func (b *BankAccountActor) GetHistory(ctx context.Context) (*TransactionHistory, error) {
 	// Ensure state is loaded and account exists
 	if err := b.ensureStateLoaded(ctx); err != nil {
 		return nil, err
@@ -251,7 +250,7 @@ func (b *BankAccountActor) GetHistory(ctx context.Context) (*generated.Transacti
 	// Convert internal events to API events
 	var apiEvents []interface{}
 	for _, event := range events {
-		apiEvent := generated.AccountEvent{
+		apiEvent := AccountEvent{
 			EventId:   event.EventID,
 			EventType: event.EventType,
 			Timestamp: event.Timestamp.Format(time.RFC3339),
@@ -260,7 +259,7 @@ func (b *BankAccountActor) GetHistory(ctx context.Context) (*generated.Transacti
 		apiEvents = append(apiEvents, apiEvent)
 	}
 	
-	return &generated.TransactionHistory{
+	return &TransactionHistory{
 		AccountId: b.ID(),
 		Events:    apiEvents,
 	}, nil
@@ -311,7 +310,7 @@ func (b *BankAccountActor) getAllEvents(ctx context.Context) ([]StoredEvent, err
 	return events, nil
 }
 
-func (b *BankAccountActor) computeStateFromEvents(ctx context.Context) (*generated.BankAccountState, error) {
+func (b *BankAccountActor) computeStateFromEvents(ctx context.Context) (*BankAccountState, error) {
 	events, err := b.getAllEvents(ctx)
 	if err != nil {
 		return nil, err
@@ -322,7 +321,7 @@ func (b *BankAccountActor) computeStateFromEvents(ctx context.Context) (*generat
 	}
 	
 	// Initialize state
-	state := &generated.BankAccountState{
+	state := &BankAccountState{
 		AccountId: b.ID(),
 		Balance:   0,
 		IsActive:  true,

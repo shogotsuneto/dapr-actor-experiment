@@ -1,8 +1,7 @@
-// Package generated provides primitives for OpenAPI-based schema validation.
+// Package bankaccountactor provides primitives for OpenAPI-based schema validation.
 //
 // Code generated from OpenAPI specification. DO NOT EDIT manually.
-package generated
-
+package bankaccountactor
 
 // TransactionHistory Complete transaction history (event sourcing benefit)
 type TransactionHistory struct {
@@ -46,12 +45,6 @@ type BankAccountState struct {
 	IsActive bool `json:"isActive"`
 }
 
-// CounterState Current state of the counter actor (state-based)
-type CounterState struct {
-	// The current counter value
-	Value int32 `json:"value"`
-}
-
 // CreateAccountRequest Request to create a new bank account
 type CreateAccountRequest struct {
 	// Initial deposit amount
@@ -67,10 +60,3 @@ type DepositRequest struct {
 	// Amount to deposit
 	Amount float64 `json:"amount"`
 }
-
-// SetValueRequest Request to set the counter to a specific value
-type SetValueRequest struct {
-	// The value to set the counter to
-	Value int32 `json:"value"`
-}
-

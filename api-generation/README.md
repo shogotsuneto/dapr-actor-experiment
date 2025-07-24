@@ -39,8 +39,9 @@ api-generation/                    # Schema-first development tools
 │   └── scripts/                   # Installation and generation scripts
 └── docs/                          # Documentation and examples
 
-# Generated code location (outside api-generation):
-../internal/generated/openapi/     # Generated code output (integration)
+# Generated code is organized by actor type:
+../internal/counteractor/          # Counter actor implementation and generated types
+../internal/bankaccountactor/      # Bank account actor implementation and generated types
 ```
 
 ## Key Principles
@@ -48,7 +49,7 @@ api-generation/                    # Schema-first development tools
 ### Separation of Concerns
 1. **Schemas** (`schemas/`): Source of truth API schemas
 2. **Tooling** (`tools/`): Generation and validation tools  
-3. **Generated Code** (`../internal/generated/`): Output integrated with main project
+3. **Generated Code**: Output organized by actor type in respective packages
 4. **Documentation** (`docs/`): Workflows, examples, and guidance
 
 ### Tool Installation Strategy
@@ -68,16 +69,17 @@ cd api-generation
 # Generate from OpenAPI (only currently supported format)
 ./tools/scripts/generate.sh openapi schemas/openapi/multi-actors.yaml
 
-# Generated code appears in ../internal/generated/openapi/
-ls ../internal/generated/openapi/
-# types.go  interface.go
+# Generated code is now organized by actor type:
+ls ../internal/counteractor/      # Counter actor types and interfaces
+ls ../internal/bankaccountactor/  # Bank account actor types and interfaces
+# types.go  generated.go  counter.go (or bankaccount.go)
 ```
 
 ### 3. Use Generated Code in Your Application
 ```go
-import generated "github.com/shogotsuneto/dapr-actor-experiment/internal/generated/openapi"
+import "github.com/shogotsuneto/dapr-actor-experiment/internal/counteractor"
 
-func (c *CounterActor) Increment(ctx context.Context) (*generated.CounterState, error) {
+func (c *CounterActor) Increment(ctx context.Context) (*counteractor.CounterState, error) {
     // Implementation MUST match the OpenAPI schema
 }
 ```
