@@ -1,4 +1,4 @@
-// Package generated provides primitives for OpenAPI-based schema validation.
+// Package bankaccountactor provides primitives for OpenAPI-based schema validation.
 //
 // Code generated from OpenAPI specification. DO NOT EDIT manually.
 package bankaccountactor
@@ -15,16 +15,16 @@ const ActorTypeBankAccountActor = "BankAccountActor"
 // BankAccountActorAPI defines the interface that must be implemented to satisfy the OpenAPI schema for BankAccountActor.
 // This interface enforces compile-time schema compliance.
 type BankAccountActorAPI interface {
+	// Withdraw money from account
+	Withdraw(ctx context.Context, request WithdrawRequest) (*BankAccountState, error)
+	// Create new bank account
+	CreateAccount(ctx context.Context, request CreateAccountRequest) (*BankAccountState, error)
 	// Deposit money to account
 	Deposit(ctx context.Context, request DepositRequest) (*BankAccountState, error)
 	// Get current account balance
 	GetBalance(ctx context.Context) (*BankAccountState, error)
 	// Get transaction history
 	GetHistory(ctx context.Context) (*TransactionHistory, error)
-	// Create new bank account
-	CreateAccount(ctx context.Context, request CreateAccountRequest) (*BankAccountState, error)
-	// Withdraw money from account
-	Withdraw(ctx context.Context, request WithdrawRequest) (*BankAccountState, error)
 }
 
 // NewBankAccountActorFactoryContext creates a factory function for BankAccountActor with schema validation.

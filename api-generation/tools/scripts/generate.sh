@@ -109,7 +109,16 @@ case "$SCHEMA_TYPE" in
         
         # Generate types and interface using consolidated generator
         log_info "Generating Go types and interface..."
-        "$BIN_DIR/generator" "$SCHEMA_PATH" "generated" "$OUTPUT_DIR"
+        
+        # Determine base output directory - should generate directly to internal/
+        if [[ "$API_GEN_DIR" == */api-generation ]]; then
+            PROJECT_ROOT="$(dirname "$API_GEN_DIR")"
+            BASE_OUTPUT_DIR="$PROJECT_ROOT/internal"
+        else
+            BASE_OUTPUT_DIR="$API_GEN_DIR/internal"
+        fi
+        
+        "$BIN_DIR/generator" "$SCHEMA_PATH" "$BASE_OUTPUT_DIR"
         
         log_info "✓ OpenAPI code generated successfully"
         ;;
@@ -144,12 +153,7 @@ esac
 
 log_info ""
 log_info "Generated files:"
-find "$OUTPUT_DIR" -type f -name "*.go" | sort | sed 's/^/  /'
-
-# Reorganize generated code into actor-specific packages
-log_info ""
-log_step "Reorganizing generated code into actor-specific packages..."
-"$SCRIPT_DIR/reorganize-generated.sh"
+find "$BASE_OUTPUT_DIR" -type f -name "*.go" -path "*/counteractor/*" -o -path "*/bankaccountactor/*" | sort | sed 's/^/  /'
 
 log_info ""
 log_info "✓ Code generation completed successfully!"

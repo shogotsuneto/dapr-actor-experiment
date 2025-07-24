@@ -1,22 +1,8 @@
-// Package generated provides primitives for OpenAPI-based schema validation.
+// Package bankaccountactor provides primitives for OpenAPI-based schema validation.
 //
 // Code generated from OpenAPI specification. DO NOT EDIT manually.
 package bankaccountactor
 
-
-// BankAccountState Current state of bank account (computed from events)
-type BankAccountState struct {
-	// Account creation timestamp
-	CreatedAt string `json:"createdAt,omitempty"`
-	// Whether account is active
-	IsActive bool `json:"isActive"`
-	// Account owner name
-	OwnerName string `json:"ownerName"`
-	// Unique account identifier
-	AccountId string `json:"accountId"`
-	// Current account balance (computed from events)
-	Balance float64 `json:"balance"`
-}
 
 // CounterState Current state of the counter actor (state-based)
 type CounterState struct {
@@ -34,10 +20,10 @@ type CreateAccountRequest struct {
 
 // DepositRequest Request to deposit money
 type DepositRequest struct {
-	// Amount to deposit
-	Amount float64 `json:"amount"`
 	// Description of the deposit
 	Description string `json:"description"`
+	// Amount to deposit
+	Amount float64 `json:"amount"`
 }
 
 // SetValueRequest Request to set the counter to a specific value
@@ -56,10 +42,10 @@ type TransactionHistory struct {
 
 // WithdrawRequest Request to withdraw money
 type WithdrawRequest struct {
-	// Amount to withdraw
-	Amount float64 `json:"amount"`
 	// Description of the withdrawal
 	Description string `json:"description"`
+	// Amount to withdraw
+	Amount float64 `json:"amount"`
 }
 
 // AccountEvent A single account event
@@ -72,5 +58,19 @@ type AccountEvent struct {
 	EventType string `json:"eventType"`
 	// When the event occurred
 	Timestamp string `json:"timestamp"`
+}
+
+// BankAccountState Current state of bank account (computed from events)
+type BankAccountState struct {
+	// Account owner name
+	OwnerName string `json:"ownerName"`
+	// Unique account identifier
+	AccountId string `json:"accountId"`
+	// Current account balance (computed from events)
+	Balance float64 `json:"balance"`
+	// Account creation timestamp
+	CreatedAt string `json:"createdAt,omitempty"`
+	// Whether account is active
+	IsActive bool `json:"isActive"`
 }
 

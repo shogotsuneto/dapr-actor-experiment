@@ -1,4 +1,4 @@
-// Package generated provides primitives for OpenAPI-based schema validation.
+// Package counteractor provides primitives for OpenAPI-based schema validation.
 //
 // Code generated from OpenAPI specification. DO NOT EDIT manually.
 package counteractor
@@ -15,14 +15,14 @@ const ActorTypeCounterActor = "CounterActor"
 // CounterActorAPI defines the interface that must be implemented to satisfy the OpenAPI schema for CounterActor.
 // This interface enforces compile-time schema compliance.
 type CounterActorAPI interface {
+	// Increment counter by 1
+	Increment(ctx context.Context) (*CounterState, error)
+	// Set counter to specific value
+	Set(ctx context.Context, request SetValueRequest) (*CounterState, error)
 	// Get current counter value
 	Get(ctx context.Context) (*CounterState, error)
 	// Decrement counter by 1
 	Decrement(ctx context.Context) (*CounterState, error)
-	// Set counter to specific value
-	Set(ctx context.Context, request SetValueRequest) (*CounterState, error)
-	// Increment counter by 1
-	Increment(ctx context.Context) (*CounterState, error)
 }
 
 // NewCounterActorFactoryContext creates a factory function for CounterActor with schema validation.
