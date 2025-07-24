@@ -133,18 +133,19 @@ type BankAccountBalance struct {
 }
 
 // BankAccountHistory represents the bank account transaction history
+// This matches the TransactionHistory type from the generated API
 type BankAccountHistory struct {
-	Transactions []Transaction `json:"transactions"`
+	AccountId string        `json:"accountId"`
+	Events    []AccountEvent `json:"events"`
 }
 
-// Transaction represents a single transaction
-type Transaction struct {
-	ID          string  `json:"id"`
-	Type        string  `json:"type"`
-	Amount      float64 `json:"amount"`
-	Description string  `json:"description"`
-	Timestamp   string  `json:"timestamp"`
-	Balance     float64 `json:"balance"`
+// AccountEvent represents a single account event
+// This matches the AccountEvent type from the generated API
+type AccountEvent struct {
+	EventId   string                 `json:"eventId"`
+	EventType string                 `json:"eventType"`
+	Timestamp string                 `json:"timestamp"`
+	Data      map[string]interface{} `json:"data"`
 }
 
 // CreateAccountRequest represents a create account request

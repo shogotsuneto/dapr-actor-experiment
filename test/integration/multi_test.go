@@ -296,5 +296,5 @@ func testConcurrentActorOperations(t *testing.T, client *DaprClient) {
 		Method:    "GetHistory",
 	}, &history)
 	require.NoError(t, err)
-	assert.GreaterOrEqual(t, len(history.Transactions), 2, "Should have at least account creation and deposit transactions")
+	assert.GreaterOrEqual(t, len(history.Events), 2, "Should have at least account creation and deposit events")
 }

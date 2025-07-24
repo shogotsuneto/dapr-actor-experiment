@@ -269,21 +269,26 @@ func testBankAccountActorEventSourcing(t *testing.T, client *DaprClient) {
 	require.NoError(t, err)
 
 	// Verify transaction history contains all operations (including account creation)
-	// Should have: 1 account creation + 4 operations = 5 transactions
-	assert.GreaterOrEqual(t, len(history.Transactions), 5, "Should have at least 5 transactions including account creation")
+	// Should have: 1 account creation + 4 operations = 5 events
+	assert.GreaterOrEqual(t, len(history.Events), 5, "Should have at least 5 events including account creation")
 
-	// Verify transaction types and amounts
+	// Verify event types
 	foundDeposits := 0
 	foundWithdrawals := 0
-	for _, tx := range history.Transactions {
-		if tx.Type == "deposit" {
+	foundAccountCreated := 0
+	for _, event := range history.Events {
+		switch event.EventType {
+		case "AccountCreated":
+			foundAccountCreated++
+		case "MoneyDeposited":
 			foundDeposits++
-		} else if tx.Type == "withdrawal" {
+		case "MoneyWithdrawn":
 			foundWithdrawals++
 		}
 	}
-	assert.GreaterOrEqual(t, foundDeposits, 2, "Should have at least 2 deposits (plus initial)")
-	assert.GreaterOrEqual(t, foundWithdrawals, 2, "Should have at least 2 withdrawals")
+	assert.GreaterOrEqual(t, foundAccountCreated, 1, "Should have account creation event")
+	assert.GreaterOrEqual(t, foundDeposits, 2, "Should have at least 2 deposit events")
+	assert.GreaterOrEqual(t, foundWithdrawals, 2, "Should have at least 2 withdrawal events")
 
 	// Verify final balance matches expected calculation
 	var balance BankAccountBalance
