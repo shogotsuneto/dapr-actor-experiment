@@ -167,9 +167,16 @@ func generateActorPackages(doc *openapi3.T, baseOutputDir string) error {
 			return fmt.Errorf("failed to generate interface for %s: %v", actorType, err)
 		}
 
+		// Generate factory for this actor
+		err = generateActorFactory(doc, packageName, outputDir, actorType, methods)
+		if err != nil {
+			return fmt.Errorf("failed to generate factory for %s: %v", actorType, err)
+		}
+
 		fmt.Printf("Generated actor package: %s\n", outputDir)
 		fmt.Printf("  %s/types.go\n", outputDir)
-		fmt.Printf("  %s/generated.go\n", outputDir)
+		fmt.Printf("  %s/api.go\n", outputDir)
+		fmt.Printf("  %s/factory.go\n", outputDir)
 	}
 
 	return nil
@@ -277,8 +284,8 @@ func generateActorInterface(doc *openapi3.T, packageName, outputDir, actorType s
 		Actor:       actor,
 	}
 
-	// Use generated.go as filename for consistency with existing structure
-	interfaceFile, err := os.Create(filepath.Join(outputDir, "generated.go"))
+	// Use api.go as filename instead of generated.go for better clarity
+	interfaceFile, err := os.Create(filepath.Join(outputDir, "api.go"))
 	if err != nil {
 		return fmt.Errorf("failed to create interface file: %v", err)
 	}
@@ -287,6 +294,44 @@ func generateActorInterface(doc *openapi3.T, packageName, outputDir, actorType s
 	err = tmpl.Execute(interfaceFile, data)
 	if err != nil {
 		return fmt.Errorf("failed to execute interface template: %v", err)
+	}
+
+	return nil
+}
+
+func generateActorFactory(doc *openapi3.T, packageName, outputDir, actorType string, methods []Method) error {
+	// Load template from file
+	templatePath := getTemplatePath("factory.tmpl")
+	tmpl, err := template.ParseFiles(templatePath)
+	if err != nil {
+		return fmt.Errorf("failed to parse factory template: %v", err)
+	}
+
+	interfaceName := actorType + "API"
+	interfaceDesc := fmt.Sprintf("defines the interface that must be implemented to satisfy the OpenAPI schema for %s", actorType)
+	
+	actor := ActorInterface{
+		ActorType:     actorType,
+		InterfaceName: interfaceName,
+		InterfaceDesc: interfaceDesc,
+		Methods:       methods,
+	}
+
+	// Generate factory file for this actor
+	data := SingleActorTemplateData{
+		PackageName: packageName,
+		Actor:       actor,
+	}
+
+	factoryFile, err := os.Create(filepath.Join(outputDir, "factory.go"))
+	if err != nil {
+		return fmt.Errorf("failed to create factory file: %v", err)
+	}
+	defer factoryFile.Close()
+
+	err = tmpl.Execute(factoryFile, data)
+	if err != nil {
+		return fmt.Errorf("failed to execute factory template: %v", err)
 	}
 
 	return nil
