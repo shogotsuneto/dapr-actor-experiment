@@ -146,6 +146,11 @@ log_info ""
 log_info "Generated files:"
 find "$OUTPUT_DIR" -type f -name "*.go" | sort | sed 's/^/  /'
 
+# Reorganize generated code into actor-specific packages
+log_info ""
+log_step "Reorganizing generated code into actor-specific packages..."
+"$SCRIPT_DIR/reorganize-generated.sh"
+
 log_info ""
 log_info "✓ Code generation completed successfully!"
-log_info "Output directory: $OUTPUT_DIR"
+log_info "Generated code organized into actor-specific packages in internal/"
