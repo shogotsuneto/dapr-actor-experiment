@@ -100,6 +100,9 @@ The project includes comprehensive integration tests that use actual Dapr endpoi
 # Run all integration tests
 make test-integration
 
+# Run tests in Docker container (useful for different Go versions)
+make test-integration-docker
+
 # Run specific test suites
 go test -v ./test/integration -run TestCounterActor
 go test -v ./test/integration -run TestBankAccountActor

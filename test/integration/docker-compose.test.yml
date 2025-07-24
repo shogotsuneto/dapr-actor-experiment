@@ -75,6 +75,23 @@ services:
       placement:
         condition: service_started
 
+  # Test runner container for running tests inside Docker
+  test-runner:
+    image: golang:1.24
+    working_dir: /app
+    volumes:
+      - ../..:/app
+    environment:
+      - CGO_ENABLED=0
+    command: ["go", "test", "-v", "./test/integration/...", "-timeout=5m"]
+    depends_on:
+      actor-service-dapr:
+        condition: service_started
+      redis:
+        condition: service_healthy
+    profiles:
+      - test-runner
+
 networks:
   default:
     driver: bridge

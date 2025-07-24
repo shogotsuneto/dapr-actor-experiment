@@ -59,6 +59,18 @@ go test -v ./test/integration -run TestBankAccountActor
 docker compose -f test/integration/docker-compose.test.yml down
 ```
 
+### Option 3: Run Tests in Docker Container
+For environments with different Go versions or when you prefer full containerization:
+```bash
+make test-integration-docker
+```
+
+This option:
+- Starts all required services (Redis, Dapr placement, actor service, Dapr sidecar)
+- Runs the tests inside a Go 1.24 Docker container
+- Automatically handles service lifecycle
+- Useful when your local Go version differs from the project requirements
+
 ## Benefits of Simplified Architecture
 
 ### Before (Complex Setup)

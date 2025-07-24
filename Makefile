@@ -1,4 +1,4 @@
-.PHONY: build clean test test-unit test-integration test-integration-quick help
+.PHONY: build clean test test-unit test-integration test-integration-quick test-integration-docker help
 
 # Default target
 all: build
@@ -42,6 +42,18 @@ test-integration-quick:
 	@echo "Make sure services are started with: docker compose -f test/integration/docker-compose.test.yml up -d"
 	@go test -v ./test/integration/... -timeout=2m
 
+# Run integration tests inside Docker container
+test-integration-docker:
+	@echo "Running integration tests inside Docker container..."
+	@echo "Starting test services with Docker Compose..."
+	@docker compose -f test/integration/docker-compose.test.yml up -d --build
+	@echo "Waiting for services to be ready..."
+	@sleep 15
+	@echo "Running tests in Docker container..."
+	@docker compose -f test/integration/docker-compose.test.yml --profile test-runner run --rm test-runner || (echo "Tests failed, stopping services..." && docker compose -f test/integration/docker-compose.test.yml down && exit 1)
+	@echo "Stopping test services..."
+	@docker compose -f test/integration/docker-compose.test.yml down
+
 # Display help
 help:
 	@echo "Available targets:"
@@ -51,4 +63,5 @@ help:
 	@echo "  test-unit               - Run unit tests only"
 	@echo "  test-integration        - Run integration tests (starts/stops Docker services)"
 	@echo "  test-integration-quick  - Run integration tests (assumes services running)"
+	@echo "  test-integration-docker - Run integration tests inside Docker container"
 	@echo "  help                    - Show this help message"
