@@ -1,6 +1,6 @@
 # Integration Tests
 
-This directory contains integration tests that replace the shell scripts in `./scripts/test*.sh`. The tests use a dedicated Docker Compose setup with actual Dapr endpoints.
+This directory contains integration tests that use a dedicated Docker Compose setup with actual Dapr endpoints.
 
 ## Overview
 
@@ -121,15 +121,7 @@ docker compose -f test/integration/docker-compose.test.yml up -d --build
 go test -short ./test/integration/...
 ```
 
-## Comparison with Shell Scripts
-
-| Shell Scripts | Integration Tests |
-|---------------|------------------|
-| `test-counter-actor.sh` | `counter_test.go` |
-| `test-bank-account-actor.sh` | `bankaccount_test.go` |
-| `test-multi-actors.sh` | `multi_test.go` |
-
-### Advantages of Go Integration Tests
+## Advantages of Go Integration Tests
 
 1. **Better Error Handling**: Detailed error messages and stack traces
 2. **Type Safety**: Compile-time validation of API interactions

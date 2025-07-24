@@ -94,7 +94,7 @@ make help
 
 ### Integration Tests
 
-The project includes comprehensive integration tests that replace the shell scripts in `./scripts/test*.sh`. These tests use actual Dapr endpoints via Docker Compose setup.
+The project includes comprehensive integration tests that use actual Dapr endpoints via Docker Compose setup.
 
 ```bash
 # Run all integration tests
