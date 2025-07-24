@@ -1,9 +1,9 @@
 name: Pull Request Tests
 
-# Trigger on pull requests to main branch
+# Trigger on pull requests to main and develop branches
 on:
   pull_request:
-    branches: [ main ]
+    branches: [ main, develop ]
 
 jobs:
   test:
