@@ -8,6 +8,7 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     
     steps:
     - name: Checkout code
@@ -36,3 +37,4 @@ jobs:
       
     - name: Run integration tests
       run: make test-integration
+      timeout-minutes: 10
