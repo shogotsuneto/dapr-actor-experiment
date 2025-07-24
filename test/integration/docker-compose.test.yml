@@ -83,6 +83,8 @@ services:
       - ../..:/app
     environment:
       - CGO_ENABLED=0
+      - DAPR_HTTP_ENDPOINT=http://actor-service-dapr:3500
+      - ACTOR_SERVICE_ENDPOINT=http://actor-service:8080
     command: ["go", "test", "-v", "./test/integration/...", "-timeout=5m"]
     depends_on:
       actor-service-dapr:

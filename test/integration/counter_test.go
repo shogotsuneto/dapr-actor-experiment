@@ -14,7 +14,7 @@ func TestCounterActor(t *testing.T) {
 	}
 
 	// Setup Dapr client - assumes services are already running
-	daprClient := NewDaprClient("http://localhost:3500")
+	daprClient := NewDaprClient(GetDaprEndpoint())
 
 	// Verify services are available
 	require.NoError(t, daprClient.CheckHealth(), "Dapr services must be running. Start with: docker compose -f test/integration/docker-compose.test.yml up -d")

@@ -18,7 +18,7 @@ func TestActorServicesAssumeRunning(t *testing.T) {
 	}
 
 	// Simple test that assumes services are already running
-	daprClient := NewDaprClient("http://localhost:3500")
+	daprClient := NewDaprClient(GetDaprEndpoint())
 	ctx := context.Background()
 
 	t.Run("TestBasicCounterOperations", func(t *testing.T) {

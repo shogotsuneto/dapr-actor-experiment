@@ -7,7 +7,24 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 )
+
+// GetDaprEndpoint returns the Dapr HTTP endpoint URL, configurable via environment variable
+func GetDaprEndpoint() string {
+	if endpoint := os.Getenv("DAPR_HTTP_ENDPOINT"); endpoint != "" {
+		return endpoint
+	}
+	return "http://localhost:3500"
+}
+
+// GetActorServiceEndpoint returns the actor service endpoint URL, configurable via environment variable
+func GetActorServiceEndpoint() string {
+	if endpoint := os.Getenv("ACTOR_SERVICE_ENDPOINT"); endpoint != "" {
+		return endpoint
+	}
+	return "http://localhost:8080"
+}
 
 // DaprClient provides utilities for making HTTP calls to Dapr actor endpoints
 type DaprClient struct {
@@ -167,7 +184,7 @@ func (c *DaprClient) CheckHealth() error {
 	}
 
 	// Check actor service health
-	actorServiceURL := "http://localhost:8080/health"
+	actorServiceURL := GetActorServiceEndpoint() + "/health"
 	resp, err = c.httpClient.Get(actorServiceURL)
 	if err != nil {
 		return fmt.Errorf("failed to connect to actor service: %w", err)
