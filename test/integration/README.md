@@ -30,8 +30,7 @@ test/integration/
 ├── client.go                      # Dapr HTTP client utilities
 ├── counter_test.go                # CounterActor integration tests
 ├── bankaccount_test.go             # BankAccountActor integration tests
-├── multi_test.go                   # Multi-actor integration tests
-└── quick_test.go                   # Fast tests for running services
+└── multi_test.go                   # Multi-actor integration tests
 ```
 
 ## Running Tests
