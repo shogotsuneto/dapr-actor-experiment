@@ -46,7 +46,7 @@ func testCounterActorBasicOperations(t *testing.T, client *DaprClient) {
 		Method:    "Get",
 	}, &initialState)
 	require.NoError(t, err)
-	assert.Equal(t, 0, initialState.Value, "Initial counter value should be 0")
+	assert.Equal(t, int32(0), initialState.Value, "Initial counter value should be 0")
 
 	// Test 2: Increment counter
 	var incrementedState generated.CounterState
@@ -56,7 +56,7 @@ func testCounterActorBasicOperations(t *testing.T, client *DaprClient) {
 		Method:    "Increment",
 	}, &incrementedState)
 	require.NoError(t, err)
-	assert.Equal(t, 1, incrementedState.Value, "Counter should be 1 after increment")
+	assert.Equal(t, int32(1), incrementedState.Value, "Counter should be 1 after increment")
 
 	// Test 3: Increment again
 	err = client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
@@ -65,7 +65,7 @@ func testCounterActorBasicOperations(t *testing.T, client *DaprClient) {
 		Method:    "Increment",
 	}, &incrementedState)
 	require.NoError(t, err)
-	assert.Equal(t, 2, incrementedState.Value, "Counter should be 2 after second increment")
+	assert.Equal(t, int32(2), incrementedState.Value, "Counter should be 2 after second increment")
 
 	// Test 4: Set to specific value
 	var setState generated.CounterState
@@ -76,7 +76,7 @@ func testCounterActorBasicOperations(t *testing.T, client *DaprClient) {
 		Data:      generated.SetValueRequest{Value: int32(10)},
 	}, &setState)
 	require.NoError(t, err)
-	assert.Equal(t, 10, setState.Value, "Counter should be 10 after set")
+	assert.Equal(t, int32(10), setState.Value, "Counter should be 10 after set")
 
 	// Test 5: Decrement
 	var decrementedState generated.CounterState
@@ -86,7 +86,7 @@ func testCounterActorBasicOperations(t *testing.T, client *DaprClient) {
 		Method:    "Decrement",
 	}, &decrementedState)
 	require.NoError(t, err)
-	assert.Equal(t, 9, decrementedState.Value, "Counter should be 9 after decrement")
+	assert.Equal(t, int32(9), decrementedState.Value, "Counter should be 9 after decrement")
 
 	// Test 6: Verify final state persistence
 	var finalState generated.CounterState
@@ -96,7 +96,7 @@ func testCounterActorBasicOperations(t *testing.T, client *DaprClient) {
 		Method:    "Get",
 	}, &finalState)
 	require.NoError(t, err)
-	assert.Equal(t, 9, finalState.Value, "Final counter value should be 9")
+	assert.Equal(t, int32(9), finalState.Value, "Final counter value should be 9")
 }
 
 func testCounterActorStateIsolation(t *testing.T, client *DaprClient) {
@@ -139,7 +139,7 @@ func testCounterActorMultipleInstances(t *testing.T, client *DaprClient) {
 	testCases := []struct {
 		actorID       string
 		operations    []string
-		expectedFinal int
+		expectedFinal int32
 	}{
 		{
 			actorID:       "counter-001",

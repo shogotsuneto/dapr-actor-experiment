@@ -52,7 +52,7 @@ func testMultipleActorTypes(t *testing.T, client *DaprClient) {
 		Data:      generated.SetValueRequest{Value: int32(5)},
 	}, &counterState)
 	require.NoError(t, err)
-	assert.Equal(t, 5, counterState.Value)
+	assert.Equal(t, int32(5), counterState.Value)
 
 	// BankAccountActor operations
 	bankActorID := "multi-test-account"
@@ -78,7 +78,7 @@ func testMultipleActorTypes(t *testing.T, client *DaprClient) {
 		Method:    "Increment",
 	}, &counterState)
 	require.NoError(t, err)
-	assert.Equal(t, 6, counterState.Value)
+	assert.Equal(t, int32(6), counterState.Value)
 
 	// Deposit to bank account
 	var depositResult interface{}
@@ -100,7 +100,7 @@ func testMultipleActorTypes(t *testing.T, client *DaprClient) {
 		Method:    "Decrement",
 	}, &counterState)
 	require.NoError(t, err)
-	assert.Equal(t, 5, counterState.Value)
+	assert.Equal(t, int32(5), counterState.Value)
 
 	// Withdraw from bank account
 	var withdrawResult interface{}
@@ -123,7 +123,7 @@ func testMultipleActorTypes(t *testing.T, client *DaprClient) {
 		Method:    "Get",
 	}, &counterState)
 	require.NoError(t, err)
-	assert.Equal(t, 5, counterState.Value, "Counter should maintain its state")
+	assert.Equal(t, int32(5), counterState.Value, "Counter should maintain its state")
 
 	// Bank account should be 2200.0 (2000 + 500 - 300)
 	var balance generated.BankAccountState
@@ -151,7 +151,7 @@ func testActorTypesIsolation(t *testing.T, client *DaprClient) {
 		Data:      generated.SetValueRequest{Value: int32(100)},
 	}, &counterState)
 	require.NoError(t, err)
-	assert.Equal(t, 100, counterState.Value)
+	assert.Equal(t, int32(100), counterState.Value)
 
 	// Create BankAccountActor with same ID "isolation-test"
 	var createResult interface{}
@@ -174,7 +174,7 @@ func testActorTypesIsolation(t *testing.T, client *DaprClient) {
 		Method:    "Get",
 	}, &counterState)
 	require.NoError(t, err)
-	assert.Equal(t, 100, counterState.Value, "CounterActor should maintain its state")
+	assert.Equal(t, int32(100), counterState.Value, "CounterActor should maintain its state")
 
 	// Check bank account
 	var balance generated.BankAccountState
