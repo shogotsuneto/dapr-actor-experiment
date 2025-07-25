@@ -60,10 +60,10 @@ func (g *Generator) GenerateActorPackages(model *GenerationModel, baseOutputDir 
 
 	// Generate package for each actor type
 	for _, actor := range model.Actors {
-		// Create actor-specific package name and directory
+		// Create actor-specific package name and directory (remove "actor" suffix)
 		packageName := strings.ToLower(actor.ActorType)
-		if !strings.HasSuffix(packageName, "actor") {
-			packageName += "actor"
+		if strings.HasSuffix(packageName, "actor") {
+			packageName = strings.TrimSuffix(packageName, "actor")
 		}
 
 		outputDir := filepath.Join(baseOutputDir, packageName)
@@ -114,7 +114,7 @@ func (g *Generator) GenerateActorPackages(model *GenerationModel, baseOutputDir 
 // generateSharedTypes generates the shared types package
 func (g *Generator) generateSharedTypes(model *GenerationModel, baseOutputDir string) error {
 	// Create shared types directory
-	sharedTypesDir := filepath.Join(baseOutputDir, "types")
+	sharedTypesDir := filepath.Join(baseOutputDir, "shared")
 	err := os.MkdirAll(sharedTypesDir, 0755)
 	if err != nil {
 		return fmt.Errorf("failed to create shared types directory %s: %v", sharedTypesDir, err)
@@ -129,7 +129,7 @@ func (g *Generator) generateSharedTypes(model *GenerationModel, baseOutputDir st
 
 	// Generate shared types file
 	data := SharedTypesTemplateData{
-		PackageName:   "types",
+		PackageName:   "shared",
 		SharedTypes:   model.SharedTypes,
 		SharedAliases: model.SharedTypeAliases,
 	}

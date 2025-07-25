@@ -1,7 +1,7 @@
 // Package bankaccountactor provides primitives for OpenAPI-based schema validation.
 //
 // Code generated from OpenAPI specification. DO NOT EDIT manually.
-package bankaccountactor
+package bankaccount
 
 import (
 	"fmt"

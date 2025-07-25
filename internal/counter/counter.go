@@ -1,4 +1,4 @@
-package counteractor
+package counter
 
 import (
 	"context"
