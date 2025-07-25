@@ -45,39 +45,53 @@ OpenAPI Spec → Parser → Intermediate Model → Generator → Go Code
 The intermediate model (`model.go`) is organized in a hierarchical structure:
 
 ```
-GenerationModel (Root)
-├── Types []TypeDef
-│   └── TypeDef
-│       ├── Name: string
-│       ├── Description: string
-│       └── Fields: []Field
-│           └── Field
-│               ├── Name: string
-│               ├── Type: string
-│               ├── JSONTag: string
-│               └── Comment: string
-├── TypeAliases []TypeAlias
-│   └── TypeAlias
-│       ├── Name: string
-│       ├── Type: string
-│       └── OriginalName: string
-├── Actors []ActorInterface
-│   └── ActorInterface
-│       ├── ActorType: string
-│       ├── InterfaceName: string
-│       ├── InterfaceDesc: string
-│       ├── Types []TypeDef (actor-specific types only)
-│       ├── TypeAliases []TypeAlias (actor-specific aliases only)
-│       └── Methods: []Method
-│           └── Method
-│               ├── Name: string
-│               ├── Comment: string
-│               ├── HasRequest: bool
-│               ├── RequestType: string
-│               └── ReturnType: string
-├── SharedTypes []TypeDef (types used by multiple actors)
-└── SharedTypeAliases []TypeAlias (aliases used by multiple actors)
+GenerationModel (Root) - Main container for all parsed data
+├── Actors []ActorInterface - Collection of actor definitions
+│   └── ActorInterface - Individual actor definition
+│       ├── ActorType: string - Actor type name (e.g., "Counter")
+│       ├── InterfaceName: string - Generated interface name (e.g., "CounterActor")
+│       ├── InterfaceDesc: string - Actor description from OpenAPI
+│       ├── Types []TypeDef - Struct definitions used ONLY by this actor
+│       │   └── TypeDef - Go struct type definition to be generated
+│       │       ├── Name: string - Struct name (e.g., "CounterState")
+│       │       ├── Description: string - Documentation comment
+│       │       └── Fields: []Field - Struct fields
+│       │           └── Field - Individual struct field
+│       │               ├── Name: string - Field name
+│       │               ├── Type: string - Go type (e.g., "int", "string")
+│       │               ├── JSONTag: string - JSON struct tag
+│       │               └── Comment: string - Field documentation
+│       ├── TypeAliases []TypeAlias - Type aliases used ONLY by this actor
+│       │   └── TypeAlias - Go type alias definition to be generated
+│       │       ├── Name: string - Alias name
+│       │       ├── Type: string - Underlying Go type
+│       │       └── OriginalName: string - Original OpenAPI name
+│       └── Methods: []Method - Actor method definitions
+│           └── Method - Individual actor method
+│               ├── Name: string - Method name
+│               ├── Comment: string - Method documentation
+│               ├── HasRequest: bool - Whether method takes parameters
+│               ├── RequestType: string - Parameter type name
+│               └── ReturnType: string - Return type name
+├── SharedTypes []TypeDef - Struct definitions used by MULTIPLE actors (generated in shared package)
+│   └── TypeDef - Same structure as above, but for shared types like "AccountEvent"
+└── SharedTypeAliases []TypeAlias - Type aliases used by MULTIPLE actors (generated in shared package)
+    └── TypeAlias - Same structure as above, but for shared aliases
+```
 
+### Key Distinctions
+
+**Data Structures vs Generated Code:**
+- `TypeDef` struct = metadata describing a Go struct to be generated
+- Generated Go struct = actual `.go` code created from `TypeDef` data
+- `TypeAlias` struct = metadata describing a Go type alias to be generated  
+- Generated Go type alias = actual `type X = Y` code created from `TypeAlias` data
+
+**Actor-Specific vs Shared:**
+- **Actor-Specific Types**: Stored in `ActorInterface.Types[]`, generated in `internal/{actor}actor/types.go`
+- **Shared Types**: Stored in `GenerationModel.SharedTypes[]`, generated in `internal/types/types.go`
+
+```
 Template Data Structures:
 ├── ActorModel (for individual actor generation)
 ├── TypesTemplateData (for types.go files)
