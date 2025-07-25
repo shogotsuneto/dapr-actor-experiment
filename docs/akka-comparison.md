@@ -119,21 +119,67 @@ class CounterActor extends Actor {
 ### Dapr Actor Lifecycle
 
 ```go
-// Dapr actor activation (similar to preStart)
-func (c *CounterActor) OnActivate() error {
-    log.Println("CounterActor activated")
-    // Load persisted state automatically
-    return nil
+// Dapr actors do NOT have automatic activation/deactivation callbacks
+// Instead, actors are responsible for managing their own state lifecycle
+
+func (c *CounterActor) Increment(ctx context.Context) (*CounterState, error) {
+    // Each method call checks and loads state as needed
+    state, err := c.getState(ctx)
+    if err != nil {
+        return nil, err
+    }
+    
+    state.Value++
+    
+    // Explicitly save state back to persistence
+    if err := c.setState(ctx, state); err != nil {
+        return nil, err
+    }
+    
+    return state, nil
 }
 
-// Dapr actor deactivation (similar to postStop)
-func (c *CounterActor) OnDeactivate() error {
-    log.Println("CounterActor deactivated") 
-    // State automatically persisted
-    return nil
+func (c *CounterActor) getState(ctx context.Context) (*CounterState, error) {
+    stateKey := "counter"
+    var state CounterState
+    
+    // Actor checks if state exists in storage
+    ok, err := c.GetStateManager().Contains(ctx, stateKey)
+    if err != nil {
+        return nil, err
+    }
+    
+    if !ok {
+        // Return default state if not found
+        return &CounterState{Value: 0}, nil
+    }
+    
+    // Load state from persistence
+    err = c.GetStateManager().Get(ctx, stateKey, &state)
+    if err != nil {
+        return nil, err
+    }
+    
+    return &state, nil
 }
 
-// No explicit restart - handled by Dapr runtime
+// Advanced pattern: State caching for performance optimization
+// (as shown in BankAccountActor)
+func (b *BankAccountActor) ensureStateLoaded(ctx context.Context) error {
+    if b.stateLoaded {
+        return nil // State already cached in memory
+    }
+    
+    // Load and cache state from events/persistence
+    state, err := b.computeStateFromEvents(ctx)
+    if err != nil {
+        return err
+    }
+    
+    b.cachedState = state
+    b.stateLoaded = true
+    return nil
+}
 ```
 
 ## State Persistence
@@ -162,17 +208,48 @@ class PersistentCounterActor extends PersistentActor {
 }
 ```
 
-### Dapr: Automatic State Management
+### Dapr: Manual State Management via StateManager
 
 ```go
-// State is automatically persisted by Dapr
-func (c *CounterActor) Increment() (*CounterResponse, error) {
-    // Dapr automatically loads state
-    state, _ := c.GetState("counter")
+// Actors explicitly manage state through StateManager API
+func (c *CounterActor) Increment(ctx context.Context) (*CounterState, error) {
+    // Actor explicitly checks and loads state
+    state, err := c.getState(ctx)
+    if err != nil {
+        return nil, err
+    }
+    
     state.Value++
-    // Dapr automatically persists state
-    c.SaveState("counter", state)
-    return &CounterResponse{Value: state.Value}, nil
+    
+    // Actor explicitly saves state
+    if err := c.setState(ctx, state); err != nil {
+        return nil, err
+    }
+    
+    return state, nil
+}
+
+func (c *CounterActor) getState(ctx context.Context) (*CounterState, error) {
+    stateKey := "counter"
+    var state CounterState
+    
+    // Check if state exists
+    ok, err := c.GetStateManager().Contains(ctx, stateKey)
+    if err != nil {
+        return nil, err
+    }
+    
+    if !ok {
+        return &CounterState{Value: 0}, nil // Default state
+    }
+    
+    // Load existing state
+    err = c.GetStateManager().Get(ctx, stateKey, &state)
+    return &state, err
+}
+
+func (c *CounterActor) setState(ctx context.Context, state *CounterState) error {
+    return c.GetStateManager().Set(ctx, "counter", state)
 }
 ```
 
