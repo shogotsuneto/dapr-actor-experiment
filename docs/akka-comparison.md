@@ -34,22 +34,10 @@ class CounterActor extends Actor {
 ```
 
 **Dapr Actors:**
-```go
-func (c *CounterActor) Increment() (*CounterResponse, error) {
-    state, err := c.GetState("counter")
-    if err != nil {
-        return nil, err
-    }
-    
-    state.Value++
-    
-    if err := c.SaveState("counter", state); err != nil {
-        return nil, err
-    }
-    
-    return &CounterResponse{Value: state.Value}, nil
-}
-```
+- Methods are invoked via HTTP calls to the Dapr sidecar
+- State management is handled through the StateManager API
+- Each method explicitly loads and saves state as needed
+- Return values are serialized back through HTTP responses
 
 ### Key Differences in Message Handling
 
@@ -118,69 +106,12 @@ class CounterActor extends Actor {
 
 ### Dapr Actor Lifecycle
 
-```go
-// Dapr actors do NOT have automatic activation/deactivation callbacks
-// Instead, actors are responsible for managing their own state lifecycle
-
-func (c *CounterActor) Increment(ctx context.Context) (*CounterState, error) {
-    // Each method call checks and loads state as needed
-    state, err := c.getState(ctx)
-    if err != nil {
-        return nil, err
-    }
-    
-    state.Value++
-    
-    // Explicitly save state back to persistence
-    if err := c.setState(ctx, state); err != nil {
-        return nil, err
-    }
-    
-    return state, nil
-}
-
-func (c *CounterActor) getState(ctx context.Context) (*CounterState, error) {
-    stateKey := "counter"
-    var state CounterState
-    
-    // Actor checks if state exists in storage
-    ok, err := c.GetStateManager().Contains(ctx, stateKey)
-    if err != nil {
-        return nil, err
-    }
-    
-    if !ok {
-        // Return default state if not found
-        return &CounterState{Value: 0}, nil
-    }
-    
-    // Load state from persistence
-    err = c.GetStateManager().Get(ctx, stateKey, &state)
-    if err != nil {
-        return nil, err
-    }
-    
-    return &state, nil
-}
-
-// Advanced pattern: State caching for performance optimization
-// (as shown in BankAccountActor)
-func (b *BankAccountActor) ensureStateLoaded(ctx context.Context) error {
-    if b.stateLoaded {
-        return nil // State already cached in memory
-    }
-    
-    // Load and cache state from events/persistence
-    state, err := b.computeStateFromEvents(ctx)
-    if err != nil {
-        return err
-    }
-    
-    b.cachedState = state
-    b.stateLoaded = true
-    return nil
-}
-```
+**Dapr actors do NOT have automatic activation/deactivation callbacks:**
+- No equivalent to Akka's `preStart()` or `postStop()` methods
+- Actors are responsible for managing their own state lifecycle
+- Each method call must explicitly load and save state as needed
+- State persistence is manual through the StateManager API
+- Advanced patterns may include in-memory caching with lazy loading
 
 ## State Persistence
 
@@ -210,48 +141,12 @@ class PersistentCounterActor extends PersistentActor {
 
 ### Dapr: Manual State Management via StateManager
 
-```go
-// Actors explicitly manage state through StateManager API
-func (c *CounterActor) Increment(ctx context.Context) (*CounterState, error) {
-    // Actor explicitly checks and loads state
-    state, err := c.getState(ctx)
-    if err != nil {
-        return nil, err
-    }
-    
-    state.Value++
-    
-    // Actor explicitly saves state
-    if err := c.setState(ctx, state); err != nil {
-        return nil, err
-    }
-    
-    return state, nil
-}
-
-func (c *CounterActor) getState(ctx context.Context) (*CounterState, error) {
-    stateKey := "counter"
-    var state CounterState
-    
-    // Check if state exists
-    ok, err := c.GetStateManager().Contains(ctx, stateKey)
-    if err != nil {
-        return nil, err
-    }
-    
-    if !ok {
-        return &CounterState{Value: 0}, nil // Default state
-    }
-    
-    // Load existing state
-    err = c.GetStateManager().Get(ctx, stateKey, &state)
-    return &state, err
-}
-
-func (c *CounterActor) setState(ctx context.Context, state *CounterState) error {
-    return c.GetStateManager().Set(ctx, "counter", state)
-}
-```
+**State management is explicit and manual:**
+- Actors use the StateManager API to interact with state stores
+- Common operations include `Contains()`, `Get()`, and `Set()` methods
+- State keys and values are defined by the developer
+- No automatic loading or saving - each method must handle state persistence
+- Supports various backend state stores (Redis, CosmosDB, etc.)
 
 ## Supervision and Error Handling
 
@@ -271,17 +166,11 @@ class SupervisorActor extends Actor {
 
 ### Dapr: Service-Level Error Handling
 
-```go
-// Error handling in Dapr is at the service level
-func (c *CounterActor) Increment() (*CounterResponse, error) {
-    state, err := c.GetState("counter")
-    if err != nil {
-        // Return error - Dapr runtime handles retry/failure
-        return nil, fmt.Errorf("failed to get state: %w", err)
-    }
-    // ... rest of method
-}
-```
+**Error handling in Dapr is at the service level:**
+- Methods return standard error values that are serialized back to callers
+- The Dapr runtime handles retry logic and failure scenarios
+- No built-in supervision hierarchy like Akka
+- Error recovery depends on the application's retry and circuit breaker policies
 
 ## Location Transparency
 
