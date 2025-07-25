@@ -1,0 +1,24 @@
+// Package {{.PackageName}} provides primitives for OpenAPI-based schema validation.
+//
+// Code generated from OpenAPI specification. DO NOT EDIT manually.
+package {{.PackageName}}
+
+{{if .SharedTypes}}
+import (
+	"github.com/shogotsuneto/dapr-actor-experiment/internal/generated/types"
+)
+{{end}}
+
+{{range .Types}}
+// {{.Name}} {{.Description}}
+type {{.Name}} struct {
+{{- range .Fields}}
+	// {{.Comment}}
+	{{.Name}} {{.Type}} `json:"{{.JSONTag}}"`
+{{- end}}
+}
+{{end}}
+{{range .TypeAliases}}
+// {{.Name}} defines model for {{.OriginalName}}.
+type {{.Name}} = {{.Type}}
+{{end}}

@@ -19,7 +19,9 @@ func NewOpenAPIParser(doc *openapi3.T) *OpenAPIParser {
 
 // Parse converts the OpenAPI specification to an intermediate GenerationModel
 func (p *OpenAPIParser) Parse() (*GenerationModel, error) {
-	model := &GenerationModel{}
+	model := &GenerationModel{
+		ActorSpecificTypes: make(map[string][]TypeDef),
+	}
 
 	// Parse types and type aliases
 	if err := p.parseTypes(model); err != nil {
@@ -29,6 +31,11 @@ func (p *OpenAPIParser) Parse() (*GenerationModel, error) {
 	// Parse actors and their methods
 	if err := p.parseActors(model); err != nil {
 		return nil, fmt.Errorf("failed to parse actors: %v", err)
+	}
+
+	// Categorize types into shared vs actor-specific
+	if err := p.categorizeTypes(model); err != nil {
+		return nil, fmt.Errorf("failed to categorize types: %v", err)
 	}
 
 	return model, nil
@@ -316,4 +323,125 @@ func (p *OpenAPIParser) getActorTypes() []string {
 	}
 
 	return actorTypes
+}
+
+// isCustomType checks if a type name refers to a custom type defined in the model
+func isCustomType(typeName string, types []TypeDef) bool {
+	// List of Go built-in types that are not custom
+	builtinTypes := map[string]bool{
+		"string": true, "int": true, "int32": true, "int64": true,
+		"float32": true, "float64": true, "bool": true,
+		"interface{}": true, "map[string]interface{}": true,
+	}
+	
+	if builtinTypes[typeName] {
+		return false
+	}
+	
+	// Check if it's defined in our types
+	for _, typeDef := range types {
+		if typeDef.Name == typeName {
+			return true
+		}
+	}
+	
+	return false
+}
+
+// categorizeTypes analyzes types and categorizes them into shared vs actor-specific
+func (p *OpenAPIParser) categorizeTypes(model *GenerationModel) error {
+	// Create a map to track which types are used by which actors
+	typeUsage := make(map[string]map[string]bool) // type -> actor -> used
+	
+	// Initialize usage map for all types
+	for _, typeDef := range model.Types {
+		typeUsage[typeDef.Name] = make(map[string]bool)
+	}
+	
+	// Analyze which actors use which types by examining request/response schemas
+	for _, actor := range model.Actors {
+		for _, method := range actor.Methods {
+			// Track request types
+			if method.HasRequest && method.RequestType != "" {
+				if _, exists := typeUsage[method.RequestType]; exists {
+					typeUsage[method.RequestType][actor.ActorType] = true
+				}
+			}
+			// Track return types (remove pointer/slice prefixes for analysis)
+			returnType := method.ReturnType
+			returnType = strings.TrimPrefix(returnType, "*")
+			returnType = strings.TrimPrefix(returnType, "[]")
+			if returnType != "interface{}" && returnType != "" {
+				if _, exists := typeUsage[returnType]; exists {
+					typeUsage[returnType][actor.ActorType] = true
+				}
+			}
+		}
+	}
+	
+	// Also analyze type dependencies - if a type references another type, 
+	// the referenced type should be shared if the referencing type is used by multiple actors
+	typeDependencies := make(map[string][]string) // type -> []referenced_types
+	for _, typeDef := range model.Types {
+		for _, field := range typeDef.Fields {
+			// Extract referenced type from field type (handle arrays and pointers)
+			fieldType := field.Type
+			fieldType = strings.TrimPrefix(fieldType, "[]")
+			fieldType = strings.TrimPrefix(fieldType, "*")
+			
+			// Check if this is a custom type (not a built-in Go type)
+			if isCustomType(fieldType, model.Types) {
+				typeDependencies[typeDef.Name] = append(typeDependencies[typeDef.Name], fieldType)
+			}
+		}
+	}
+	
+	// Propagate usage from dependent types
+	for parentType, dependencies := range typeDependencies {
+		if parentUsage, exists := typeUsage[parentType]; exists {
+			for _, depType := range dependencies {
+				if depUsage, exists := typeUsage[depType]; exists {
+					// Copy usage from parent to dependency
+					for actor, used := range parentUsage {
+						if used {
+							depUsage[actor] = true
+						}
+					}
+				}
+			}
+		}
+	}
+	
+	// Categorize types based on usage patterns
+	var sharedTypes []TypeDef
+	var sharedAliases []TypeAlias
+	actorSpecificTypes := make(map[string][]TypeDef)
+	
+	for _, typeDef := range model.Types {
+		usedByActors := typeUsage[typeDef.Name]
+		actorCount := len(usedByActors)
+		
+		if actorCount > 1 {
+			// Used by multiple actors - make it shared
+			sharedTypes = append(sharedTypes, typeDef)
+		} else if actorCount == 1 {
+			// Used by single actor - make it actor-specific
+			for actorType := range usedByActors {
+				actorSpecificTypes[actorType] = append(actorSpecificTypes[actorType], typeDef)
+			}
+		} else {
+			// Not used by any actor (shouldn't happen, but default to shared)
+			sharedTypes = append(sharedTypes, typeDef)
+		}
+	}
+	
+	// For now, keep all type aliases as shared (they're typically simple and reusable)
+	sharedAliases = model.TypeAliases
+	
+	// Update the model
+	model.SharedTypes = sharedTypes
+	model.SharedTypeAliases = sharedAliases
+	model.ActorSpecificTypes = actorSpecificTypes
+	
+	return nil
 }

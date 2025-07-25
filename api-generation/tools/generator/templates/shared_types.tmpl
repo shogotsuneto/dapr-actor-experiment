@@ -1,0 +1,18 @@
+// Package {{.PackageName}} provides shared types for OpenAPI-based schema validation.
+//
+// Code generated from OpenAPI specification. DO NOT EDIT manually.
+package {{.PackageName}}
+
+{{range .SharedTypes}}
+// {{.Name}} {{.Description}}
+type {{.Name}} struct {
+{{- range .Fields}}
+	// {{.Comment}}
+	{{.Name}} {{.Type}} `json:"{{.JSONTag}}"`
+{{- end}}
+}
+{{end}}
+{{range .SharedAliases}}
+// {{.Name}} defines model for {{.OriginalName}}.
+type {{.Name}} = {{.Type}}
+{{end}}

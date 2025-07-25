@@ -48,6 +48,12 @@ type GenerationModel struct {
 	TypeAliases []TypeAlias
 	// Actors contains all actor interfaces with their methods
 	Actors []ActorInterface
+	// SharedTypes contains types that should be generated in a shared package
+	SharedTypes []TypeDef
+	// SharedTypeAliases contains type aliases that should be generated in a shared package
+	SharedTypeAliases []TypeAlias
+	// ActorSpecificTypes maps actor types to their specific type definitions
+	ActorSpecificTypes map[string][]TypeDef
 }
 
 // ActorModel represents a single actor's complete model for generation
@@ -76,4 +82,11 @@ type InterfaceTemplateData struct {
 type SingleActorTemplateData struct {
 	PackageName string
 	Actor       ActorInterface
+}
+
+// SharedTypesTemplateData represents data for shared types template generation
+type SharedTypesTemplateData struct {
+	PackageName   string
+	SharedTypes   []TypeDef
+	SharedAliases []TypeAlias
 }

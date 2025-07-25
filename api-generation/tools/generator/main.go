@@ -50,6 +50,14 @@ func (g *Generator) GenerateActorPackages(model *GenerationModel, baseOutputDir 
 		return fmt.Errorf("no actors found in the model")
 	}
 
+	// First, generate shared types package if there are shared types
+	if len(model.SharedTypes) > 0 || len(model.SharedTypeAliases) > 0 {
+		err := g.generateSharedTypes(model, baseOutputDir)
+		if err != nil {
+			return fmt.Errorf("failed to generate shared types: %v", err)
+		}
+	}
+
 	// Generate package for each actor type
 	for _, actor := range model.Actors {
 		// Create actor-specific package name and directory
@@ -66,12 +74,18 @@ func (g *Generator) GenerateActorPackages(model *GenerationModel, baseOutputDir 
 			return fmt.Errorf("failed to create output directory %s: %v", outputDir, err)
 		}
 
+		// Get actor-specific types (if any)
+		actorSpecificTypes := model.ActorSpecificTypes[actor.ActorType]
+		if actorSpecificTypes == nil {
+			actorSpecificTypes = []TypeDef{}
+		}
+
 		// Create actor model for this specific actor
 		actorModel := ActorModel{
 			ActorType:      actor.ActorType,
 			PackageName:    packageName,
-			Types:          model.Types,        // For now, include all types in each actor package
-			TypeAliases:    model.TypeAliases,  // For now, include all type aliases in each actor package
+			Types:          actorSpecificTypes, // Only actor-specific types
+			TypeAliases:    []TypeAlias{},      // Actor-specific aliases (none for now)
 			ActorInterface: actor,
 		}
 
@@ -87,34 +101,86 @@ func (g *Generator) GenerateActorPackages(model *GenerationModel, baseOutputDir 
 			return fmt.Errorf("failed to generate interface for %s: %v", actor.ActorType, err)
 		}
 
-		// Generate factory for this actor
-		err = g.generateActorFactory(&actorModel, outputDir)
-		if err != nil {
-			return fmt.Errorf("failed to generate factory for %s: %v", actor.ActorType, err)
-		}
+		// NOTE: Factory generation skipped for now as it should reference actual implementation types
+		// The factories should be in the implementation packages, not the generated packages
 
 		fmt.Printf("Generated actor package: %s\n", outputDir)
 		fmt.Printf("  %s/types.go\n", outputDir)
 		fmt.Printf("  %s/api.go\n", outputDir)
-		fmt.Printf("  %s/factory.go\n", outputDir)
+		// fmt.Printf("  %s/factory.go\n", outputDir) // Skipped for now
 	}
 
 	return nil
 }
 
-func (g *Generator) generateActorTypes(actorModel *ActorModel, outputDir string) error {
-	// Load template from file
-	templatePath := getTemplatePath("types.tmpl")
-	tmpl, err := template.ParseFiles(templatePath)
+// generateSharedTypes generates the shared types package
+func (g *Generator) generateSharedTypes(model *GenerationModel, baseOutputDir string) error {
+	// Create shared types directory
+	sharedTypesDir := filepath.Join(baseOutputDir, "types")
+	err := os.MkdirAll(sharedTypesDir, 0755)
 	if err != nil {
-		return fmt.Errorf("failed to parse types template: %v", err)
+		return fmt.Errorf("failed to create shared types directory %s: %v", sharedTypesDir, err)
 	}
 
+	// Load template from file
+	templatePath := getTemplatePath("shared_types.tmpl")
+	tmpl, err := template.ParseFiles(templatePath)
+	if err != nil {
+		return fmt.Errorf("failed to parse shared types template: %v", err)
+	}
+
+	// Generate shared types file
+	data := SharedTypesTemplateData{
+		PackageName:   "types",
+		SharedTypes:   model.SharedTypes,
+		SharedAliases: model.SharedTypeAliases,
+	}
+
+	typesFile, err := os.Create(fmt.Sprintf("%s/types.go", sharedTypesDir))
+	if err != nil {
+		return fmt.Errorf("failed to create shared types file: %v", err)
+	}
+	defer typesFile.Close()
+
+	err = tmpl.Execute(typesFile, data)
+	if err != nil {
+		return fmt.Errorf("failed to execute shared types template: %v", err)
+	}
+
+	fmt.Printf("Generated shared types package: %s/types.go\n", sharedTypesDir)
+	return nil
+}
+
+func (g *Generator) generateActorTypes(actorModel *ActorModel, outputDir string) error {
+	// Load template from file
+	templatePath := getTemplatePath("actor_types.tmpl")
+	tmpl, err := template.ParseFiles(templatePath)
+	if err != nil {
+		return fmt.Errorf("failed to parse actor types template: %v", err)
+	}
+
+	// Process types to replace shared type references with qualified names
+	processedTypes := make([]TypeDef, len(actorModel.Types))
+	copy(processedTypes, actorModel.Types)
+	
+	// Check if any field types reference shared types (for import decision)
+	hasSharedTypeReferences := false
+	// Note: In a more complete implementation, we would:
+	// 1. Check each field type to see if it references a shared type
+	// 2. Replace those references with "types.TypeName"
+	// 3. Set hasSharedTypeReferences = true if any references found
+
 	// Generate types file
-	data := TypesTemplateData{
+	data := struct {
+		PackageName string
+		Types       []TypeDef
+		TypeAliases []TypeAlias
+		SharedTypes bool // Indicates if shared types package needs to be imported
+	}{
 		PackageName: actorModel.PackageName,
-		Types:       actorModel.Types,
+		Types:       processedTypes,
 		TypeAliases: actorModel.TypeAliases,
+		SharedTypes: hasSharedTypeReferences, // Only import if actually needed
 	}
 
 	typesFile, err := os.Create(fmt.Sprintf("%s/types.go", outputDir))
@@ -125,7 +191,7 @@ func (g *Generator) generateActorTypes(actorModel *ActorModel, outputDir string)
 
 	err = tmpl.Execute(typesFile, data)
 	if err != nil {
-		return fmt.Errorf("failed to execute types template: %v", err)
+		return fmt.Errorf("failed to execute actor types template: %v", err)
 	}
 
 	return nil
