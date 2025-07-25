@@ -74,18 +74,16 @@ func (g *Generator) GenerateActorPackages(model *GenerationModel, baseOutputDir 
 			return fmt.Errorf("failed to create output directory %s: %v", outputDir, err)
 		}
 
-		// Get actor-specific types (if any)
-		actorSpecificTypes := model.ActorSpecificTypes[actor.ActorType]
-		if actorSpecificTypes == nil {
-			actorSpecificTypes = []TypeDef{}
-		}
+		// Get actor-specific types directly from the actor
+		actorSpecificTypes := actor.Types
+		actorSpecificAliases := actor.TypeAliases
 
 		// Create actor model for this specific actor
 		actorModel := ActorModel{
 			ActorType:      actor.ActorType,
 			PackageName:    packageName,
-			Types:          actorSpecificTypes, // Only actor-specific types
-			TypeAliases:    []TypeAlias{},      // Actor-specific aliases (none for now)
+			Types:          actorSpecificTypes,
+			TypeAliases:    actorSpecificAliases,
 			ActorInterface: actor,
 		}
 

@@ -51,14 +51,31 @@ func TestOpenAPIParser(t *testing.T) {
 		t.Error("BankAccountActor not found in parsed model")
 	}
 
-	// Verify that we have type definitions
-	if len(model.Types) == 0 {
+	// Verify that we have type definitions (either shared or actor-specific)
+	totalTypes := len(model.SharedTypes)
+	for _, actor := range model.Actors {
+		totalTypes += len(actor.Types)
+	}
+	if totalTypes == 0 {
 		t.Error("Expected to find type definitions in parsed model")
 	}
 
-	// Look for CounterState type
+	// Look for CounterState type (should be in CounterActor's types)
 	foundCounterState := false
-	for _, typeDef := range model.Types {
+	for _, actor := range model.Actors {
+		if actor.ActorType == "CounterActor" {
+			for _, typeDef := range actor.Types {
+				if typeDef.Name == "CounterState" {
+					foundCounterState = true
+					if len(typeDef.Fields) != 1 {
+						t.Errorf("Expected CounterState to have 1 field, got %d", len(typeDef.Fields))
+					}
+				}
+			}
+		}
+	}
+	// Also check shared types in case it's shared
+	for _, typeDef := range model.SharedTypes {
 		if typeDef.Name == "CounterState" {
 			foundCounterState = true
 			if len(typeDef.Fields) != 1 {

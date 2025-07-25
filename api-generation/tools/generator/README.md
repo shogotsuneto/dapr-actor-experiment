@@ -66,6 +66,8 @@ GenerationModel (Root)
 │       ├── ActorType: string
 │       ├── InterfaceName: string
 │       ├── InterfaceDesc: string
+│       ├── Types []TypeDef (actor-specific types only)
+│       ├── TypeAliases []TypeAlias (actor-specific aliases only)
 │       └── Methods: []Method
 │           └── Method
 │               ├── Name: string
@@ -73,9 +75,8 @@ GenerationModel (Root)
 │               ├── HasRequest: bool
 │               ├── RequestType: string
 │               └── ReturnType: string
-├── SharedTypes []TypeDef
-├── SharedTypeAliases []TypeAlias
-└── ActorSpecificTypes map[string][]TypeDef
+├── SharedTypes []TypeDef (types used by multiple actors)
+└── SharedTypeAliases []TypeAlias (aliases used by multiple actors)
 
 Template Data Structures:
 ├── ActorModel (for individual actor generation)

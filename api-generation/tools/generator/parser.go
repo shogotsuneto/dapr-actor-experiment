@@ -19,33 +19,31 @@ func NewOpenAPIParser(doc *openapi3.T) *OpenAPIParser {
 
 // Parse converts the OpenAPI specification to an intermediate GenerationModel
 func (p *OpenAPIParser) Parse() (*GenerationModel, error) {
-	model := &GenerationModel{
-		ActorSpecificTypes: make(map[string][]TypeDef),
-	}
+	model := &GenerationModel{}
 
-	// Parse types and type aliases
-	if err := p.parseTypes(model); err != nil {
-		return nil, fmt.Errorf("failed to parse types: %v", err)
-	}
-
-	// Parse actors and their methods
+	// Parse actors and their methods first
 	if err := p.parseActors(model); err != nil {
 		return nil, fmt.Errorf("failed to parse actors: %v", err)
 	}
 
-	// Categorize types into shared vs actor-specific
-	if err := p.categorizeTypes(model); err != nil {
-		return nil, fmt.Errorf("failed to categorize types: %v", err)
+	// Parse types and categorize them into shared vs actor-specific
+	if err := p.parseAndCategorizeTypes(model); err != nil {
+		return nil, fmt.Errorf("failed to parse and categorize types: %v", err)
 	}
 
 	return model, nil
 }
 
-// parseTypes extracts type definitions and aliases from OpenAPI components
-func (p *OpenAPIParser) parseTypes(model *GenerationModel) error {
+// parseAndCategorizeTypes extracts type definitions from OpenAPI components 
+// and categorizes them into shared vs actor-specific types
+func (p *OpenAPIParser) parseAndCategorizeTypes(model *GenerationModel) error {
 	if p.doc.Components == nil || p.doc.Components.Schemas == nil {
 		return nil
 	}
+
+	// First, parse all types from the OpenAPI spec
+	var allTypes []TypeDef
+	var allTypeAliases []TypeAlias
 
 	// Parse struct types from schemas
 	for name, schemaRef := range p.doc.Components.Schemas {
@@ -67,7 +65,7 @@ func (p *OpenAPIParser) parseTypes(model *GenerationModel) error {
 					Comment: prop.Description,
 				})
 			}
-			model.Types = append(model.Types, TypeDef{
+			allTypes = append(allTypes, TypeDef{
 				Name:        name,
 				Description: schema.Description,
 				Fields:      fields,
@@ -81,7 +79,7 @@ func (p *OpenAPIParser) parseTypes(model *GenerationModel) error {
 			p := param.Value
 			if p.Schema != nil && p.Schema.Value.Type.Is("string") {
 				aliasName := capitalizeFirst(p.Name)
-				model.TypeAliases = append(model.TypeAliases, TypeAlias{
+				allTypeAliases = append(allTypeAliases, TypeAlias{
 					Name:         aliasName,
 					Type:         "string",
 					OriginalName: p.Name,
@@ -90,7 +88,8 @@ func (p *OpenAPIParser) parseTypes(model *GenerationModel) error {
 		}
 	}
 
-	return nil
+	// Now categorize types based on usage by actors
+	return p.categorizeTypesIntoActors(model, allTypes, allTypeAliases)
 }
 
 // parseActors extracts actor interfaces and their methods from OpenAPI paths
@@ -348,13 +347,13 @@ func isCustomType(typeName string, types []TypeDef) bool {
 	return false
 }
 
-// categorizeTypes analyzes types and categorizes them into shared vs actor-specific
-func (p *OpenAPIParser) categorizeTypes(model *GenerationModel) error {
+// categorizeTypesIntoActors analyzes types and assigns them directly to actors or shared collections
+func (p *OpenAPIParser) categorizeTypesIntoActors(model *GenerationModel, allTypes []TypeDef, allTypeAliases []TypeAlias) error {
 	// Create a map to track which types are used by which actors
 	typeUsage := make(map[string]map[string]bool) // type -> actor -> used
 	
 	// Initialize usage map for all types
-	for _, typeDef := range model.Types {
+	for _, typeDef := range allTypes {
 		typeUsage[typeDef.Name] = make(map[string]bool)
 	}
 	
@@ -382,7 +381,7 @@ func (p *OpenAPIParser) categorizeTypes(model *GenerationModel) error {
 	// Also analyze type dependencies - if a type references another type, 
 	// the referenced type should be shared if the referencing type is used by multiple actors
 	typeDependencies := make(map[string][]string) // type -> []referenced_types
-	for _, typeDef := range model.Types {
+	for _, typeDef := range allTypes {
 		for _, field := range typeDef.Fields {
 			// Extract referenced type from field type (handle arrays and pointers)
 			fieldType := field.Type
@@ -390,7 +389,7 @@ func (p *OpenAPIParser) categorizeTypes(model *GenerationModel) error {
 			fieldType = strings.TrimPrefix(fieldType, "*")
 			
 			// Check if this is a custom type (not a built-in Go type)
-			if isCustomType(fieldType, model.Types) {
+			if isCustomType(fieldType, allTypes) {
 				typeDependencies[typeDef.Name] = append(typeDependencies[typeDef.Name], fieldType)
 			}
 		}
@@ -412,36 +411,33 @@ func (p *OpenAPIParser) categorizeTypes(model *GenerationModel) error {
 		}
 	}
 	
-	// Categorize types based on usage patterns
-	var sharedTypes []TypeDef
-	var sharedAliases []TypeAlias
-	actorSpecificTypes := make(map[string][]TypeDef)
-	
-	for _, typeDef := range model.Types {
+	// Assign types directly to actors or shared collections
+	for _, typeDef := range allTypes {
 		usedByActors := typeUsage[typeDef.Name]
 		actorCount := len(usedByActors)
 		
 		if actorCount > 1 {
 			// Used by multiple actors - make it shared
-			sharedTypes = append(sharedTypes, typeDef)
+			model.SharedTypes = append(model.SharedTypes, typeDef)
 		} else if actorCount == 1 {
-			// Used by single actor - make it actor-specific
+			// Used by single actor - assign it directly to that actor
 			for actorType := range usedByActors {
-				actorSpecificTypes[actorType] = append(actorSpecificTypes[actorType], typeDef)
+				// Find the actor and add the type to it
+				for i, actor := range model.Actors {
+					if actor.ActorType == actorType {
+						model.Actors[i].Types = append(model.Actors[i].Types, typeDef)
+						break
+					}
+				}
 			}
 		} else {
 			// Not used by any actor (shouldn't happen, but default to shared)
-			sharedTypes = append(sharedTypes, typeDef)
+			model.SharedTypes = append(model.SharedTypes, typeDef)
 		}
 	}
 	
 	// For now, keep all type aliases as shared (they're typically simple and reusable)
-	sharedAliases = model.TypeAliases
-	
-	// Update the model
-	model.SharedTypes = sharedTypes
-	model.SharedTypeAliases = sharedAliases
-	model.ActorSpecificTypes = actorSpecificTypes
+	model.SharedTypeAliases = allTypeAliases
 	
 	return nil
 }

@@ -37,23 +37,21 @@ type ActorInterface struct {
 	InterfaceName string
 	InterfaceDesc string
 	Methods       []Method
+	// Types contains type definitions specific to this actor only
+	Types []TypeDef
+	// TypeAliases contains type aliases specific to this actor only
+	TypeAliases []TypeAlias
 }
 
 // GenerationModel represents the complete intermediate data structure
 // that is independent of any specific schema format (OpenAPI, etc.)
 type GenerationModel struct {
-	// Types contains all struct type definitions
-	Types []TypeDef
-	// TypeAliases contains all type aliases
-	TypeAliases []TypeAlias
-	// Actors contains all actor interfaces with their methods
+	// Actors contains all actor interfaces with their methods and actor-specific types
 	Actors []ActorInterface
-	// SharedTypes contains types that should be generated in a shared package
+	// SharedTypes contains types that should be generated in a shared package (used by multiple actors)
 	SharedTypes []TypeDef
-	// SharedTypeAliases contains type aliases that should be generated in a shared package
+	// SharedTypeAliases contains type aliases that should be generated in a shared package (used by multiple actors)
 	SharedTypeAliases []TypeAlias
-	// ActorSpecificTypes maps actor types to their specific type definitions
-	ActorSpecificTypes map[string][]TypeDef
 }
 
 // ActorModel represents a single actor's complete model for generation
