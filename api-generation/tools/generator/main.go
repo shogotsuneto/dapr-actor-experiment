@@ -99,13 +99,16 @@ func (g *Generator) GenerateActorPackages(model *GenerationModel, baseOutputDir 
 			return fmt.Errorf("failed to generate interface for %s: %v", actor.ActorType, err)
 		}
 
-		// NOTE: Factory generation skipped for now as it should reference actual implementation types
-		// The factories should be in the implementation packages, not the generated packages
+		// Generate factory for this actor
+		err = g.generateActorFactory(&actorModel, outputDir)
+		if err != nil {
+			return fmt.Errorf("failed to generate factory for %s: %v", actor.ActorType, err)
+		}
 
 		fmt.Printf("Generated actor package: %s\n", outputDir)
 		fmt.Printf("  %s/types.go\n", outputDir)
 		fmt.Printf("  %s/api.go\n", outputDir)
-		// fmt.Printf("  %s/factory.go\n", outputDir) // Skipped for now
+		fmt.Printf("  %s/factory.go\n", outputDir)
 	}
 
 	return nil
