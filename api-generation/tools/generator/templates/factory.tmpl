@@ -8,24 +8,6 @@ import (
 	"github.com/dapr/go-sdk/actor"
 )
 
-// New{{.Actor.ActorType}}FactoryContext creates a factory function for {{.Actor.ActorType}} with schema validation.
-// The implementation parameter must implement {{.Actor.InterfaceName}} interface.
-// Returns a factory function compatible with Dapr's RegisterActorImplFactoryContext.
-// The generated factory ensures the actor Type() method returns the correct actor type.
-func New{{.Actor.ActorType}}FactoryContext(implementation func() {{.Actor.InterfaceName}}) func() actor.ServerContext {
-	return func() actor.ServerContext {
-		// Get the implementation (which already implements both {{.Actor.InterfaceName}} and actor.ServerContext)
-		impl := implementation()
-		
-		// Verify the actor type matches the schema
-		if impl.Type() != ActorType{{.Actor.ActorType}} {
-			panic(fmt.Sprintf("actor implementation Type() returns '%s', expected '%s'", impl.Type(), ActorType{{.Actor.ActorType}}))
-		}
-		
-		return impl
-	}
-}
-
 // NewActorFactory creates a factory function for {{.Actor.ActorType}} with a cleaner API.
 // Returns a factory function compatible with Dapr's RegisterActorImplFactoryContext.
 // Usage: s.RegisterActorImplFactoryContext({{.PackageName}}.NewActorFactory())

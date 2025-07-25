@@ -4,32 +4,6 @@
 package counteractor
 
 
-// AccountEvent A single account event
-type AccountEvent struct {
-	// Event-specific data
-	Data map[string]interface{} `json:"data"`
-	// Unique event identifier
-	EventId string `json:"eventId"`
-	// Type of event
-	EventType string `json:"eventType"`
-	// When the event occurred
-	Timestamp string `json:"timestamp"`
-}
-
-// BankAccountState Current state of bank account (computed from events)
-type BankAccountState struct {
-	// Account creation timestamp
-	CreatedAt string `json:"createdAt,omitempty"`
-	// Whether account is active
-	IsActive bool `json:"isActive"`
-	// Account owner name
-	OwnerName string `json:"ownerName"`
-	// Unique account identifier
-	AccountId string `json:"accountId"`
-	// Current account balance (computed from events)
-	Balance float64 `json:"balance"`
-}
-
 // CounterState Current state of the counter actor (state-based)
 type CounterState struct {
 	// The current counter value
@@ -38,10 +12,10 @@ type CounterState struct {
 
 // CreateAccountRequest Request to create a new bank account
 type CreateAccountRequest struct {
-	// Name of the account owner
-	OwnerName string `json:"ownerName"`
 	// Initial deposit amount
 	InitialDeposit float64 `json:"initialDeposit"`
+	// Name of the account owner
+	OwnerName string `json:"ownerName"`
 }
 
 // DepositRequest Request to deposit money
@@ -60,10 +34,10 @@ type SetValueRequest struct {
 
 // TransactionHistory Complete transaction history (event sourcing benefit)
 type TransactionHistory struct {
-	// Account identifier
-	AccountId string `json:"accountId"`
 	// List of all events in chronological order
 	Events []interface{} `json:"events"`
+	// Account identifier
+	AccountId string `json:"accountId"`
 }
 
 // WithdrawRequest Request to withdraw money
@@ -72,5 +46,31 @@ type WithdrawRequest struct {
 	Amount float64 `json:"amount"`
 	// Description of the withdrawal
 	Description string `json:"description"`
+}
+
+// AccountEvent A single account event
+type AccountEvent struct {
+	// Unique event identifier
+	EventId string `json:"eventId"`
+	// Type of event
+	EventType string `json:"eventType"`
+	// When the event occurred
+	Timestamp string `json:"timestamp"`
+	// Event-specific data
+	Data map[string]interface{} `json:"data"`
+}
+
+// BankAccountState Current state of bank account (computed from events)
+type BankAccountState struct {
+	// Account owner name
+	OwnerName string `json:"ownerName"`
+	// Unique account identifier
+	AccountId string `json:"accountId"`
+	// Current account balance (computed from events)
+	Balance float64 `json:"balance"`
+	// Account creation timestamp
+	CreatedAt string `json:"createdAt,omitempty"`
+	// Whether account is active
+	IsActive bool `json:"isActive"`
 }
 
