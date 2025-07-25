@@ -5,14 +5,17 @@ package bankaccountactor
 
 import (
 	"context"
+	"github.com/dapr/go-sdk/actor"
 )
 
 // ActorTypeBankAccountActor is the Dapr actor type identifier for BankAccountActor
 const ActorTypeBankAccountActor = "BankAccountActor"
 
 // BankAccountActorAPI defines the interface that must be implemented to satisfy the OpenAPI schema for BankAccountActor.
-// This interface enforces compile-time schema compliance.
+// This interface enforces compile-time schema compliance and includes actor.ServerContext for proper Dapr actor implementation.
 type BankAccountActorAPI interface {
+	actor.ServerContext
+	
 	// Deposit money to account
 	Deposit(ctx context.Context, request DepositRequest) (*BankAccountState, error)
 	// Get current account balance

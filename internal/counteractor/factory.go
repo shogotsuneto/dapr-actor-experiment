@@ -14,20 +14,15 @@ import (
 // The generated factory ensures the actor Type() method returns the correct actor type.
 func NewCounterActorFactoryContext(implementation func() CounterActorAPI) func() actor.ServerContext {
 	return func() actor.ServerContext {
-		// Compile-time check ensures the implementation satisfies the schema
+		// Get the implementation (which already implements both CounterActorAPI and actor.ServerContext)
 		impl := implementation()
 		
-		// The implementation must also implement actor.ServerContext
-		if serverCtx, ok := impl.(actor.ServerContext); ok {
-			// Verify the actor type matches the schema
-			if serverCtx.Type() != ActorTypeCounterActor {
-				panic(fmt.Sprintf("actor implementation Type() returns '%s', expected '%s'", serverCtx.Type(), ActorTypeCounterActor))
-			}
-			return serverCtx
+		// Verify the actor type matches the schema
+		if impl.Type() != ActorTypeCounterActor {
+			panic(fmt.Sprintf("actor implementation Type() returns '%s', expected '%s'", impl.Type(), ActorTypeCounterActor))
 		}
 		
-		// This should never happen if the actor is properly implemented
-		panic("actor implementation must embed actor.ServerImplBaseCtx")
+		return impl
 	}
 }
 
@@ -42,15 +37,11 @@ func NewActorFactory() func() actor.ServerContext {
 		// Compile-time check ensures the implementation satisfies the schema
 		var _ CounterActorAPI = impl
 		
-		// The implementation must also implement actor.ServerContext
-		if serverCtx, ok := interface{}(impl).(actor.ServerContext); ok {
-			// Verify the actor type matches the schema
-			if serverCtx.Type() != ActorTypeCounterActor {
-				panic(fmt.Sprintf("actor implementation Type() returns '%s', expected '%s'", serverCtx.Type(), ActorTypeCounterActor))
-			}
-			return serverCtx
+		// Verify the actor type matches the schema
+		if impl.Type() != ActorTypeCounterActor {
+			panic(fmt.Sprintf("actor implementation Type() returns '%s', expected '%s'", impl.Type(), ActorTypeCounterActor))
 		}
 		
-		panic("actor implementation must embed actor.ServerImplBaseCtx and implement actor.ServerContext")
+		return impl
 	}
 }

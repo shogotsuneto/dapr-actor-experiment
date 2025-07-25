@@ -5,14 +5,17 @@ package {{.PackageName}}
 
 import (
 	"context"
+	"github.com/dapr/go-sdk/actor"
 )
 
 // ActorType{{.Actor.ActorType}} is the Dapr actor type identifier for {{.Actor.ActorType}}
 const ActorType{{.Actor.ActorType}} = "{{.Actor.ActorType}}"
 
 // {{.Actor.InterfaceName}} {{.Actor.InterfaceDesc}}.
-// This interface enforces compile-time schema compliance.
+// This interface enforces compile-time schema compliance and includes actor.ServerContext for proper Dapr actor implementation.
 type {{.Actor.InterfaceName}} interface {
+	actor.ServerContext
+	
 {{- range .Actor.Methods}}
 	// {{.Comment}}
 	{{.Name}}(ctx context.Context{{if .HasRequest}}, request {{.RequestType}}{{end}}) (*{{.ReturnType}}, error)
