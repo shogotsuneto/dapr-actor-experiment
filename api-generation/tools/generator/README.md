@@ -40,6 +40,51 @@ OpenAPI Spec → Parser → Intermediate Model → Generator → Go Code
            parser.go      model.go        main.go + templates
 ```
 
+## Model Organization
+
+The intermediate model (`model.go`) is organized in a hierarchical structure:
+
+```
+GenerationModel (Root)
+├── Types []TypeDef
+│   └── TypeDef
+│       ├── Name: string
+│       ├── Description: string
+│       └── Fields: []Field
+│           └── Field
+│               ├── Name: string
+│               ├── Type: string
+│               ├── JSONTag: string
+│               └── Comment: string
+├── TypeAliases []TypeAlias
+│   └── TypeAlias
+│       ├── Name: string
+│       ├── Type: string
+│       └── OriginalName: string
+├── Actors []ActorInterface
+│   └── ActorInterface
+│       ├── ActorType: string
+│       ├── InterfaceName: string
+│       ├── InterfaceDesc: string
+│       └── Methods: []Method
+│           └── Method
+│               ├── Name: string
+│               ├── Comment: string
+│               ├── HasRequest: bool
+│               ├── RequestType: string
+│               └── ReturnType: string
+├── SharedTypes []TypeDef
+├── SharedTypeAliases []TypeAlias
+└── ActorSpecificTypes map[string][]TypeDef
+
+Template Data Structures:
+├── ActorModel (for individual actor generation)
+├── TypesTemplateData (for types.go files)
+├── InterfaceTemplateData (for interface generation)
+├── SingleActorTemplateData (for single actor files)
+└── SharedTypesTemplateData (for shared types package)
+```
+
 ## Files
 
 - `main.go` - Entry point and code generation logic using intermediate model
