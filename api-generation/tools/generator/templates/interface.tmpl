@@ -5,7 +5,6 @@ package {{.PackageName}}
 
 import (
 	"context"
-	"fmt"
 	"github.com/dapr/go-sdk/actor"
 )
 
@@ -13,33 +12,12 @@ import (
 const ActorType{{.Actor.ActorType}} = "{{.Actor.ActorType}}"
 
 // {{.Actor.InterfaceName}} {{.Actor.InterfaceDesc}}.
-// This interface enforces compile-time schema compliance.
+// This interface enforces compile-time schema compliance and includes actor.ServerContext for proper Dapr actor implementation.
 type {{.Actor.InterfaceName}} interface {
+	actor.ServerContext
+	
 {{- range .Actor.Methods}}
 	// {{.Comment}}
 	{{.Name}}(ctx context.Context{{if .HasRequest}}, request {{.RequestType}}{{end}}) (*{{.ReturnType}}, error)
 {{- end}}
-}
-
-// New{{.Actor.ActorType}}FactoryContext creates a factory function for {{.Actor.ActorType}} with schema validation.
-// The implementation parameter must implement {{.Actor.InterfaceName}} interface.
-// Returns a factory function compatible with Dapr's RegisterActorImplFactoryContext.
-// The generated factory ensures the actor Type() method returns the correct actor type.
-func New{{.Actor.ActorType}}FactoryContext(implementation func() {{.Actor.InterfaceName}}) func() actor.ServerContext {
-	return func() actor.ServerContext {
-		// Compile-time check ensures the implementation satisfies the schema
-		impl := implementation()
-		
-		// The implementation must also implement actor.ServerContext
-		if serverCtx, ok := impl.(actor.ServerContext); ok {
-			// Verify the actor type matches the schema
-			if serverCtx.Type() != ActorType{{.Actor.ActorType}} {
-				panic(fmt.Sprintf("actor implementation Type() returns '%s', expected '%s'", serverCtx.Type(), ActorType{{.Actor.ActorType}}))
-			}
-			return serverCtx
-		}
-		
-		// This should never happen if the actor is properly implemented
-		panic("actor implementation must embed actor.ServerImplBaseCtx")
-	}
 }

@@ -39,8 +39,17 @@ api-generation/                    # Schema-first development tools
 │   └── scripts/                   # Installation and generation scripts
 └── docs/                          # Documentation and examples
 
-# Generated code location (outside api-generation):
-../internal/generated/openapi/     # Generated code output (integration)
+# Generated code is organized by actor type:
+../internal/counteractor/          # Complete counter actor package
+│   ├── api.go                     # Generated interfaces and constants
+│   ├── factory.go                 # Factory functions for actor registration
+│   ├── types.go                   # Generated type definitions
+│   └── counter.go                 # Implementation (manually written)
+../internal/bankaccountactor/      # Complete bank account actor package
+    ├── api.go                     # Generated interfaces and constants
+    ├── factory.go                 # Factory functions for actor registration
+    ├── types.go                   # Generated type definitions
+    └── bankaccount.go             # Implementation (manually written)
 ```
 
 ## Key Principles
@@ -48,8 +57,16 @@ api-generation/                    # Schema-first development tools
 ### Separation of Concerns
 1. **Schemas** (`schemas/`): Source of truth API schemas
 2. **Tooling** (`tools/`): Generation and validation tools  
-3. **Generated Code** (`../internal/generated/`): Output integrated with main project
+3. **Generated Code**: Output organized by functional units (actor types) rather than technical layers
 4. **Documentation** (`docs/`): Workflows, examples, and guidance
+
+### Actor Package Organization
+Each actor type gets its own complete package containing:
+- **Generated code**: API interfaces, types, and factory functions
+- **Implementation**: Manually written actor logic
+- **Self-contained**: All dependencies for that actor type in one place
+
+This functional organization provides better cohesion and reduced coupling compared to technical layer separation.
 
 ### Tool Installation Strategy
 Only currently implemented tools are installed:
@@ -68,17 +85,35 @@ cd api-generation
 # Generate from OpenAPI (only currently supported format)
 ./tools/scripts/generate.sh openapi schemas/openapi/multi-actors.yaml
 
-# Generated code appears in ../internal/generated/openapi/
-ls ../internal/generated/openapi/
-# types.go  interface.go
+# Generated code is organized by actor type:
+ls ../internal/counteractor/      # api.go factory.go types.go counter.go  
+ls ../internal/bankaccountactor/  # api.go factory.go types.go bankaccount.go
 ```
+
+The generator directly creates actor-specific packages containing:
+- `api.go` - Generated interfaces and constants
+- `factory.go` - Factory functions for actor registration  
+- `types.go` - Generated type definitions
+- `{actor}.go` - Implementation files (manually written)
 
 ### 3. Use Generated Code in Your Application
 ```go
-import generated "github.com/shogotsuneto/dapr-actor-experiment/internal/generated/openapi"
+import "github.com/shogotsuneto/dapr-actor-experiment/internal/counteractor"
 
-func (c *CounterActor) Increment(ctx context.Context) (*generated.CounterState, error) {
+// Implementation struct embeds actor.ServerContext via the generated API interface
+type CounterActor struct {
+    counteractor.CounterActorAPI  // Embeds actor.ServerContext
+}
+
+func (c *CounterActor) Increment(ctx context.Context) (*counteractor.CounterState, error) {
     // Implementation MUST match the OpenAPI schema
+}
+
+// Register actor using generated factory
+func main() {
+    s := daprd.NewService(":8080")
+    s.RegisterActorImplFactoryContext(counteractor.NewActorFactory())
+    s.Start()
 }
 ```
 

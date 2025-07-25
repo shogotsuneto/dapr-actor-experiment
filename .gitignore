@@ -6,6 +6,7 @@
 *.dylib
 bin/
 server
+client
 
 # Go tool binaries (prevent committing compiled tools)
 api-generation/tools/*/[!.]*

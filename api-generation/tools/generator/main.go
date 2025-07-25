@@ -62,13 +62,12 @@ type SingleActorTemplateData struct {
 }
 
 func main() {
-	if len(os.Args) < 4 {
-		log.Fatal("Usage: generator <openapi-file> <package-name> <output-dir>")
+	if len(os.Args) < 3 {
+		log.Fatal("Usage: generator <openapi-file> <base-output-dir>")
 	}
 
 	schemaFile := os.Args[1]
-	packageName := os.Args[2]
-	outputDir := os.Args[3]
+	baseOutputDir := os.Args[2]
 
 	// Load OpenAPI spec
 	loader := openapi3.NewLoader()
@@ -77,27 +76,115 @@ func main() {
 		log.Fatalf("Failed to load OpenAPI spec: %v", err)
 	}
 
-	// Generate types
-	err = generateTypes(doc, packageName, outputDir)
+	// Generate actor-specific packages
+	err = generateActorPackages(doc, baseOutputDir)
 	if err != nil {
-		log.Fatalf("Failed to generate types: %v", err)
-	}
-
-	// Generate interfaces (one file per actor)
-	generatedFiles, err := generateInterfaces(doc, packageName, outputDir)
-	if err != nil {
-		log.Fatalf("Failed to generate interfaces: %v", err)
-	}
-
-	fmt.Printf("Generated files:\n")
-	fmt.Printf("  %s/types.go\n", outputDir)
-	for _, file := range generatedFiles {
-		fmt.Printf("  %s\n", file)
+		log.Fatalf("Failed to generate actor packages: %v", err)
 	}
 }
 
-func generateTypes(doc *openapi3.T, packageName, outputDir string) error {
-	// Parse types from schemas
+func generateActorPackages(doc *openapi3.T, baseOutputDir string) error {
+	// Get all actor types
+	actorTypes := getActorTypes(doc)
+	
+	if len(actorTypes) == 0 {
+		return fmt.Errorf("no actor types found in OpenAPI specification")
+	}
+
+	// Group methods by actor type
+	actorMethodsMap := make(map[string][]Method)
+	
+	for path, pathItem := range doc.Paths.Map() {
+		// Process all HTTP methods in the path
+		operations := map[string]*openapi3.Operation{
+			"GET":    pathItem.Get,
+			"POST":   pathItem.Post,
+			"PUT":    pathItem.Put,
+			"DELETE": pathItem.Delete,
+			"PATCH":  pathItem.Patch,
+		}
+
+		for httpMethod, op := range operations {
+			if op == nil {
+				continue
+			}
+
+			// Find which actor type this operation belongs to
+			var operationActorType string
+			if op.Tags != nil {
+				for _, tag := range op.Tags {
+					if strings.HasPrefix(tag, "ActorType:") {
+						operationActorType = strings.TrimPrefix(tag, "ActorType:")
+						break
+					}
+				}
+			}
+			
+			if operationActorType == "" {
+				continue // Skip operations without actor type
+			}
+
+			// Extract method details
+			method, err := extractMethodFromOperation(op, httpMethod, path)
+			if err != nil {
+				return fmt.Errorf("failed to extract method from operation %s %s: %v", httpMethod, path, err)
+			}
+			
+			actorMethodsMap[operationActorType] = append(actorMethodsMap[operationActorType], *method)
+		}
+	}
+
+	// Generate package for each actor type
+	for _, actorType := range actorTypes {
+		methods := actorMethodsMap[actorType]
+		if len(methods) == 0 {
+			continue // Skip actor types with no methods
+		}
+
+		// Create actor-specific package name and directory
+		packageName := strings.ToLower(actorType)
+		if !strings.HasSuffix(packageName, "actor") {
+			packageName += "actor"
+		}
+		
+		outputDir := filepath.Join(baseOutputDir, packageName)
+		
+		// Create output directory
+		err := os.MkdirAll(outputDir, 0755)
+		if err != nil {
+			return fmt.Errorf("failed to create output directory %s: %v", outputDir, err)
+		}
+
+		// Generate types for this actor
+		err = generateActorTypes(doc, packageName, outputDir, actorType)
+		if err != nil {
+			return fmt.Errorf("failed to generate types for %s: %v", actorType, err)
+		}
+
+		// Generate interface for this actor
+		err = generateActorInterface(doc, packageName, outputDir, actorType, methods)
+		if err != nil {
+			return fmt.Errorf("failed to generate interface for %s: %v", actorType, err)
+		}
+
+		// Generate factory for this actor
+		err = generateActorFactory(doc, packageName, outputDir, actorType, methods)
+		if err != nil {
+			return fmt.Errorf("failed to generate factory for %s: %v", actorType, err)
+		}
+
+		fmt.Printf("Generated actor package: %s\n", outputDir)
+		fmt.Printf("  %s/types.go\n", outputDir)
+		fmt.Printf("  %s/api.go\n", outputDir)
+		fmt.Printf("  %s/factory.go\n", outputDir)
+	}
+
+	return nil
+}
+
+func generateActorTypes(doc *openapi3.T, packageName, outputDir, actorType string) error {
+	// Parse types from schemas - for now, include all types in each actor package
+	// In the future, we could filter types based on usage by each actor
 	types := []TypeDef{}
 	typeAliases := []TypeAlias{}
 
@@ -168,6 +255,83 @@ func generateTypes(doc *openapi3.T, packageName, outputDir string) error {
 	err = tmpl.Execute(typesFile, data)
 	if err != nil {
 		return fmt.Errorf("failed to execute types template: %v", err)
+	}
+
+	return nil
+}
+
+func generateActorInterface(doc *openapi3.T, packageName, outputDir, actorType string, methods []Method) error {
+	// Load template from file
+	templatePath := getTemplatePath("interface.tmpl")
+	tmpl, err := template.ParseFiles(templatePath)
+	if err != nil {
+		return fmt.Errorf("failed to parse interface template: %v", err)
+	}
+
+	interfaceName := actorType + "API"
+	interfaceDesc := fmt.Sprintf("defines the interface that must be implemented to satisfy the OpenAPI schema for %s", actorType)
+	
+	actor := ActorInterface{
+		ActorType:     actorType,
+		InterfaceName: interfaceName,
+		InterfaceDesc: interfaceDesc,
+		Methods:       methods,
+	}
+
+	// Generate interface file for this actor
+	data := SingleActorTemplateData{
+		PackageName: packageName,
+		Actor:       actor,
+	}
+
+	// Use api.go as filename instead of generated.go for better clarity
+	interfaceFile, err := os.Create(filepath.Join(outputDir, "api.go"))
+	if err != nil {
+		return fmt.Errorf("failed to create interface file: %v", err)
+	}
+	defer interfaceFile.Close()
+
+	err = tmpl.Execute(interfaceFile, data)
+	if err != nil {
+		return fmt.Errorf("failed to execute interface template: %v", err)
+	}
+
+	return nil
+}
+
+func generateActorFactory(doc *openapi3.T, packageName, outputDir, actorType string, methods []Method) error {
+	// Load template from file
+	templatePath := getTemplatePath("factory.tmpl")
+	tmpl, err := template.ParseFiles(templatePath)
+	if err != nil {
+		return fmt.Errorf("failed to parse factory template: %v", err)
+	}
+
+	interfaceName := actorType + "API"
+	interfaceDesc := fmt.Sprintf("defines the interface that must be implemented to satisfy the OpenAPI schema for %s", actorType)
+	
+	actor := ActorInterface{
+		ActorType:     actorType,
+		InterfaceName: interfaceName,
+		InterfaceDesc: interfaceDesc,
+		Methods:       methods,
+	}
+
+	// Generate factory file for this actor
+	data := SingleActorTemplateData{
+		PackageName: packageName,
+		Actor:       actor,
+	}
+
+	factoryFile, err := os.Create(filepath.Join(outputDir, "factory.go"))
+	if err != nil {
+		return fmt.Errorf("failed to create factory file: %v", err)
+	}
+	defer factoryFile.Close()
+
+	err = tmpl.Execute(factoryFile, data)
+	if err != nil {
+		return fmt.Errorf("failed to execute factory template: %v", err)
 	}
 
 	return nil
@@ -364,106 +528,7 @@ func toSnakeCase(s string) string {
 	return strings.ToLower(result.String())
 }
 
-func generateInterfaces(doc *openapi3.T, packageName, outputDir string) ([]string, error) {
-	// Get all actor types
-	actorTypes := getActorTypes(doc)
-	
-	// Group methods by actor type
-	actorMethodsMap := make(map[string][]Method)
-	
-	for path, pathItem := range doc.Paths.Map() {
-		// Process all HTTP methods in the path
-		operations := map[string]*openapi3.Operation{
-			"GET":    pathItem.Get,
-			"POST":   pathItem.Post,
-			"PUT":    pathItem.Put,
-			"DELETE": pathItem.Delete,
-			"PATCH":  pathItem.Patch,
-		}
 
-		for httpMethod, op := range operations {
-			if op == nil {
-				continue
-			}
-
-			// Find which actor type this operation belongs to
-			var operationActorType string
-			if op.Tags != nil {
-				for _, tag := range op.Tags {
-					if strings.HasPrefix(tag, "ActorType:") {
-						operationActorType = strings.TrimPrefix(tag, "ActorType:")
-						break
-					}
-				}
-			}
-			
-			if operationActorType == "" {
-				continue // Skip operations without actor type
-			}
-
-			// Extract method details
-			method, err := extractMethodFromOperation(op, httpMethod, path)
-			if err != nil {
-				return nil, fmt.Errorf("failed to extract method from operation %s %s: %v", httpMethod, path, err)
-			}
-			
-			actorMethodsMap[operationActorType] = append(actorMethodsMap[operationActorType], *method)
-		}
-	}
-
-	// Load template from file
-	templatePath := getTemplatePath("interface.tmpl")
-	tmpl, err := template.ParseFiles(templatePath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse interface template: %v", err)
-	}
-
-	var generatedFiles []string
-
-	// Generate one interface file per actor
-	for _, actorType := range actorTypes {
-		methods := actorMethodsMap[actorType]
-		if len(methods) == 0 {
-			continue // Skip actor types with no methods
-		}
-		
-		interfaceName := actorType + "API"
-		interfaceDesc := fmt.Sprintf("defines the interface that must be implemented to satisfy the OpenAPI schema for %s", actorType)
-		
-		actor := ActorInterface{
-			ActorType:     actorType,
-			InterfaceName: interfaceName,
-			InterfaceDesc: interfaceDesc,
-			Methods:       methods,
-		}
-
-		// Generate filename in snake_case
-		filename := fmt.Sprintf("%s.go", toSnakeCase(actorType))
-		filepath := fmt.Sprintf("%s/%s", outputDir, filename)
-		
-		// Generate interface file for this actor
-		data := SingleActorTemplateData{
-			PackageName: packageName,
-			Actor:       actor,
-		}
-
-		interfaceFile, err := os.Create(filepath)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create interface file %s: %v", filepath, err)
-		}
-
-		err = tmpl.Execute(interfaceFile, data)
-		interfaceFile.Close()
-		
-		if err != nil {
-			return nil, fmt.Errorf("failed to execute interface template for %s: %v", actorType, err)
-		}
-		
-		generatedFiles = append(generatedFiles, filepath)
-	}
-
-	return generatedFiles, nil
-}
 
 func getTemplatePath(templateName string) string {
 	// Get the directory where this binary is located

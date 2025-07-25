@@ -1,0 +1,29 @@
+// Package {{.PackageName}} provides primitives for OpenAPI-based schema validation.
+//
+// Code generated from OpenAPI specification. DO NOT EDIT manually.
+package {{.PackageName}}
+
+import (
+	"fmt"
+	"github.com/dapr/go-sdk/actor"
+)
+
+// NewActorFactory creates a factory function for {{.Actor.ActorType}} with a cleaner API.
+// Returns a factory function compatible with Dapr's RegisterActorImplFactoryContext.
+// Usage: s.RegisterActorImplFactoryContext({{.PackageName}}.NewActorFactory())
+func NewActorFactory() func() actor.ServerContext {
+	return func() actor.ServerContext {
+		// Create a new {{.Actor.ActorType}} instance
+		impl := &{{.Actor.ActorType}}{}
+		
+		// Compile-time check ensures the implementation satisfies the schema
+		var _ {{.Actor.InterfaceName}} = impl
+		
+		// Verify the actor type matches the schema
+		if impl.Type() != ActorType{{.Actor.ActorType}} {
+			panic(fmt.Sprintf("actor implementation Type() returns '%s', expected '%s'", impl.Type(), ActorType{{.Actor.ActorType}}))
+		}
+		
+		return impl
+	}
+}
