@@ -165,18 +165,8 @@ func (p *OpenAPIParser) parseActors(model *GenerationModel) error {
 				continue
 			}
 
-			// Primary method: Extract actor type from path pattern
+			// Extract actor type from path pattern
 			operationActorType := p.extractActorTypeFromPath(path)
-			
-			// Fallback: Find which actor type this operation belongs to from tags
-			if operationActorType == "" && op.Tags != nil {
-				for _, tag := range op.Tags {
-					if strings.HasPrefix(tag, "ActorType:") {
-						operationActorType = strings.TrimPrefix(tag, "ActorType:")
-						break
-					}
-				}
-			}
 
 			if operationActorType == "" {
 				continue // Skip operations without identifiable actor type
