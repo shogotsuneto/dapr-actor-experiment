@@ -43,7 +43,6 @@ func (p *OpenAPIParser) parseAndCategorizeTypes(model *GenerationModel) error {
 
 	// First, parse all types from the OpenAPI spec
 	var allTypes []TypeDef
-	var allTypeAliases []TypeAlias
 
 	// Parse struct types from schemas
 	for name, schemaRef := range p.doc.Components.Schemas {
@@ -73,23 +72,40 @@ func (p *OpenAPIParser) parseAndCategorizeTypes(model *GenerationModel) error {
 		}
 	}
 
-	// Parse type aliases from path parameters
+	// Parse type aliases from path parameters and components parameters
 	for _, pathItem := range p.doc.Paths.Map() {
 		for _, param := range pathItem.Parameters {
 			p := param.Value
 			if p.Schema != nil && p.Schema.Value.Type.Is("string") {
 				aliasName := capitalizeFirst(p.Name)
-				allTypeAliases = append(allTypeAliases, TypeAlias{
+				allTypes = append(allTypes, TypeDef{
 					Name:         aliasName,
-					Type:         "string",
+					Description:  fmt.Sprintf("defines model for %s", p.Name),
+					AliasTarget:  "string",
 					OriginalName: p.Name,
 				})
 			}
 		}
 	}
 
+	// Also parse type aliases from components.parameters (for referenced parameters)
+	if p.doc.Components != nil && p.doc.Components.Parameters != nil {
+		for paramName, paramRef := range p.doc.Components.Parameters {
+			param := paramRef.Value
+			if param.Schema != nil && param.Schema.Value.Type.Is("string") {
+				aliasName := capitalizeFirst(paramName)
+				allTypes = append(allTypes, TypeDef{
+					Name:         aliasName,
+					Description:  fmt.Sprintf("defines model for %s", param.Name),
+					AliasTarget:  "string",
+					OriginalName: param.Name,
+				})
+			}
+		}
+	}
+
 	// Now categorize types based on usage by actors
-	return p.categorizeTypesIntoActors(model, allTypes, allTypeAliases)
+	return p.categorizeTypesIntoActors(model, allTypes)
 }
 
 // parseActors extracts actor interfaces and their methods from OpenAPI paths
@@ -348,7 +364,7 @@ func isCustomType(typeName string, types []TypeDef) bool {
 }
 
 // categorizeTypesIntoActors analyzes types and assigns them directly to actors or shared collections
-func (p *OpenAPIParser) categorizeTypesIntoActors(model *GenerationModel, allTypes []TypeDef, allTypeAliases []TypeAlias) error {
+func (p *OpenAPIParser) categorizeTypesIntoActors(model *GenerationModel, allTypes []TypeDef) error {
 	// Create a map to track which types are used by which actors
 	typeUsage := make(map[string]map[string]bool) // type -> actor -> used
 	
@@ -382,15 +398,17 @@ func (p *OpenAPIParser) categorizeTypesIntoActors(model *GenerationModel, allTyp
 	// the referenced type should be shared if the referencing type is used by multiple actors
 	typeDependencies := make(map[string][]string) // type -> []referenced_types
 	for _, typeDef := range allTypes {
-		for _, field := range typeDef.Fields {
-			// Extract referenced type from field type (handle arrays and pointers)
-			fieldType := field.Type
-			fieldType = strings.TrimPrefix(fieldType, "[]")
-			fieldType = strings.TrimPrefix(fieldType, "*")
-			
-			// Check if this is a custom type (not a built-in Go type)
-			if isCustomType(fieldType, allTypes) {
-				typeDependencies[typeDef.Name] = append(typeDependencies[typeDef.Name], fieldType)
+		if typeDef.IsStruct() {
+			for _, field := range typeDef.Fields {
+				// Extract referenced type from field type (handle arrays and pointers)
+				fieldType := field.Type
+				fieldType = strings.TrimPrefix(fieldType, "[]")
+				fieldType = strings.TrimPrefix(fieldType, "*")
+				
+				// Check if this is a custom type (not a built-in Go type)
+				if isCustomType(fieldType, allTypes) {
+					typeDependencies[typeDef.Name] = append(typeDependencies[typeDef.Name], fieldType)
+				}
 			}
 		}
 	}
@@ -431,13 +449,11 @@ func (p *OpenAPIParser) categorizeTypesIntoActors(model *GenerationModel, allTyp
 				}
 			}
 		} else {
-			// Not used by any actor (shouldn't happen, but default to shared)
+			// Not used by any actor - check if it's a type alias (they're often reusable)
+			// Default type aliases to shared, struct types to shared as well for safety
 			model.SharedTypes = append(model.SharedTypes, typeDef)
 		}
 	}
-	
-	// For now, keep all type aliases as shared (they're typically simple and reusable)
-	model.SharedTypeAliases = allTypeAliases
 	
 	return nil
 }

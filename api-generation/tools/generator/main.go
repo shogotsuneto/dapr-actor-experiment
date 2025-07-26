@@ -51,7 +51,7 @@ func (g *Generator) GenerateActorPackages(model *GenerationModel, baseOutputDir 
 	}
 
 	// First, generate shared types package if there are shared types
-	if len(model.SharedTypes) > 0 || len(model.SharedTypeAliases) > 0 {
+	if len(model.SharedTypes) > 0 {
 		err := g.generateSharedTypes(model, baseOutputDir)
 		if err != nil {
 			return fmt.Errorf("failed to generate shared types: %v", err)
@@ -76,14 +76,12 @@ func (g *Generator) GenerateActorPackages(model *GenerationModel, baseOutputDir 
 
 		// Get actor-specific types directly from the actor
 		actorSpecificTypes := actor.Types
-		actorSpecificAliases := actor.TypeAliases
 
 		// Create actor model for this specific actor
 		actorModel := ActorModel{
 			ActorType:      actor.ActorType,
 			PackageName:    packageName,
 			Types:          actorSpecificTypes,
-			TypeAliases:    actorSpecificAliases,
 			ActorInterface: actor,
 		}
 
@@ -132,9 +130,8 @@ func (g *Generator) generateSharedTypes(model *GenerationModel, baseOutputDir st
 
 	// Generate shared types file
 	data := SharedTypesTemplateData{
-		PackageName:   "shared",
-		SharedTypes:   model.SharedTypes,
-		SharedAliases: model.SharedTypeAliases,
+		PackageName: "shared",
+		SharedTypes: model.SharedTypes,
 	}
 
 	typesFile, err := os.Create(fmt.Sprintf("%s/types.go", sharedTypesDir))
@@ -175,12 +172,10 @@ func (g *Generator) generateActorTypes(actorModel *ActorModel, outputDir string)
 	data := struct {
 		PackageName string
 		Types       []TypeDef
-		TypeAliases []TypeAlias
 		SharedTypes bool // Indicates if shared types package needs to be imported
 	}{
 		PackageName: actorModel.PackageName,
 		Types:       processedTypes,
-		TypeAliases: actorModel.TypeAliases,
 		SharedTypes: hasSharedTypeReferences, // Only import if actually needed
 	}
 

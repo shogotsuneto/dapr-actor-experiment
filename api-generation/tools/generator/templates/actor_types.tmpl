@@ -10,6 +10,7 @@ import (
 {{end}}
 
 {{range .Types}}
+{{- if .IsStruct}}
 // {{.Name}} {{.Description}}
 type {{.Name}} struct {
 {{- range .Fields}}
@@ -17,8 +18,8 @@ type {{.Name}} struct {
 	{{.Name}} {{.Type}} `json:"{{.JSONTag}}"`
 {{- end}}
 }
-{{end}}
-{{range .TypeAliases}}
-// {{.Name}} defines model for {{.OriginalName}}.
-type {{.Name}} = {{.Type}}
+{{- else if .IsAlias}}
+// {{.Name}} {{.Description}}
+type {{.Name}} = {{.AliasTarget}}
+{{- end}}
 {{end}}
