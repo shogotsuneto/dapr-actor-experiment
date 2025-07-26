@@ -9,8 +9,6 @@ import (
 
 	"github.com/dapr/go-sdk/actor"
 	"github.com/google/uuid"
-	
-	"github.com/shogotsuneto/dapr-actor-experiment/internal/shared"
 )
 
 // BankAccountActor demonstrates event sourcing pattern with in-memory state caching.
@@ -250,9 +248,9 @@ func (b *BankAccountActor) GetHistory(ctx context.Context) (*TransactionHistory,
 	}
 	
 	// Convert internal events to API events
-	var apiEvents []interface{}
+	var apiEvents []AccountEvent
 	for _, event := range events {
-		apiEvent := shared.AccountEvent{
+		apiEvent := AccountEvent{
 			EventId:   event.EventID,
 			EventType: event.EventType,
 			Timestamp: event.Timestamp.Format(time.RFC3339),

@@ -58,6 +58,15 @@ func getGoType(schema *openapi3.Schema) string {
 		return "bool"
 	case schema.Type.Is("array"):
 		if schema.Items != nil {
+			// Check if items has a $ref first
+			if schema.Items.Ref != "" {
+				// Extract type name from $ref
+				parts := strings.Split(schema.Items.Ref, "/")
+				if len(parts) > 0 {
+					return "[]" + parts[len(parts)-1]
+				}
+			}
+			// Fallback to recursive getGoType call
 			return "[]" + getGoType(schema.Items.Value)
 		}
 		return "[]interface{}"
