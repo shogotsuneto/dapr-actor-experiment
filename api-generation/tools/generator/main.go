@@ -60,11 +60,8 @@ func (g *Generator) GenerateActorPackages(model *GenerationModel, baseOutputDir 
 
 	// Generate package for each actor type
 	for _, actor := range model.Actors {
-		// Create actor-specific package name and directory (remove "actor" suffix)
+		// Create actor-specific package name and directory using actorType as is
 		packageName := strings.ToLower(actor.ActorType)
-		if strings.HasSuffix(packageName, "actor") {
-			packageName = strings.TrimSuffix(packageName, "actor")
-		}
 
 		outputDir := filepath.Join(baseOutputDir, packageName)
 
