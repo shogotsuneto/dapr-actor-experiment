@@ -39,6 +39,27 @@ func extractRequestType(requestBody *openapi3.RequestBody) string {
 	return ""
 }
 
+// extractTypeNameFromRef extracts the type name from an OpenAPI $ref string.
+// This function currently handles the basic case of extracting the last segment
+// from a $ref path (e.g., "#/components/schemas/TypeName" -> "TypeName").
+// 
+// NOTE: This implementation may not cover all cases correctly:
+// - Types defined in shared packages might need qualified names (e.g., "shared.TypeName")
+// - Complex reference paths or external references might not be handled properly
+// - Package resolution logic may be needed for more sophisticated type placement
+func extractTypeNameFromRef(ref string) string {
+	if ref == "" {
+		return ""
+	}
+	
+	parts := strings.Split(ref, "/")
+	if len(parts) > 0 {
+		return parts[len(parts)-1]
+	}
+	
+	return ""
+}
+
 // getGoType converts OpenAPI schema type to Go type
 func getGoType(schema *openapi3.Schema) string {
 	switch {
@@ -60,10 +81,9 @@ func getGoType(schema *openapi3.Schema) string {
 		if schema.Items != nil {
 			// Check if items has a $ref first
 			if schema.Items.Ref != "" {
-				// Extract type name from $ref
-				parts := strings.Split(schema.Items.Ref, "/")
-				if len(parts) > 0 {
-					return "[]" + parts[len(parts)-1]
+				typeName := extractTypeNameFromRef(schema.Items.Ref)
+				if typeName != "" {
+					return "[]" + typeName
 				}
 			}
 			// Fallback to recursive getGoType call
