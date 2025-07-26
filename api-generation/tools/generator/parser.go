@@ -238,7 +238,7 @@ func (p *OpenAPIParser) extractMethodFromOperation(op *openapi3.Operation, httpM
 	}
 
 	// Extract return type from 200 response
-	if returnType := extractReturnType(op); returnType != "" {
+	if returnType := p.extractReturnType(op); returnType != "" {
 		method.ReturnType = returnType
 	}
 
@@ -305,11 +305,24 @@ func (p *OpenAPIParser) extractReturnType(op *openapi3.Operation) string {
 
 	// Look for JSON content
 	if jsonContent := response200.Value.Content.Get("application/json"); jsonContent != nil {
-		if jsonContent.Schema != nil && jsonContent.Schema.Ref != "" {
-			// Extract type name from $ref
-			parts := strings.Split(jsonContent.Schema.Ref, "/")
-			if len(parts) > 0 {
-				return parts[len(parts)-1]
+		if jsonContent.Schema != nil {
+			// Handle direct $ref
+			if jsonContent.Schema.Ref != "" {
+				parts := strings.Split(jsonContent.Schema.Ref, "/")
+				if len(parts) > 0 {
+					return parts[len(parts)-1]
+				}
+			}
+			
+			schema := jsonContent.Schema.Value
+			if schema != nil {
+				// Handle array schemas with items.$ref
+				if schema.Type != nil && schema.Type.Is("array") && schema.Items != nil && schema.Items.Ref != "" {
+					parts := strings.Split(schema.Items.Ref, "/")
+					if len(parts) > 0 {
+						return "[]" + parts[len(parts)-1]
+					}
+				}
 			}
 		}
 	}
