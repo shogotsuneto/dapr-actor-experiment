@@ -248,3 +248,88 @@ func TestGeneratorWithTestSpecs(t *testing.T) {
 		})
 	}
 }
+
+// TestAccountEventTypePlacement verifies that AccountEvent is placed in the correct package
+// This test ensures the fix for issue #38 - where AccountEvent was incorrectly placed in shared
+// package despite only being used by one actor.
+func TestAccountEventTypePlacement(t *testing.T) {
+	// Load the multi-actors OpenAPI spec (the one that demonstrates the issue)
+	loader := openapi3.NewLoader()
+	doc, err := loader.LoadFromFile("../../schemas/openapi/multi-actors.yaml")
+	if err != nil {
+		t.Fatalf("Failed to load multi-actors OpenAPI spec: %v", err)
+	}
+
+	// Parse the spec to intermediate model
+	parser := NewOpenAPIParser(doc)
+	model, err := parser.Parse()
+	if err != nil {
+		t.Fatalf("Failed to parse OpenAPI spec: %v", err)
+	}
+
+	// Verify AccountEvent is NOT in shared types
+	accountEventInShared := false
+	for _, structType := range model.SharedTypes.Structs {
+		if structType.Name == "AccountEvent" {
+			accountEventInShared = true
+			break
+		}
+	}
+	if accountEventInShared {
+		t.Error("AccountEvent should not be in shared types - it's only used by BankAccount actor")
+	}
+
+	// Verify AccountEvent is in BankAccount actor types
+	var bankAccountActor *ActorInterface
+	for i, actor := range model.Actors {
+		if actor.ActorType == "BankAccount" {
+			bankAccountActor = &model.Actors[i]
+			break
+		}
+	}
+	if bankAccountActor == nil {
+		t.Fatal("BankAccount actor not found")
+	}
+
+	accountEventInBankAccount := false
+	for _, structType := range bankAccountActor.Types.Structs {
+		if structType.Name == "AccountEvent" {
+			accountEventInBankAccount = true
+			break
+		}
+	}
+	if !accountEventInBankAccount {
+		t.Error("AccountEvent should be in BankAccount actor types")
+	}
+
+	// Verify TransactionHistory.Events field is properly typed as []AccountEvent
+	var transactionHistoryType *StructType
+	for i, structType := range bankAccountActor.Types.Structs {
+		if structType.Name == "TransactionHistory" {
+			transactionHistoryType = &bankAccountActor.Types.Structs[i]
+			break
+		}
+	}
+	if transactionHistoryType == nil {
+		t.Fatal("TransactionHistory type not found in BankAccount actor")
+	}
+
+	var eventsField *Field
+	for i, field := range transactionHistoryType.Fields {
+		if field.Name == "Events" {
+			eventsField = &transactionHistoryType.Fields[i]
+			break
+		}
+	}
+	if eventsField == nil {
+		t.Fatal("Events field not found in TransactionHistory")
+	}
+
+	expectedType := "[]AccountEvent"
+	if eventsField.Type != expectedType {
+		t.Errorf("Expected TransactionHistory.Events type to be %s, got %s", expectedType, eventsField.Type)
+	}
+
+	t.Log("✅ AccountEvent is correctly placed in bankaccount package")
+	t.Log("✅ TransactionHistory.Events is correctly typed as []AccountEvent")
+}
