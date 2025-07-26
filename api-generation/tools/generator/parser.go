@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"strings"
+	"unicode"
 
 	"github.com/getkin/kin-openapi/openapi3"
 )
@@ -220,8 +221,10 @@ func (p *OpenAPIParser) extractMethodFromOperation(op *openapi3.Operation, httpM
 		return nil, fmt.Errorf("failed to extract method name from path '%s': path must follow pattern '/{actorType}/{actorId}/method/{methodName}'", path)
 	}
 
-	// Capitalize the method name for Go interface (exported method)
-	methodName = capitalizeFirst(methodName)
+	// Validate that method name starts with capital letter (Go exported method requirement)
+	if len(methodName) == 0 || !unicode.IsUpper(rune(methodName[0])) {
+		return nil, fmt.Errorf("method name '%s' must start with a capital letter (Go exported method requirement) in path '%s'", methodName, path)
+	}
 
 	method := &Method{
 		Name:       methodName,

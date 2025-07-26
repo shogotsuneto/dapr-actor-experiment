@@ -20,82 +20,82 @@ echo "--------------------------------------------"
 echo ""
 echo "1. Testing BankAccount instance 'account-alice':"
 echo "Creating Alice's bank account:"
-curl -s -X POST http://localhost:3500/v1.0/actors/BankAccount/account-alice/method/createAccount \
+curl -s -X POST http://localhost:3500/v1.0/actors/BankAccount/account-alice/method/CreateAccount \
   -H "Content-Type: application/json" \
   -d '{"ownerName": "Alice Johnson", "initialDeposit": 1500.00}' | jq '.'
 
 echo -e "\nDepositing salary:"
-curl -s -X POST http://localhost:3500/v1.0/actors/BankAccount/account-alice/method/deposit \
+curl -s -X POST http://localhost:3500/v1.0/actors/BankAccount/account-alice/method/Deposit \
   -H "Content-Type: application/json" \
   -d '{"amount": 3000.00, "description": "Monthly salary"}' | jq '.'
 
 echo -e "\nWithdrawing for rent:"
-curl -s -X POST http://localhost:3500/v1.0/actors/BankAccount/account-alice/method/withdraw \
+curl -s -X POST http://localhost:3500/v1.0/actors/BankAccount/account-alice/method/Withdraw \
   -H "Content-Type: application/json" \
   -d '{"amount": 1200.00, "description": "Rent payment"}' | jq '.'
 
 echo -e "\nWithdrawing for groceries:"
-curl -s -X POST http://localhost:3500/v1.0/actors/BankAccount/account-alice/method/withdraw \
+curl -s -X POST http://localhost:3500/v1.0/actors/BankAccount/account-alice/method/Withdraw \
   -H "Content-Type: application/json" \
   -d '{"amount": 150.00, "description": "Grocery shopping"}' | jq '.'
 
 echo -e "\nAlice's current balance:"
-curl -s http://localhost:3500/v1.0/actors/BankAccount/account-alice/method/getBalance | jq '.'
+curl -s http://localhost:3500/v1.0/actors/BankAccount/account-alice/method/GetBalance | jq '.'
 
 # Instance 2: account-bob
 echo ""
 echo "2. Testing BankAccount instance 'account-bob':"
 echo "Creating Bob's bank account:"
-curl -s -X POST http://localhost:3500/v1.0/actors/BankAccount/account-bob/method/createAccount \
+curl -s -X POST http://localhost:3500/v1.0/actors/BankAccount/account-bob/method/CreateAccount \
   -H "Content-Type: application/json" \
   -d '{"ownerName": "Bob Smith", "initialDeposit": 500.00}' | jq '.'
 
 echo -e "\nDepositing freelance payment:"
-curl -s -X POST http://localhost:3500/v1.0/actors/BankAccount/account-bob/method/deposit \
+curl -s -X POST http://localhost:3500/v1.0/actors/BankAccount/account-bob/method/Deposit \
   -H "Content-Type: application/json" \
   -d '{"amount": 800.00, "description": "Freelance project payment"}' | jq '.'
 
 echo -e "\nDepositing bonus:"
-curl -s -X POST http://localhost:3500/v1.0/actors/BankAccount/account-bob/method/deposit \
+curl -s -X POST http://localhost:3500/v1.0/actors/BankAccount/account-bob/method/Deposit \
   -H "Content-Type: application/json" \
   -d '{"amount": 200.00, "description": "Performance bonus"}' | jq '.'
 
 echo -e "\nWithdrawing for car payment:"
-curl -s -X POST http://localhost:3500/v1.0/actors/BankAccount/account-bob/method/withdraw \
+curl -s -X POST http://localhost:3500/v1.0/actors/BankAccount/account-bob/method/Withdraw \
   -H "Content-Type: application/json" \
   -d '{"amount": 350.00, "description": "Car loan payment"}' | jq '.'
 
 echo -e "\nBob's current balance:"
-curl -s http://localhost:3500/v1.0/actors/BankAccount/account-bob/method/getBalance | jq '.'
+curl -s http://localhost:3500/v1.0/actors/BankAccount/account-bob/method/GetBalance | jq '.'
 
 # Instance 3: account-charlie
 echo ""
 echo "3. Testing BankAccount instance 'account-charlie':"
 echo "Creating Charlie's bank account:"
-curl -s -X POST http://localhost:3500/v1.0/actors/BankAccount/account-charlie/method/createAccount \
+curl -s -X POST http://localhost:3500/v1.0/actors/BankAccount/account-charlie/method/CreateAccount \
   -H "Content-Type: application/json" \
   -d '{"ownerName": "Charlie Brown", "initialDeposit": 2000.00}' | jq '.'
 
 echo -e "\nMultiple small withdrawals:"
-curl -s -X POST http://localhost:3500/v1.0/actors/BankAccount/account-charlie/method/withdraw \
+curl -s -X POST http://localhost:3500/v1.0/actors/BankAccount/account-charlie/method/Withdraw \
   -H "Content-Type: application/json" \
   -d '{"amount": 50.00, "description": "Coffee shop"}' | jq '.'
 
-curl -s -X POST http://localhost:3500/v1.0/actors/BankAccount/account-charlie/method/withdraw \
+curl -s -X POST http://localhost:3500/v1.0/actors/BankAccount/account-charlie/method/Withdraw \
   -H "Content-Type: application/json" \
   -d '{"amount": 25.00, "description": "Parking fee"}' | jq '.'
 
-curl -s -X POST http://localhost:3500/v1.0/actors/BankAccount/account-charlie/method/withdraw \
+curl -s -X POST http://localhost:3500/v1.0/actors/BankAccount/account-charlie/method/Withdraw \
   -H "Content-Type: application/json" \
   -d '{"amount": 100.00, "description": "Gas station"}' | jq '.'
 
 echo -e "\nLarge deposit:"
-curl -s -X POST http://localhost:3500/v1.0/actors/BankAccount/account-charlie/method/deposit \
+curl -s -X POST http://localhost:3500/v1.0/actors/BankAccount/account-charlie/method/Deposit \
   -H "Content-Type: application/json" \
   -d '{"amount": 5000.00, "description": "Investment return"}' | jq '.'
 
 echo -e "\nCharlie's current balance:"
-curl -s http://localhost:3500/v1.0/actors/BankAccount/account-charlie/method/getBalance | jq '.'
+curl -s http://localhost:3500/v1.0/actors/BankAccount/account-charlie/method/GetBalance | jq '.'
 
 # Summary of all instances
 echo ""
@@ -104,13 +104,13 @@ echo "-------------------------------------------------"
 echo "Final balances for all BankAccount instances:"
 echo ""
 echo "Alice's balance:"
-curl -s http://localhost:3500/v1.0/actors/BankAccount/account-alice/method/getBalance | jq '.'
+curl -s http://localhost:3500/v1.0/actors/BankAccount/account-alice/method/GetBalance | jq '.'
 echo ""
 echo "Bob's balance:"
-curl -s http://localhost:3500/v1.0/actors/BankAccount/account-bob/method/getBalance | jq '.'
+curl -s http://localhost:3500/v1.0/actors/BankAccount/account-bob/method/GetBalance | jq '.'
 echo ""
 echo "Charlie's balance:"
-curl -s http://localhost:3500/v1.0/actors/BankAccount/account-charlie/method/getBalance | jq '.'
+curl -s http://localhost:3500/v1.0/actors/BankAccount/account-charlie/method/GetBalance | jq '.'
 
 # Show event sourcing capabilities with transaction history
 echo ""
@@ -119,15 +119,15 @@ echo "--------------------------------------------------------"
 
 echo ""
 echo "Alice's transaction history:"
-curl -s http://localhost:3500/v1.0/actors/BankAccount/account-alice/method/getHistory | jq '.'
+curl -s http://localhost:3500/v1.0/actors/BankAccount/account-alice/method/GetHistory | jq '.'
 
 echo ""
 echo "Bob's transaction history:"
-curl -s http://localhost:3500/v1.0/actors/BankAccount/account-bob/method/getHistory | jq '.'
+curl -s http://localhost:3500/v1.0/actors/BankAccount/account-bob/method/GetHistory | jq '.'
 
 echo ""
 echo "Charlie's transaction history (showing multiple small transactions):"
-curl -s http://localhost:3500/v1.0/actors/BankAccount/account-charlie/method/getHistory | jq '.'
+curl -s http://localhost:3500/v1.0/actors/BankAccount/account-charlie/method/GetHistory | jq '.'
 
 echo ""
 echo "✓ BankAccount tests completed successfully!"

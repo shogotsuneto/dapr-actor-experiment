@@ -27,7 +27,7 @@ servers:
 
 paths:
   # Counter paths
-  /Counter/{actorId}/method/get:
+  /Counter/{actorId}/method/Get:
     get:
       summary: Get current counter value
       description: |
@@ -43,7 +43,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/CounterState'
 
-  /Counter/{actorId}/method/increment:
+  /Counter/{actorId}/method/Increment:
     post:
       summary: Increment counter by 1
       description: |
@@ -59,7 +59,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/CounterState'
 
-  /Counter/{actorId}/method/decrement:
+  /Counter/{actorId}/method/Decrement:
     post:
       summary: Decrement counter by 1
       description: |
@@ -75,7 +75,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/CounterState'
 
-  /Counter/{actorId}/method/set:
+  /Counter/{actorId}/method/Set:
     post:
       summary: Set counter to specific value
       description: |
@@ -98,7 +98,7 @@ paths:
                 $ref: '#/components/schemas/CounterState'
 
   # BankAccount paths  
-  /BankAccount/{actorId}/method/createAccount:
+  /BankAccount/{actorId}/method/CreateAccount:
     post:
       summary: Create new bank account
       description: |
@@ -120,7 +120,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/BankAccountState'
 
-  /BankAccount/{actorId}/method/deposit:
+  /BankAccount/{actorId}/method/Deposit:
     post:
       summary: Deposit money to account
       description: |
@@ -142,7 +142,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/BankAccountState'
 
-  /BankAccount/{actorId}/method/withdraw:
+  /BankAccount/{actorId}/method/Withdraw:
     post:
       summary: Withdraw money from account
       description: |
@@ -166,7 +166,7 @@ paths:
         '400':
           description: Insufficient funds
 
-  /BankAccount/{actorId}/method/getBalance:
+  /BankAccount/{actorId}/method/GetBalance:
     get:
       summary: Get current account balance
       description: |
@@ -182,7 +182,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/BankAccountState'
 
-  /BankAccount/{actorId}/method/getHistory:
+  /BankAccount/{actorId}/method/GetHistory:
     get:
       summary: Get transaction history
       description: |
