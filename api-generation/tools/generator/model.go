@@ -81,6 +81,8 @@ type InterfaceTemplateData struct {
 type SingleActorTemplateData struct {
 	PackageName string
 	Actor       ActorInterface
+	NeedsSharedImport bool
+	SharedTypes map[string]bool
 }
 
 // SharedTypesTemplateData represents data for shared types template generation

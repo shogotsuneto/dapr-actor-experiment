@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/shogotsuneto/dapr-actor-experiment/internal/counter"
+	"github.com/shogotsuneto/dapr-actor-experiment/internal/shared"
 )
 
 func TestCounter(t *testing.T) {
@@ -39,7 +40,7 @@ func testCounterBasicOperations(t *testing.T, client *DaprClient) {
 	actorID := "counter-test-basic"
 
 	// Test 1: Get initial value (should be 0)
-	var initialState counter.CounterState
+	var initialState shared.CounterState
 	err := client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
 		ActorType: "Counter",
 		ActorID:   actorID,
@@ -49,7 +50,7 @@ func testCounterBasicOperations(t *testing.T, client *DaprClient) {
 	assert.Equal(t, int32(0), initialState.Value, "Initial counter value should be 0")
 
 	// Test 2: Increment counter
-	var incrementedState counter.CounterState
+	var incrementedState shared.CounterState
 	err = client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
 		ActorType: "Counter",
 		ActorID:   actorID,
@@ -68,7 +69,7 @@ func testCounterBasicOperations(t *testing.T, client *DaprClient) {
 	assert.Equal(t, int32(2), incrementedState.Value, "Counter should be 2 after second increment")
 
 	// Test 4: Set to specific value
-	var setState counter.CounterState
+	var setState shared.CounterState
 	err = client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
 		ActorType: "Counter",
 		ActorID:   actorID,
@@ -79,7 +80,7 @@ func testCounterBasicOperations(t *testing.T, client *DaprClient) {
 	assert.Equal(t, int32(10), setState.Value, "Counter should be 10 after set")
 
 	// Test 5: Decrement
-	var decrementedState counter.CounterState
+	var decrementedState shared.CounterState
 	err = client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
 		ActorType: "Counter",
 		ActorID:   actorID,
@@ -89,7 +90,7 @@ func testCounterBasicOperations(t *testing.T, client *DaprClient) {
 	assert.Equal(t, int32(9), decrementedState.Value, "Counter should be 9 after decrement")
 
 	// Test 6: Verify final state persistence
-	var finalState counter.CounterState
+	var finalState shared.CounterState
 	err = client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
 		ActorType: "Counter",
 		ActorID:   actorID,
@@ -108,7 +109,7 @@ func testCounterStateIsolation(t *testing.T, client *DaprClient) {
 
 	// Set different values for each actor
 	for i, actorID := range actors {
-		var state counter.CounterState
+		var state shared.CounterState
 		err := client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
 			ActorType: "Counter",
 			ActorID:   actorID,
@@ -121,7 +122,7 @@ func testCounterStateIsolation(t *testing.T, client *DaprClient) {
 
 	// Verify that each actor maintained its own state
 	for i, actorID := range actors {
-		var state counter.CounterState
+		var state shared.CounterState
 		err := client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
 			ActorType: "Counter",
 			ActorID:   actorID,
@@ -162,7 +163,7 @@ func testCounterMultipleInstances(t *testing.T, client *DaprClient) {
 		t.Run("ActorInstance_"+tc.actorID, func(t *testing.T) {
 			// Execute operations
 			for _, op := range tc.operations {
-				var state counter.CounterState
+				var state shared.CounterState
 				
 				if op == "Increment" {
 					err := client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
@@ -198,7 +199,7 @@ func testCounterMultipleInstances(t *testing.T, client *DaprClient) {
 			}
 
 			// Verify final state
-			var finalState counter.CounterState
+			var finalState shared.CounterState
 			err := client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
 				ActorType: "Counter",
 				ActorID:   tc.actorID,

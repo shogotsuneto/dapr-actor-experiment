@@ -31,7 +31,7 @@ type BankAccountActor struct {
 	actor.ServerImplBaseCtx
 	
 	// Ephemeral in-memory state for fast access (cached from events)
-	cachedState    *BankAccountState
+	cachedState    *shared.BankAccountState
 	stateLoaded    bool  // Track if state has been loaded from events
 	accountExists  bool  // Track if account exists to avoid repeated checks
 }
@@ -106,14 +106,14 @@ func (b *BankAccountActor) ensureStateLoaded(ctx context.Context) error {
 
 // getCachedState returns the in-memory cached state for fast O(1) access.
 // This leverages the actor pattern's stateful nature for optimal performance.
-func (b *BankAccountActor) getCachedState() (*BankAccountState, error) {
+func (b *BankAccountActor) getCachedState() (*shared.BankAccountState, error) {
 	if !b.accountExists {
 		return nil, errors.New("account does not exist - create account first")
 	}
 	return b.cachedState, nil
 }
 
-func (b *BankAccountActor) CreateAccount(ctx context.Context, request CreateAccountRequest) (*BankAccountState, error) {
+func (b *BankAccountActor) CreateAccount(ctx context.Context, request CreateAccountRequest) (*shared.BankAccountState, error) {
 	// Ensure state is loaded
 	if err := b.ensureStateLoaded(ctx); err != nil {
 		return nil, err
@@ -144,7 +144,7 @@ func (b *BankAccountActor) CreateAccount(ctx context.Context, request CreateAcco
 	}
 	
 	// Update in-memory cached state for fast access
-	b.cachedState = &BankAccountState{
+	b.cachedState = &shared.BankAccountState{
 		AccountId: b.ID(),
 		OwnerName: request.OwnerName,
 		Balance:   request.InitialDeposit,
@@ -156,7 +156,7 @@ func (b *BankAccountActor) CreateAccount(ctx context.Context, request CreateAcco
 	return b.cachedState, nil
 }
 
-func (b *BankAccountActor) Deposit(ctx context.Context, request DepositRequest) (*BankAccountState, error) {
+func (b *BankAccountActor) Deposit(ctx context.Context, request DepositRequest) (*shared.BankAccountState, error) {
 	// Validate request
 	if request.Amount <= 0 {
 		return nil, errors.New("deposit amount must be positive")
@@ -187,7 +187,7 @@ func (b *BankAccountActor) Deposit(ctx context.Context, request DepositRequest) 
 	return b.cachedState, nil
 }
 
-func (b *BankAccountActor) Withdraw(ctx context.Context, request WithdrawRequest) (*BankAccountState, error) {
+func (b *BankAccountActor) Withdraw(ctx context.Context, request WithdrawRequest) (*shared.BankAccountState, error) {
 	// Validate request
 	if request.Amount <= 0 {
 		return nil, errors.New("withdrawal amount must be positive")
@@ -224,7 +224,7 @@ func (b *BankAccountActor) Withdraw(ctx context.Context, request WithdrawRequest
 	return b.cachedState, nil
 }
 
-func (b *BankAccountActor) GetBalance(ctx context.Context) (*BankAccountState, error) {
+func (b *BankAccountActor) GetBalance(ctx context.Context) (*shared.BankAccountState, error) {
 	// Ensure state is loaded
 	if err := b.ensureStateLoaded(ctx); err != nil {
 		return nil, err
@@ -234,7 +234,7 @@ func (b *BankAccountActor) GetBalance(ctx context.Context) (*BankAccountState, e
 	return b.getCachedState()
 }
 
-func (b *BankAccountActor) GetHistory(ctx context.Context) (*TransactionHistory, error) {
+func (b *BankAccountActor) GetHistory(ctx context.Context) (*shared.TransactionHistory, error) {
 	// Ensure state is loaded and account exists
 	if err := b.ensureStateLoaded(ctx); err != nil {
 		return nil, err
@@ -261,7 +261,7 @@ func (b *BankAccountActor) GetHistory(ctx context.Context) (*TransactionHistory,
 		apiEvents = append(apiEvents, apiEvent)
 	}
 	
-	return &TransactionHistory{
+	return &shared.TransactionHistory{
 		AccountId: b.ID(),
 		Events:    apiEvents,
 	}, nil
@@ -312,7 +312,7 @@ func (b *BankAccountActor) getAllEvents(ctx context.Context) ([]StoredEvent, err
 	return events, nil
 }
 
-func (b *BankAccountActor) computeStateFromEvents(ctx context.Context) (*BankAccountState, error) {
+func (b *BankAccountActor) computeStateFromEvents(ctx context.Context) (*shared.BankAccountState, error) {
 	events, err := b.getAllEvents(ctx)
 	if err != nil {
 		return nil, err
@@ -323,7 +323,7 @@ func (b *BankAccountActor) computeStateFromEvents(ctx context.Context) (*BankAcc
 	}
 	
 	// Initialize state
-	state := &BankAccountState{
+	state := &shared.BankAccountState{
 		AccountId: b.ID(),
 		Balance:   0,
 		IsActive:  true,

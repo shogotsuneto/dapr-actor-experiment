@@ -42,12 +42,23 @@ func main() {
 }
 
 // Generator handles code generation from the intermediate model
-type Generator struct{}
+type Generator struct{
+	sharedTypes map[string]bool
+}
 
 // GenerateActorPackages generates actor-specific packages from the intermediate model
 func (g *Generator) GenerateActorPackages(model *GenerationModel, baseOutputDir string) error {
 	if len(model.Actors) == 0 {
 		return fmt.Errorf("no actors found in the model")
+	}
+
+	// Initialize shared types map for reference
+	g.sharedTypes = make(map[string]bool)
+	for _, structType := range model.SharedTypes.Structs {
+		g.sharedTypes[structType.Name] = true
+	}
+	for _, aliasType := range model.SharedTypes.Aliases {
+		g.sharedTypes[aliasType.Name] = true
 	}
 
 	// First, generate shared types package if there are shared types
@@ -202,10 +213,48 @@ func (g *Generator) generateActorInterface(actorModel *ActorModel, outputDir str
 		return fmt.Errorf("failed to parse interface template: %v", err)
 	}
 
+	// Determine which shared types are referenced by this actor's methods
+	sharedTypes := make(map[string]bool)
+	needsSharedImport := false
+	
+	// Process methods to update type references
+	processedActor := actorModel.ActorInterface
+	processedMethods := make([]Method, len(actorModel.ActorInterface.Methods))
+	
+	for i, method := range actorModel.ActorInterface.Methods {
+		processedMethod := method
+		
+		// Process request type
+		if method.HasRequest && method.RequestType != "" {
+			if g.isSharedType(method.RequestType) {
+				sharedTypes[method.RequestType] = true
+				needsSharedImport = true
+				processedMethod.RequestType = "shared." + method.RequestType
+			}
+		}
+		
+		// Process return type (remove pointer prefix for analysis, but keep it in the final type)
+		returnType := strings.TrimPrefix(method.ReturnType, "*")
+		if returnType != "" && returnType != "interface{}" {
+			if g.isSharedType(returnType) {
+				sharedTypes[returnType] = true
+				needsSharedImport = true
+				processedMethod.ReturnType = "shared." + returnType
+			}
+		}
+		
+		processedMethods[i] = processedMethod
+	}
+	
+	// Create a new actor interface with processed methods
+	processedActor.Methods = processedMethods
+
 	// Generate interface file for this actor
 	data := SingleActorTemplateData{
-		PackageName: actorModel.PackageName,
-		Actor:       actorModel.ActorInterface,
+		PackageName:       actorModel.PackageName,
+		Actor:            processedActor,
+		NeedsSharedImport: needsSharedImport,
+		SharedTypes:      sharedTypes,
 	}
 
 	// Use api.go as filename instead of generated.go for better clarity
@@ -299,4 +348,9 @@ func getTemplatePath(templateName string) string {
 	}
 	
 	return templatePath
+}
+
+// isSharedType checks if a type name exists in the shared types
+func (g *Generator) isSharedType(typeName string) bool {
+	return g.sharedTypes[typeName]
 }

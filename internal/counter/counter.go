@@ -5,6 +5,7 @@ import (
 	"errors"
 	
 	"github.com/dapr/go-sdk/actor"
+	"github.com/shogotsuneto/dapr-actor-experiment/internal/shared"
 )
 
 
@@ -22,7 +23,7 @@ func (c *CounterActor) Type() string {
 	return ActorTypeCounter
 }
 
-func (c *CounterActor) Increment(ctx context.Context) (*CounterState, error) {
+func (c *CounterActor) Increment(ctx context.Context) (*shared.CounterState, error) {
 	state, err := c.getState(ctx)
 	if err != nil {
 		return nil, err
@@ -37,7 +38,7 @@ func (c *CounterActor) Increment(ctx context.Context) (*CounterState, error) {
 	return state, nil
 }
 
-func (c *CounterActor) Decrement(ctx context.Context) (*CounterState, error) {
+func (c *CounterActor) Decrement(ctx context.Context) (*shared.CounterState, error) {
 	state, err := c.getState(ctx)
 	if err != nil {
 		return nil, err
@@ -52,7 +53,7 @@ func (c *CounterActor) Decrement(ctx context.Context) (*CounterState, error) {
 	return state, nil
 }
 
-func (c *CounterActor) Get(ctx context.Context) (*CounterState, error) {
+func (c *CounterActor) Get(ctx context.Context) (*shared.CounterState, error) {
 	state, err := c.getState(ctx)
 	if err != nil {
 		return nil, err
@@ -61,12 +62,12 @@ func (c *CounterActor) Get(ctx context.Context) (*CounterState, error) {
 	return state, nil
 }
 
-func (c *CounterActor) Set(ctx context.Context, request SetValueRequest) (*CounterState, error) {
+func (c *CounterActor) Set(ctx context.Context, request SetValueRequest) (*shared.CounterState, error) {
 	if err := c.validateSetRequest(request); err != nil {
 		return nil, err
 	}
 	
-	state := &CounterState{Value: request.Value}
+	state := &shared.CounterState{Value: request.Value}
 	
 	if err := c.setState(ctx, state); err != nil {
 		return nil, err
@@ -75,9 +76,9 @@ func (c *CounterActor) Set(ctx context.Context, request SetValueRequest) (*Count
 	return state, nil
 }
 
-func (c *CounterActor) getState(ctx context.Context) (*CounterState, error) {
+func (c *CounterActor) getState(ctx context.Context) (*shared.CounterState, error) {
 	stateKey := "counter"
-	var state CounterState
+	var state shared.CounterState
 	
 	ok, err := c.GetStateManager().Contains(ctx, stateKey)
 	if err != nil {
@@ -85,7 +86,7 @@ func (c *CounterActor) getState(ctx context.Context) (*CounterState, error) {
 	}
 	
 	if !ok {
-		return &CounterState{Value: 0}, nil
+		return &shared.CounterState{Value: 0}, nil
 	}
 	
 	err = c.GetStateManager().Get(ctx, stateKey, &state)
@@ -96,7 +97,7 @@ func (c *CounterActor) getState(ctx context.Context) (*CounterState, error) {
 	return &state, nil
 }
 
-func (c *CounterActor) setState(ctx context.Context, state *CounterState) error {
+func (c *CounterActor) setState(ctx context.Context, state *shared.CounterState) error {
 	stateKey := "counter"
 	return c.GetStateManager().Set(ctx, stateKey, state)
 }

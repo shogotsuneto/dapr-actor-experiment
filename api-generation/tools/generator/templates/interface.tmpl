@@ -6,6 +6,9 @@ package {{.PackageName}}
 import (
 	"context"
 	"github.com/dapr/go-sdk/actor"
+{{- if .NeedsSharedImport}}
+	"github.com/shogotsuneto/dapr-actor-experiment/internal/shared"
+{{- end}}
 )
 
 // ActorType{{.Actor.ActorType}} is the Dapr actor type identifier for {{.Actor.ActorType}}

@@ -355,8 +355,22 @@ func (p *OpenAPIParser) isCustomTypeInDefinitions(typeName string, types TypeDef
 }
 
 // categorizeTypesIntoActors analyzes types and assigns them directly to actors or shared collections
+// Based on the new organization principle: shared contains fundamental components/domain concepts,
+// actor-specific contains only request parameter schemas
 func (p *OpenAPIParser) categorizeTypesIntoActors(model *GenerationModel, allTypes TypeDefinitions) error {
-	// Create a map to track which types are used by which actors
+	// Initialize actor type collections
+	for i := range model.Actors {
+		model.Actors[i].Types = TypeDefinitions{
+			Structs: []StructType{},
+			Aliases: []TypeAlias{},
+		}
+	}
+	model.SharedTypes = TypeDefinitions{
+		Structs: []StructType{},
+		Aliases: []TypeAlias{},
+	}
+
+	// Create a map to track which types are used by which actors for reference
 	typeUsage := make(map[string]map[string]bool) // type -> actor -> used
 	
 	// Initialize usage map for all types (both structs and aliases)
@@ -388,100 +402,70 @@ func (p *OpenAPIParser) categorizeTypesIntoActors(model *GenerationModel, allTyp
 		}
 	}
 	
-	// Also analyze type dependencies - if a type references another type, 
-	// the referenced type should be shared if the referencing type is used by multiple actors
-	typeDependencies := make(map[string][]string) // type -> []referenced_types
+	// New categorization logic: organize based on type purpose rather than usage count
+	// Assign struct types based on their semantic role
 	for _, structType := range allTypes.Structs {
-		for _, field := range structType.Fields {
-			// Extract referenced type from field type (handle arrays and pointers)
-			fieldType := field.Type
-			fieldType = strings.TrimPrefix(fieldType, "[]")
-			fieldType = strings.TrimPrefix(fieldType, "*")
+		if p.isSharedDomainType(structType.Name, structType) {
+			// Fundamental domain concepts go to shared
+			model.SharedTypes.Structs = append(model.SharedTypes.Structs, structType)
+		} else {
+			// Operation-specific request/parameter types go to their respective actors
+			assigned := false
+			usedByActors := typeUsage[structType.Name]
 			
-			// Check if this is a custom type (not a built-in Go type)
-			if p.isCustomTypeInDefinitions(fieldType, allTypes) {
-				typeDependencies[structType.Name] = append(typeDependencies[structType.Name], fieldType)
-			}
-		}
-	}
-	
-	// Propagate usage from dependent types
-	for parentType, dependencies := range typeDependencies {
-		if parentUsage, exists := typeUsage[parentType]; exists {
-			for _, depType := range dependencies {
-				if depUsage, exists := typeUsage[depType]; exists {
-					// Copy usage from parent to dependency
-					for actor, used := range parentUsage {
-						if used {
-							depUsage[actor] = true
+			// If used by exactly one actor, assign to that actor
+			if len(usedByActors) == 1 {
+				for actorType := range usedByActors {
+					for i, actor := range model.Actors {
+						if actor.ActorType == actorType {
+							model.Actors[i].Types.Structs = append(model.Actors[i].Types.Structs, structType)
+							assigned = true
+							break
 						}
 					}
+					break
 				}
+			}
+			
+			// If not assigned or used by multiple actors, default to shared
+			if !assigned {
+				model.SharedTypes.Structs = append(model.SharedTypes.Structs, structType)
 			}
 		}
 	}
 
-	// Initialize actor type collections
-	for i := range model.Actors {
-		model.Actors[i].Types = TypeDefinitions{
-			Structs: []StructType{},
-			Aliases: []TypeAlias{},
-		}
-	}
-	model.SharedTypes = TypeDefinitions{
-		Structs: []StructType{},
-		Aliases: []TypeAlias{},
-	}
-	
-	// Assign struct types to actors or shared collections
-	for _, structType := range allTypes.Structs {
-		usedByActors := typeUsage[structType.Name]
-		actorCount := len(usedByActors)
-		
-		if actorCount > 1 {
-			// Used by multiple actors - make it shared
-			model.SharedTypes.Structs = append(model.SharedTypes.Structs, structType)
-		} else if actorCount == 1 {
-			// Used by single actor - assign it directly to that actor
-			for actorType := range usedByActors {
-				// Find the actor and add the type to it
-				for i, actor := range model.Actors {
-					if actor.ActorType == actorType {
-						model.Actors[i].Types.Structs = append(model.Actors[i].Types.Structs, structType)
-						break
-					}
-				}
-			}
-		} else {
-			// Not used by any actor - default to shared for safety
-			model.SharedTypes.Structs = append(model.SharedTypes.Structs, structType)
-		}
-	}
-
-	// Assign type aliases to actors or shared collections
+	// All type aliases go to shared (they represent fundamental concepts like ActorId)
 	for _, aliasType := range allTypes.Aliases {
-		usedByActors := typeUsage[aliasType.Name]
-		actorCount := len(usedByActors)
-		
-		if actorCount > 1 {
-			// Used by multiple actors - make it shared
-			model.SharedTypes.Aliases = append(model.SharedTypes.Aliases, aliasType)
-		} else if actorCount == 1 {
-			// Used by single actor - assign it directly to that actor
-			for actorType := range usedByActors {
-				// Find the actor and add the type to it
-				for i, actor := range model.Actors {
-					if actor.ActorType == actorType {
-						model.Actors[i].Types.Aliases = append(model.Actors[i].Types.Aliases, aliasType)
-						break
-					}
-				}
-			}
-		} else {
-			// Not used by any actor - type aliases are often reusable, default to shared
-			model.SharedTypes.Aliases = append(model.SharedTypes.Aliases, aliasType)
-		}
+		model.SharedTypes.Aliases = append(model.SharedTypes.Aliases, aliasType)
 	}
 	
 	return nil
+}
+
+// isSharedDomainType determines if a type represents a fundamental domain concept
+// that should be placed in the shared package
+func (p *OpenAPIParser) isSharedDomainType(typeName string, structType StructType) bool {
+	// State types are fundamental domain concepts - they represent the core data models
+	if strings.HasSuffix(typeName, "State") {
+		return true
+	}
+	
+	// Event types are fundamental domain concepts - they represent domain events
+	if strings.HasSuffix(typeName, "Event") {
+		return true
+	}
+	
+	// History types are fundamental domain concepts - they represent aggregate data views
+	if strings.HasSuffix(typeName, "History") {
+		return true
+	}
+	
+	// Types that contain lists of events or other aggregate data are shared concepts
+	for _, field := range structType.Fields {
+		if strings.Contains(field.Type, "Event") || strings.Contains(field.Type, "[]") {
+			return true
+		}
+	}
+	
+	return false
 }

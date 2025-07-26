@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/shogotsuneto/dapr-actor-experiment/internal/bankaccount"
+	"github.com/shogotsuneto/dapr-actor-experiment/internal/shared"
 )
 
 func TestBankAccount(t *testing.T) {
@@ -52,7 +53,7 @@ func testBankAccountBasicOperations(t *testing.T, client *DaprClient) {
 	require.NoError(t, err)
 
 	// Test 2: Get initial balance
-	var balance bankaccount.BankAccountState
+	var balance shared.BankAccountState
 	err = client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
 		ActorType: "BankAccount",
 		ActorID:   actorID,
@@ -197,7 +198,7 @@ func testBankAccountStateIsolation(t *testing.T, client *DaprClient) {
 			}
 
 			// Verify final balance
-			var balance bankaccount.BankAccountState
+			var balance shared.BankAccountState
 			err = client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
 				ActorType: "BankAccount",
 				ActorID:   account.actorID,
@@ -262,7 +263,7 @@ func testBankAccountEventSourcing(t *testing.T, client *DaprClient) {
 	}
 
 	// Get transaction history to verify event sourcing
-	var history bankaccount.TransactionHistory
+	var history shared.TransactionHistory
 	err = client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
 		ActorType: "BankAccount",
 		ActorID:   actorID,
@@ -302,7 +303,7 @@ func testBankAccountEventSourcing(t *testing.T, client *DaprClient) {
 	assert.GreaterOrEqual(t, foundWithdrawals, 2, "Should have at least 2 withdrawal events")
 
 	// Verify final balance matches expected calculation
-	var balance bankaccount.BankAccountState
+	var balance shared.BankAccountState
 	err = client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
 		ActorType: "BankAccount",
 		ActorID:   actorID,

@@ -12,10 +12,4 @@ type SetValueRequest struct {
 	Value int32 `json:"value"`
 }
 
-// CounterState Current state of the counter actor (state-based)
-type CounterState struct {
-	// The current counter value
-	Value int32 `json:"value"`
-}
-
 
