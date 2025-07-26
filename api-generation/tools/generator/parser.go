@@ -288,39 +288,6 @@ func (p *OpenAPIParser) extractActorTypeFromPath(path string) string {
 	return ""
 }
 
-// getOperationComment extracts comment from operation summary/description
-func (p *OpenAPIParser) getOperationComment(op *openapi3.Operation) string {
-	if op.Summary != "" {
-		return op.Summary
-	}
-	if op.Description != "" {
-		// Use first line of description if multi-line
-		lines := strings.Split(strings.TrimSpace(op.Description), "\n")
-		return strings.TrimSpace(lines[0])
-	}
-	return "Generated method from OpenAPI operation"
-}
-
-// extractRequestType extracts the request type name from request body
-func (p *OpenAPIParser) extractRequestType(requestBody *openapi3.RequestBody) string {
-	if requestBody.Content == nil {
-		return ""
-	}
-
-	// Look for JSON content
-	if jsonContent := requestBody.Content.Get("application/json"); jsonContent != nil {
-		if jsonContent.Schema != nil && jsonContent.Schema.Ref != "" {
-			// Extract type name from $ref
-			parts := strings.Split(jsonContent.Schema.Ref, "/")
-			if len(parts) > 0 {
-				return parts[len(parts)-1]
-			}
-		}
-	}
-
-	return ""
-}
-
 // extractReturnType extracts the return type from 200 response
 func (p *OpenAPIParser) extractReturnType(op *openapi3.Operation) string {
 	if op.Responses == nil {

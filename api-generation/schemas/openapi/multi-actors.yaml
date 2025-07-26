@@ -26,8 +26,8 @@ servers:
     description: Local Dapr sidecar (default configuration)
 
 paths:
-  # CounterActor paths
-  /CounterActor/{actorId}/method/get:
+  # Counter paths
+  /Counter/{actorId}/method/get:
     get:
       summary: Get current counter value
       description: |
@@ -43,7 +43,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/CounterState'
 
-  /CounterActor/{actorId}/method/increment:
+  /Counter/{actorId}/method/increment:
     post:
       summary: Increment counter by 1
       description: |
@@ -59,7 +59,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/CounterState'
 
-  /CounterActor/{actorId}/method/decrement:
+  /Counter/{actorId}/method/decrement:
     post:
       summary: Decrement counter by 1
       description: |
@@ -75,7 +75,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/CounterState'
 
-  /CounterActor/{actorId}/method/set:
+  /Counter/{actorId}/method/set:
     post:
       summary: Set counter to specific value
       description: |
@@ -97,8 +97,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/CounterState'
 
-  # BankAccountActor paths  
-  /BankAccountActor/{actorId}/method/createAccount:
+  # BankAccount paths  
+  /BankAccount/{actorId}/method/createAccount:
     post:
       summary: Create new bank account
       description: |
@@ -120,7 +120,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/BankAccountState'
 
-  /BankAccountActor/{actorId}/method/deposit:
+  /BankAccount/{actorId}/method/deposit:
     post:
       summary: Deposit money to account
       description: |
@@ -142,7 +142,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/BankAccountState'
 
-  /BankAccountActor/{actorId}/method/withdraw:
+  /BankAccount/{actorId}/method/withdraw:
     post:
       summary: Withdraw money from account
       description: |
@@ -166,7 +166,7 @@ paths:
         '400':
           description: Insufficient funds
 
-  /BankAccountActor/{actorId}/method/getBalance:
+  /BankAccount/{actorId}/method/getBalance:
     get:
       summary: Get current account balance
       description: |
@@ -182,7 +182,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/BankAccountState'
 
-  /BankAccountActor/{actorId}/method/getHistory:
+  /BankAccount/{actorId}/method/getHistory:
     get:
       summary: Get transaction history
       description: |

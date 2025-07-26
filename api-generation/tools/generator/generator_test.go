@@ -28,14 +28,14 @@ func TestBasicActorParsing(t *testing.T) {
 		t.Errorf("Expected 1 actor, got %d", len(model.Actors))
 	}
 
-	// Verify the TestActor
+	// Verify the Test actor
 	actor := model.Actors[0]
-	if actor.ActorType != "TestActor" {
-		t.Errorf("Expected actor type 'TestActor', got '%s'", actor.ActorType)
+	if actor.ActorType != "Test" {
+		t.Errorf("Expected actor type 'Test', got '%s'", actor.ActorType)
 	}
 
 	if len(actor.Methods) != 2 {
-		t.Errorf("Expected TestActor to have 2 methods, got %d", len(actor.Methods))
+		t.Errorf("Expected Test actor to have 2 methods, got %d", len(actor.Methods))
 	}
 
 	// Verify methods
@@ -99,24 +99,24 @@ func TestMultiActorWithSharedTypes(t *testing.T) {
 		actorTypes[actor.ActorType] = &model.Actors[i]
 	}
 
-	counterActor, hasCounter := actorTypes["CounterActor"]
-	calcActor, hasCalc := actorTypes["CalculatorActor"]
+	counterActor, hasCounter := actorTypes["Counter"]
+	calcActor, hasCalc := actorTypes["Calculator"]
 
 	if !hasCounter {
-		t.Error("CounterActor not found in parsed model")
+		t.Error("Counter not found in parsed model")
 	}
 	if !hasCalc {
-		t.Error("CalculatorActor not found in parsed model")
+		t.Error("Calculator not found in parsed model")
 	}
 
-	// Verify CounterActor methods
+	// Verify Counter methods
 	if hasCounter && len(counterActor.Methods) != 3 {
-		t.Errorf("Expected CounterActor to have 3 methods, got %d", len(counterActor.Methods))
+		t.Errorf("Expected Counter to have 3 methods, got %d", len(counterActor.Methods))
 	}
 
-	// Verify CalculatorActor methods
+	// Verify Calculator methods
 	if hasCalc && len(calcActor.Methods) != 3 {
-		t.Errorf("Expected CalculatorActor to have 3 methods, got %d", len(calcActor.Methods))
+		t.Errorf("Expected Calculator to have 3 methods, got %d", len(calcActor.Methods))
 	}
 
 	// Verify shared types exist (OperationLog and LogMetadata should be shared)
@@ -181,8 +181,8 @@ func TestTypeAliasGeneration(t *testing.T) {
 	}
 
 	actor := model.Actors[0]
-	if actor.ActorType != "UserActor" {
-		t.Errorf("Expected actor type 'UserActor', got '%s'", actor.ActorType)
+	if actor.ActorType != "User" {
+		t.Errorf("Expected actor type 'User', got '%s'", actor.ActorType)
 	}
 
 	// Verify that type aliases are generated from parameters

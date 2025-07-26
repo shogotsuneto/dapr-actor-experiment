@@ -8,20 +8,20 @@ import (
 	"github.com/dapr/go-sdk/actor"
 )
 
-// NewActorFactory creates a factory function for BankAccountActor with a cleaner API.
+// NewActorFactory creates a factory function for BankAccount with a cleaner API.
 // Returns a factory function compatible with Dapr's RegisterActorImplFactoryContext.
 // Usage: s.RegisterActorImplFactoryContext(bankaccount.NewActorFactory())
 func NewActorFactory() func() actor.ServerContext {
 	return func() actor.ServerContext {
-		// Create a new BankAccountActor instance
-		impl := &BankAccountActor{}
+		// Create a new BankAccount instance
+		impl := &BankAccount{}
 		
 		// Compile-time check ensures the implementation satisfies the schema
-		var _ BankAccountActorAPI = impl
+		var _ BankAccountAPI = impl
 		
 		// Verify the actor type matches the schema
-		if impl.Type() != ActorTypeBankAccountActor {
-			panic(fmt.Sprintf("actor implementation Type() returns '%s', expected '%s'", impl.Type(), ActorTypeBankAccountActor))
+		if impl.Type() != ActorTypeBankAccount {
+			panic(fmt.Sprintf("actor implementation Type() returns '%s', expected '%s'", impl.Type(), ActorTypeBankAccount))
 		}
 		
 		return impl

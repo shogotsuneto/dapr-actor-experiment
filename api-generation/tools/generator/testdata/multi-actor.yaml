@@ -6,7 +6,7 @@ info:
 
 paths:
   # CounterActor methods
-  /CounterActor/{actorId}/method/GetCount:
+  /Counter/{actorId}/method/GetCount:
     get:
       parameters:
         - name: actorId
@@ -22,7 +22,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/CounterState'
 
-  /CounterActor/{actorId}/method/Increment:
+  /Counter/{actorId}/method/Increment:
     post:
       parameters:
         - name: actorId
@@ -38,7 +38,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/OperationLog'
 
-  /CounterActor/{actorId}/method/Reset:
+  /Counter/{actorId}/method/Reset:
     post:
       parameters:
         - name: actorId
@@ -55,7 +55,7 @@ paths:
                 $ref: '#/components/schemas/OperationLog'
 
   # CalculatorActor methods
-  /CalculatorActor/{actorId}/method/Add:
+  /Calculator/{actorId}/method/Add:
     post:
       parameters:
         - name: actorId
@@ -77,7 +77,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/OperationResult'
 
-  /CalculatorActor/{actorId}/method/Multiply:
+  /Calculator/{actorId}/method/Multiply:
     post:
       parameters:
         - name: actorId
@@ -99,7 +99,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/OperationResult'
 
-  /CalculatorActor/{actorId}/method/GetHistory:
+  /Calculator/{actorId}/method/GetHistory:
     get:
       parameters:
         - name: actorId

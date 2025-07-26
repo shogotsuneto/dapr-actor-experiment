@@ -5,7 +5,7 @@ info:
   description: API with schema-defined type aliases for testing type alias generation
 
 paths:
-  /UserActor/{actorId}/method/GetUser:
+  /User/{actorId}/method/GetUser:
     get:
       parameters:
         - name: actorId
@@ -21,7 +21,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/UserProfile'
 
-  /UserActor/{actorId}/method/UpdateEmail:
+  /User/{actorId}/method/UpdateEmail:
     post:
       parameters:
         - name: actorId
@@ -39,7 +39,7 @@ paths:
         '200':
           description: Email updated successfully
 
-  /UserActor/{actorId}/method/UpdateStatus:
+  /User/{actorId}/method/UpdateStatus:
     post:
       parameters:
         - name: actorId

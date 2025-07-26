@@ -5,7 +5,7 @@ info:
   description: Simple single actor for testing basic parsing functionality
 
 paths:
-  /TestActor/{actorId}/method/GetValue:
+  /Test/{actorId}/method/GetValue:
     get:
       parameters:
         - name: actorId
@@ -21,7 +21,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/TestState'
 
-  /TestActor/{actorId}/method/SetValue:
+  /Test/{actorId}/method/SetValue:
     post:
       parameters:
         - name: actorId

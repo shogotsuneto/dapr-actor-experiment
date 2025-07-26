@@ -6,19 +6,6 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 )
 
-// extractMethodNameFromPath extracts the method name from Dapr actor path
-// e.g., "/{actorId}/method/get" -> "get"
-func extractMethodNameFromPath(path string) string {
-	// Look for pattern: /{actorId}/method/{methodName}
-	parts := strings.Split(path, "/")
-	for i, part := range parts {
-		if part == "method" && i+1 < len(parts) {
-			return parts[i+1]
-		}
-	}
-	return ""
-}
-
 // getOperationComment extracts comment from operation summary/description
 func getOperationComment(op *openapi3.Operation) string {
 	if op.Summary != "" {
@@ -40,32 +27,6 @@ func extractRequestType(requestBody *openapi3.RequestBody) string {
 
 	// Look for JSON content
 	if jsonContent := requestBody.Content.Get("application/json"); jsonContent != nil {
-		if jsonContent.Schema != nil && jsonContent.Schema.Ref != "" {
-			// Extract type name from $ref
-			parts := strings.Split(jsonContent.Schema.Ref, "/")
-			if len(parts) > 0 {
-				return parts[len(parts)-1]
-			}
-		}
-	}
-
-	return ""
-}
-
-// extractReturnType extracts the return type from 200 response
-func extractReturnType(op *openapi3.Operation) string {
-	if op.Responses == nil {
-		return ""
-	}
-
-	// Look for 200 response
-	response200 := op.Responses.Status(200)
-	if response200 == nil || response200.Value == nil || response200.Value.Content == nil {
-		return ""
-	}
-
-	// Look for JSON content
-	if jsonContent := response200.Value.Content.Get("application/json"); jsonContent != nil {
 		if jsonContent.Schema != nil && jsonContent.Schema.Ref != "" {
 			// Extract type name from $ref
 			parts := strings.Split(jsonContent.Schema.Ref, "/")
