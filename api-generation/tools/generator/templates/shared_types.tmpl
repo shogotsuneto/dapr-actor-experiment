@@ -1,9 +1,9 @@
-// Package {{.PackageName}} provides primitives for OpenAPI-based schema validation.
+// Package {{.PackageName}} provides shared types for OpenAPI-based schema validation.
 //
 // Code generated from OpenAPI specification. DO NOT EDIT manually.
 package {{.PackageName}}
 
-{{range .Types.Structs}}
+{{range .SharedTypes.Structs}}
 // {{.Name}} {{.Description}}
 type {{.Name}} struct {
 {{- range .Fields}}
@@ -13,7 +13,7 @@ type {{.Name}} struct {
 }
 {{end}}
 
-{{range .Types.Aliases}}
+{{range .SharedTypes.Aliases}}
 // {{.Name}} {{.Description}}
 type {{.Name}} = {{.AliasTarget}}
 {{end}}

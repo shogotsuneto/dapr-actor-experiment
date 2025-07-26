@@ -1,4 +1,4 @@
-package bankaccountactor
+package bankaccount
 
 import (
 	"context"
@@ -9,6 +9,8 @@ import (
 
 	"github.com/dapr/go-sdk/actor"
 	"github.com/google/uuid"
+	
+	"github.com/shogotsuneto/dapr-actor-experiment/internal/shared"
 )
 
 // BankAccountActor demonstrates event sourcing pattern with in-memory state caching.
@@ -69,7 +71,7 @@ type StoredEvent struct {
 }
 
 func (b *BankAccountActor) Type() string {
-	return ActorTypeBankAccountActor
+	return ActorTypeBankAccount
 }
 
 // ensureStateLoaded loads and caches state from events if not already loaded.
@@ -250,7 +252,7 @@ func (b *BankAccountActor) GetHistory(ctx context.Context) (*TransactionHistory,
 	// Convert internal events to API events
 	var apiEvents []interface{}
 	for _, event := range events {
-		apiEvent := AccountEvent{
+		apiEvent := shared.AccountEvent{
 			EventId:   event.EventID,
 			EventType: event.EventType,
 			Timestamp: event.Timestamp.Format(time.RFC3339),

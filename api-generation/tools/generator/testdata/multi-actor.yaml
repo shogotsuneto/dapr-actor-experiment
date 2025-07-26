@@ -1,0 +1,196 @@
+openapi: 3.0.0
+info:
+  title: Multi Actor Test API
+  version: 1.0.0
+  description: Two actors sharing common types for testing shared type categorization
+
+paths:
+  # CounterActor methods
+  /Counter/{actorId}/method/GetCount:
+    get:
+      parameters:
+        - name: actorId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Current counter state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CounterState'
+
+  /Counter/{actorId}/method/Increment:
+    post:
+      parameters:
+        - name: actorId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Incremented successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperationLog'
+
+  /Counter/{actorId}/method/Reset:
+    post:
+      parameters:
+        - name: actorId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Reset successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperationLog'
+
+  # CalculatorActor methods
+  /Calculator/{actorId}/method/Add:
+    post:
+      parameters:
+        - name: actorId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MathOperation'
+      responses:
+        '200':
+          description: Addition result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperationResult'
+
+  /Calculator/{actorId}/method/Multiply:
+    post:
+      parameters:
+        - name: actorId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MathOperation'
+      responses:
+        '200':
+          description: Multiplication result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperationResult'
+
+  /Calculator/{actorId}/method/GetHistory:
+    get:
+      parameters:
+        - name: actorId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Operation history
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/OperationLog'
+
+components:
+  schemas:
+    # Actor-specific types
+    CounterState:
+      type: object
+      properties:
+        count:
+          type: integer
+          description: Current counter value
+        incrementCount:
+          type: integer
+          description: Number of times incremented
+      required:
+        - count
+        - incrementCount
+
+    MathOperation:
+      type: object
+      properties:
+        operandA:
+          type: number
+        operandB:
+          type: number
+      required:
+        - operandA
+        - operandB
+
+    OperationResult:
+      type: object
+      properties:
+        result:
+          type: number
+        operation:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+      required:
+        - result
+        - operation
+
+    # Shared types (used by both actors)
+    OperationLog:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Unique operation identifier
+        operation:
+          type: string
+          description: Operation performed
+        timestamp:
+          type: string
+          format: date-time
+          description: When operation occurred
+        metadata:
+          $ref: '#/components/schemas/LogMetadata'
+      required:
+        - id
+        - operation
+        - timestamp
+
+    LogMetadata:
+      type: object
+      properties:
+        actorId:
+          type: string
+          description: ID of the actor that performed the operation
+        actorType:
+          type: string
+          description: Type of the actor
+        userId:
+          type: string
+          description: User who initiated the operation
+      required:
+        - actorId
+        - actorType

@@ -1,0 +1,64 @@
+openapi: 3.0.0
+info:
+  title: Basic Actor Test API
+  version: 1.0.0
+  description: Simple single actor for testing basic parsing functionality
+
+paths:
+  /Test/{actorId}/method/GetValue:
+    get:
+      parameters:
+        - name: actorId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Current state value
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TestState'
+
+  /Test/{actorId}/method/SetValue:
+    post:
+      parameters:
+        - name: actorId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetValueRequest'
+      responses:
+        '200':
+          description: Value updated successfully
+
+components:
+  schemas:
+    TestState:
+      type: object
+      properties:
+        value:
+          type: integer
+          description: Current value
+        lastUpdated:
+          type: string
+          format: date-time
+          description: Timestamp of last update
+      required:
+        - value
+
+    SetValueRequest:
+      type: object
+      properties:
+        value:
+          type: integer
+          description: New value to set
+      required:
+        - value

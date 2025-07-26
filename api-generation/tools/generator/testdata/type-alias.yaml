@@ -1,0 +1,127 @@
+openapi: 3.0.0
+info:
+  title: Type Alias Test API
+  version: 1.0.0
+  description: API with schema-defined type aliases for testing type alias generation
+
+paths:
+  /User/{actorId}/method/GetUser:
+    get:
+      parameters:
+        - name: actorId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/UserId'
+      responses:
+        '200':
+          description: User information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+
+  /User/{actorId}/method/UpdateEmail:
+    post:
+      parameters:
+        - name: actorId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/UserId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateEmailRequest'
+      responses:
+        '200':
+          description: Email updated successfully
+
+  /User/{actorId}/method/UpdateStatus:
+    post:
+      parameters:
+        - name: actorId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/UserId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateStatusRequest'
+      responses:
+        '200':
+          description: Status updated successfully
+
+components:
+  schemas:
+    # Type aliases - these should be generated as type aliases
+    UserId:
+      type: string
+      pattern: '^[a-zA-Z0-9_-]+$'
+      description: Unique user identifier
+
+    EmailAddress:
+      type: string
+      format: email
+      description: Valid email address
+
+    UserStatus:
+      type: string
+      enum:
+        - active
+        - inactive
+        - suspended
+        - pending
+      description: User account status
+
+    # Struct types
+    UserProfile:
+      type: object
+      properties:
+        id:
+          $ref: '#/components/schemas/UserId'
+        email:
+          $ref: '#/components/schemas/EmailAddress'
+        status:
+          $ref: '#/components/schemas/UserStatus'
+        name:
+          type: string
+          description: Full name
+        createdAt:
+          type: string
+          format: date-time
+          description: Account creation timestamp
+        lastLogin:
+          type: string
+          format: date-time
+          description: Last login timestamp
+      required:
+        - id
+        - email
+        - status
+        - name
+        - createdAt
+
+    UpdateEmailRequest:
+      type: object
+      properties:
+        newEmail:
+          $ref: '#/components/schemas/EmailAddress'
+      required:
+        - newEmail
+
+    UpdateStatusRequest:
+      type: object
+      properties:
+        newStatus:
+          $ref: '#/components/schemas/UserStatus'
+        reason:
+          type: string
+          description: Reason for status change
+      required:
+        - newStatus

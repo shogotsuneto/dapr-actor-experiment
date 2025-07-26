@@ -7,10 +7,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/shogotsuneto/dapr-actor-experiment/internal/counteractor"
+	"github.com/shogotsuneto/dapr-actor-experiment/internal/counter"
 )
 
-func TestCounterActor(t *testing.T) {
+func TestCounter(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
 	}
@@ -21,27 +21,27 @@ func TestCounterActor(t *testing.T) {
 	// Verify services are available
 	require.NoError(t, daprClient.CheckHealth(), "Dapr services must be running. Start with: docker compose -f test/integration/docker-compose.test.yml up -d")
 
-	t.Run("TestCounterActorBasicOperations", func(t *testing.T) {
-		testCounterActorBasicOperations(t, daprClient)
+	t.Run("TestCounterBasicOperations", func(t *testing.T) {
+		testCounterBasicOperations(t, daprClient)
 	})
 
-	t.Run("TestCounterActorStateIsolation", func(t *testing.T) {
-		testCounterActorStateIsolation(t, daprClient)
+	t.Run("TestCounterStateIsolation", func(t *testing.T) {
+		testCounterStateIsolation(t, daprClient)
 	})
 
-	t.Run("TestCounterActorMultipleInstances", func(t *testing.T) {
-		testCounterActorMultipleInstances(t, daprClient)
+	t.Run("TestCounterMultipleInstances", func(t *testing.T) {
+		testCounterMultipleInstances(t, daprClient)
 	})
 }
 
-func testCounterActorBasicOperations(t *testing.T, client *DaprClient) {
+func testCounterBasicOperations(t *testing.T, client *DaprClient) {
 	ctx := context.Background()
 	actorID := "counter-test-basic"
 
 	// Test 1: Get initial value (should be 0)
-	var initialState counteractor.CounterState
+	var initialState counter.CounterState
 	err := client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
-		ActorType: "CounterActor",
+		ActorType: "Counter",
 		ActorID:   actorID,
 		Method:    "Get",
 	}, &initialState)
@@ -49,9 +49,9 @@ func testCounterActorBasicOperations(t *testing.T, client *DaprClient) {
 	assert.Equal(t, int32(0), initialState.Value, "Initial counter value should be 0")
 
 	// Test 2: Increment counter
-	var incrementedState counteractor.CounterState
+	var incrementedState counter.CounterState
 	err = client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
-		ActorType: "CounterActor",
+		ActorType: "Counter",
 		ActorID:   actorID,
 		Method:    "Increment",
 	}, &incrementedState)
@@ -60,7 +60,7 @@ func testCounterActorBasicOperations(t *testing.T, client *DaprClient) {
 
 	// Test 3: Increment again
 	err = client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
-		ActorType: "CounterActor",
+		ActorType: "Counter",
 		ActorID:   actorID,
 		Method:    "Increment",
 	}, &incrementedState)
@@ -68,20 +68,20 @@ func testCounterActorBasicOperations(t *testing.T, client *DaprClient) {
 	assert.Equal(t, int32(2), incrementedState.Value, "Counter should be 2 after second increment")
 
 	// Test 4: Set to specific value
-	var setState counteractor.CounterState
+	var setState counter.CounterState
 	err = client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
-		ActorType: "CounterActor",
+		ActorType: "Counter",
 		ActorID:   actorID,
 		Method:    "Set",
-		Data:      counteractor.SetValueRequest{Value: int32(10)},
+		Data:      counter.SetValueRequest{Value: int32(10)},
 	}, &setState)
 	require.NoError(t, err)
 	assert.Equal(t, int32(10), setState.Value, "Counter should be 10 after set")
 
 	// Test 5: Decrement
-	var decrementedState counteractor.CounterState
+	var decrementedState counter.CounterState
 	err = client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
-		ActorType: "CounterActor",
+		ActorType: "Counter",
 		ActorID:   actorID,
 		Method:    "Decrement",
 	}, &decrementedState)
@@ -89,9 +89,9 @@ func testCounterActorBasicOperations(t *testing.T, client *DaprClient) {
 	assert.Equal(t, int32(9), decrementedState.Value, "Counter should be 9 after decrement")
 
 	// Test 6: Verify final state persistence
-	var finalState counteractor.CounterState
+	var finalState counter.CounterState
 	err = client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
-		ActorType: "CounterActor",
+		ActorType: "Counter",
 		ActorID:   actorID,
 		Method:    "Get",
 	}, &finalState)
@@ -99,7 +99,7 @@ func testCounterActorBasicOperations(t *testing.T, client *DaprClient) {
 	assert.Equal(t, int32(9), finalState.Value, "Final counter value should be 9")
 }
 
-func testCounterActorStateIsolation(t *testing.T, client *DaprClient) {
+func testCounterStateIsolation(t *testing.T, client *DaprClient) {
 	ctx := context.Background()
 
 	// Test that different actor instances maintain separate state
@@ -108,12 +108,12 @@ func testCounterActorStateIsolation(t *testing.T, client *DaprClient) {
 
 	// Set different values for each actor
 	for i, actorID := range actors {
-		var state counteractor.CounterState
+		var state counter.CounterState
 		err := client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
-			ActorType: "CounterActor",
+			ActorType: "Counter",
 			ActorID:   actorID,
 			Method:    "Set",
-			Data:      counteractor.SetValueRequest{Value: expectedValues[i]},
+			Data:      counter.SetValueRequest{Value: expectedValues[i]},
 		}, &state)
 		require.NoError(t, err)
 		assert.Equal(t, expectedValues[i], state.Value, "Counter should be set to expected value")
@@ -121,9 +121,9 @@ func testCounterActorStateIsolation(t *testing.T, client *DaprClient) {
 
 	// Verify that each actor maintained its own state
 	for i, actorID := range actors {
-		var state counteractor.CounterState
+		var state counter.CounterState
 		err := client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
-			ActorType: "CounterActor",
+			ActorType: "Counter",
 			ActorID:   actorID,
 			Method:    "Get",
 		}, &state)
@@ -132,7 +132,7 @@ func testCounterActorStateIsolation(t *testing.T, client *DaprClient) {
 	}
 }
 
-func testCounterActorMultipleInstances(t *testing.T, client *DaprClient) {
+func testCounterMultipleInstances(t *testing.T, client *DaprClient) {
 	ctx := context.Background()
 
 	// Test scenario similar to the shell script test-counter-actor.sh
@@ -162,45 +162,45 @@ func testCounterActorMultipleInstances(t *testing.T, client *DaprClient) {
 		t.Run("ActorInstance_"+tc.actorID, func(t *testing.T) {
 			// Execute operations
 			for _, op := range tc.operations {
-				var state counteractor.CounterState
+				var state counter.CounterState
 				
 				if op == "Increment" {
 					err := client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
-						ActorType: "CounterActor",
+						ActorType: "Counter",
 						ActorID:   tc.actorID,
 						Method:    "Increment",
 					}, &state)
 					require.NoError(t, err)
 				} else if op == "Decrement" {
 					err := client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
-						ActorType: "CounterActor",
+						ActorType: "Counter",
 						ActorID:   tc.actorID,
 						Method:    "Decrement",
 					}, &state)
 					require.NoError(t, err)
 				} else if op == "Set:10" {
 					err := client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
-						ActorType: "CounterActor",
+						ActorType: "Counter",
 						ActorID:   tc.actorID,
 						Method:    "Set",
-						Data:      counteractor.SetValueRequest{Value: int32(10)},
+						Data:      counter.SetValueRequest{Value: int32(10)},
 					}, &state)
 					require.NoError(t, err)
 				} else if op == "Set:25" {
 					err := client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
-						ActorType: "CounterActor",
+						ActorType: "Counter",
 						ActorID:   tc.actorID,
 						Method:    "Set",
-						Data:      counteractor.SetValueRequest{Value: int32(25)},
+						Data:      counter.SetValueRequest{Value: int32(25)},
 					}, &state)
 					require.NoError(t, err)
 				}
 			}
 
 			// Verify final state
-			var finalState counteractor.CounterState
+			var finalState counter.CounterState
 			err := client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
-				ActorType: "CounterActor",
+				ActorType: "Counter",
 				ActorID:   tc.actorID,
 				Method:    "Get",
 			}, &finalState)
