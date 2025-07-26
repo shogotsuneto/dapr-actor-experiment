@@ -33,8 +33,6 @@ paths:
       description: |
         Retrieves the current value of the counter for this actor instance.
         Uses state-based persistence - only current value is stored.
-      tags:
-        - "ActorType:CounterActor"
       parameters:
         - $ref: '#/components/parameters/ActorId'
       responses:
@@ -51,8 +49,6 @@ paths:
       description: |
         Increases the counter value by 1 and returns the new value.
         State-based operation - overwrites previous value.
-      tags:
-        - "ActorType:CounterActor"
       parameters:
         - $ref: '#/components/parameters/ActorId'
       responses:
@@ -69,8 +65,6 @@ paths:
       description: |
         Decreases the counter value by 1 and returns the new value.
         State-based operation - overwrites previous value.
-      tags:
-        - "ActorType:CounterActor"
       parameters:
         - $ref: '#/components/parameters/ActorId'
       responses:
@@ -87,8 +81,6 @@ paths:
       description: |
         Sets the counter to a specific value provided in the request body.
         State-based operation - completely replaces current value.
-      tags:
-        - "ActorType:CounterActor"
       parameters:
         - $ref: '#/components/parameters/ActorId'
       requestBody:
@@ -112,8 +104,6 @@ paths:
       description: |
         Creates a new bank account with initial details.
         Event-sourced operation - stores AccountCreated event.
-      tags:
-        - "ActorType:BankAccountActor"
       parameters:
         - $ref: '#/components/parameters/ActorId'
       requestBody:
@@ -136,8 +126,6 @@ paths:
       description: |
         Deposits money to the account.
         Event-sourced operation - stores MoneyDeposited event.
-      tags:
-        - "ActorType:BankAccountActor"
       parameters:
         - $ref: '#/components/parameters/ActorId'
       requestBody:
@@ -160,8 +148,6 @@ paths:
       description: |
         Withdraws money from the account if sufficient balance exists.
         Event-sourced operation - stores MoneyWithdrawn event.
-      tags:
-        - "ActorType:BankAccountActor"
       parameters:
         - $ref: '#/components/parameters/ActorId'
       requestBody:
@@ -186,8 +172,6 @@ paths:
       description: |
         Gets current account balance and details.
         Event-sourced - balance calculated from event history.
-      tags:
-        - "ActorType:BankAccountActor"
       parameters:
         - $ref: '#/components/parameters/ActorId'
       responses:
@@ -204,8 +188,6 @@ paths:
       description: |
         Gets complete transaction history for the account.
         Shows the power of event sourcing - full audit trail.
-      tags:
-        - "ActorType:BankAccountActor"
       parameters:
         - $ref: '#/components/parameters/ActorId'
       responses:
