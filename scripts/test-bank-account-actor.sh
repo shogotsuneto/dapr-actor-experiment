@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo "Testing BankAccountActor (Event-sourced pattern)"
+echo "Testing BankAccount (Event-sourced pattern)"
 echo "==============================================="
 
 # Check if server is running
@@ -11,106 +11,106 @@ fi
 
 echo "✓ Dapr sidecar is running"
 
-# Test multiple BankAccountActor instances
+# Test multiple BankAccount instances
 echo ""
-echo "Testing Multiple BankAccountActor Instances:"
+echo "Testing Multiple BankAccount Instances:"
 echo "--------------------------------------------"
 
 # Instance 1: account-alice
 echo ""
-echo "1. Testing BankAccountActor instance 'account-alice':"
+echo "1. Testing BankAccount instance 'account-alice':"
 echo "Creating Alice's bank account:"
-curl -s -X POST http://localhost:3500/v1.0/actors/BankAccountActor/account-alice/method/CreateAccount \
+curl -s -X POST http://localhost:3500/v1.0/actors/BankAccount/account-alice/method/createAccount \
   -H "Content-Type: application/json" \
   -d '{"ownerName": "Alice Johnson", "initialDeposit": 1500.00}' | jq '.'
 
 echo -e "\nDepositing salary:"
-curl -s -X POST http://localhost:3500/v1.0/actors/BankAccountActor/account-alice/method/Deposit \
+curl -s -X POST http://localhost:3500/v1.0/actors/BankAccount/account-alice/method/deposit \
   -H "Content-Type: application/json" \
   -d '{"amount": 3000.00, "description": "Monthly salary"}' | jq '.'
 
 echo -e "\nWithdrawing for rent:"
-curl -s -X POST http://localhost:3500/v1.0/actors/BankAccountActor/account-alice/method/Withdraw \
+curl -s -X POST http://localhost:3500/v1.0/actors/BankAccount/account-alice/method/withdraw \
   -H "Content-Type: application/json" \
   -d '{"amount": 1200.00, "description": "Rent payment"}' | jq '.'
 
 echo -e "\nWithdrawing for groceries:"
-curl -s -X POST http://localhost:3500/v1.0/actors/BankAccountActor/account-alice/method/Withdraw \
+curl -s -X POST http://localhost:3500/v1.0/actors/BankAccount/account-alice/method/withdraw \
   -H "Content-Type: application/json" \
   -d '{"amount": 150.00, "description": "Grocery shopping"}' | jq '.'
 
 echo -e "\nAlice's current balance:"
-curl -s http://localhost:3500/v1.0/actors/BankAccountActor/account-alice/method/GetBalance | jq '.'
+curl -s http://localhost:3500/v1.0/actors/BankAccount/account-alice/method/getBalance | jq '.'
 
 # Instance 2: account-bob
 echo ""
-echo "2. Testing BankAccountActor instance 'account-bob':"
+echo "2. Testing BankAccount instance 'account-bob':"
 echo "Creating Bob's bank account:"
-curl -s -X POST http://localhost:3500/v1.0/actors/BankAccountActor/account-bob/method/CreateAccount \
+curl -s -X POST http://localhost:3500/v1.0/actors/BankAccount/account-bob/method/createAccount \
   -H "Content-Type: application/json" \
   -d '{"ownerName": "Bob Smith", "initialDeposit": 500.00}' | jq '.'
 
 echo -e "\nDepositing freelance payment:"
-curl -s -X POST http://localhost:3500/v1.0/actors/BankAccountActor/account-bob/method/Deposit \
+curl -s -X POST http://localhost:3500/v1.0/actors/BankAccount/account-bob/method/deposit \
   -H "Content-Type: application/json" \
   -d '{"amount": 800.00, "description": "Freelance project payment"}' | jq '.'
 
 echo -e "\nDepositing bonus:"
-curl -s -X POST http://localhost:3500/v1.0/actors/BankAccountActor/account-bob/method/Deposit \
+curl -s -X POST http://localhost:3500/v1.0/actors/BankAccount/account-bob/method/deposit \
   -H "Content-Type: application/json" \
   -d '{"amount": 200.00, "description": "Performance bonus"}' | jq '.'
 
 echo -e "\nWithdrawing for car payment:"
-curl -s -X POST http://localhost:3500/v1.0/actors/BankAccountActor/account-bob/method/Withdraw \
+curl -s -X POST http://localhost:3500/v1.0/actors/BankAccount/account-bob/method/withdraw \
   -H "Content-Type: application/json" \
   -d '{"amount": 350.00, "description": "Car loan payment"}' | jq '.'
 
 echo -e "\nBob's current balance:"
-curl -s http://localhost:3500/v1.0/actors/BankAccountActor/account-bob/method/GetBalance | jq '.'
+curl -s http://localhost:3500/v1.0/actors/BankAccount/account-bob/method/getBalance | jq '.'
 
 # Instance 3: account-charlie
 echo ""
-echo "3. Testing BankAccountActor instance 'account-charlie':"
+echo "3. Testing BankAccount instance 'account-charlie':"
 echo "Creating Charlie's bank account:"
-curl -s -X POST http://localhost:3500/v1.0/actors/BankAccountActor/account-charlie/method/CreateAccount \
+curl -s -X POST http://localhost:3500/v1.0/actors/BankAccount/account-charlie/method/createAccount \
   -H "Content-Type: application/json" \
   -d '{"ownerName": "Charlie Brown", "initialDeposit": 2000.00}' | jq '.'
 
 echo -e "\nMultiple small withdrawals:"
-curl -s -X POST http://localhost:3500/v1.0/actors/BankAccountActor/account-charlie/method/Withdraw \
+curl -s -X POST http://localhost:3500/v1.0/actors/BankAccount/account-charlie/method/withdraw \
   -H "Content-Type: application/json" \
   -d '{"amount": 50.00, "description": "Coffee shop"}' | jq '.'
 
-curl -s -X POST http://localhost:3500/v1.0/actors/BankAccountActor/account-charlie/method/Withdraw \
+curl -s -X POST http://localhost:3500/v1.0/actors/BankAccount/account-charlie/method/withdraw \
   -H "Content-Type: application/json" \
   -d '{"amount": 25.00, "description": "Parking fee"}' | jq '.'
 
-curl -s -X POST http://localhost:3500/v1.0/actors/BankAccountActor/account-charlie/method/Withdraw \
+curl -s -X POST http://localhost:3500/v1.0/actors/BankAccount/account-charlie/method/withdraw \
   -H "Content-Type: application/json" \
   -d '{"amount": 100.00, "description": "Gas station"}' | jq '.'
 
 echo -e "\nLarge deposit:"
-curl -s -X POST http://localhost:3500/v1.0/actors/BankAccountActor/account-charlie/method/Deposit \
+curl -s -X POST http://localhost:3500/v1.0/actors/BankAccount/account-charlie/method/deposit \
   -H "Content-Type: application/json" \
   -d '{"amount": 5000.00, "description": "Investment return"}' | jq '.'
 
 echo -e "\nCharlie's current balance:"
-curl -s http://localhost:3500/v1.0/actors/BankAccountActor/account-charlie/method/GetBalance | jq '.'
+curl -s http://localhost:3500/v1.0/actors/BankAccount/account-charlie/method/getBalance | jq '.'
 
 # Summary of all instances
 echo ""
 echo "4. State Isolation & Event Sourcing Verification:"
 echo "-------------------------------------------------"
-echo "Final balances for all BankAccountActor instances:"
+echo "Final balances for all BankAccount instances:"
 echo ""
 echo "Alice's balance:"
-curl -s http://localhost:3500/v1.0/actors/BankAccountActor/account-alice/method/GetBalance | jq '.'
+curl -s http://localhost:3500/v1.0/actors/BankAccount/account-alice/method/getBalance | jq '.'
 echo ""
 echo "Bob's balance:"
-curl -s http://localhost:3500/v1.0/actors/BankAccountActor/account-bob/method/GetBalance | jq '.'
+curl -s http://localhost:3500/v1.0/actors/BankAccount/account-bob/method/getBalance | jq '.'
 echo ""
 echo "Charlie's balance:"
-curl -s http://localhost:3500/v1.0/actors/BankAccountActor/account-charlie/method/GetBalance | jq '.'
+curl -s http://localhost:3500/v1.0/actors/BankAccount/account-charlie/method/getBalance | jq '.'
 
 # Show event sourcing capabilities with transaction history
 echo ""
@@ -119,18 +119,18 @@ echo "--------------------------------------------------------"
 
 echo ""
 echo "Alice's transaction history:"
-curl -s http://localhost:3500/v1.0/actors/BankAccountActor/account-alice/method/GetHistory | jq '.'
+curl -s http://localhost:3500/v1.0/actors/BankAccount/account-alice/method/getHistory | jq '.'
 
 echo ""
 echo "Bob's transaction history:"
-curl -s http://localhost:3500/v1.0/actors/BankAccountActor/account-bob/method/GetHistory | jq '.'
+curl -s http://localhost:3500/v1.0/actors/BankAccount/account-bob/method/getHistory | jq '.'
 
 echo ""
 echo "Charlie's transaction history (showing multiple small transactions):"
-curl -s http://localhost:3500/v1.0/actors/BankAccountActor/account-charlie/method/GetHistory | jq '.'
+curl -s http://localhost:3500/v1.0/actors/BankAccount/account-charlie/method/getHistory | jq '.'
 
 echo ""
-echo "✓ BankAccountActor tests completed successfully!"
+echo "✓ BankAccount tests completed successfully!"
 echo ""
 echo "This demonstrates:"
 echo "  - Event-sourced persistence pattern"
