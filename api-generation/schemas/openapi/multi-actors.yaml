@@ -26,15 +26,13 @@ servers:
     description: Local Dapr sidecar (default configuration)
 
 paths:
-  # CounterActor paths
-  /CounterActor/{actorId}/method/get:
+  # Counter paths
+  /Counter/{actorId}/method/get:
     get:
       summary: Get current counter value
       description: |
         Retrieves the current value of the counter for this actor instance.
         Uses state-based persistence - only current value is stored.
-      tags:
-        - "ActorType:CounterActor"
       parameters:
         - $ref: '#/components/parameters/ActorId'
       responses:
@@ -45,14 +43,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/CounterState'
 
-  /CounterActor/{actorId}/method/increment:
+  /Counter/{actorId}/method/increment:
     post:
       summary: Increment counter by 1
       description: |
         Increases the counter value by 1 and returns the new value.
         State-based operation - overwrites previous value.
-      tags:
-        - "ActorType:CounterActor"
       parameters:
         - $ref: '#/components/parameters/ActorId'
       responses:
@@ -63,14 +59,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/CounterState'
 
-  /CounterActor/{actorId}/method/decrement:
+  /Counter/{actorId}/method/decrement:
     post:
       summary: Decrement counter by 1
       description: |
         Decreases the counter value by 1 and returns the new value.
         State-based operation - overwrites previous value.
-      tags:
-        - "ActorType:CounterActor"
       parameters:
         - $ref: '#/components/parameters/ActorId'
       responses:
@@ -81,14 +75,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/CounterState'
 
-  /CounterActor/{actorId}/method/set:
+  /Counter/{actorId}/method/set:
     post:
       summary: Set counter to specific value
       description: |
         Sets the counter to a specific value provided in the request body.
         State-based operation - completely replaces current value.
-      tags:
-        - "ActorType:CounterActor"
       parameters:
         - $ref: '#/components/parameters/ActorId'
       requestBody:
@@ -105,15 +97,13 @@ paths:
               schema:
                 $ref: '#/components/schemas/CounterState'
 
-  # BankAccountActor paths  
-  /BankAccountActor/{actorId}/method/createAccount:
+  # BankAccount paths  
+  /BankAccount/{actorId}/method/createAccount:
     post:
       summary: Create new bank account
       description: |
         Creates a new bank account with initial details.
         Event-sourced operation - stores AccountCreated event.
-      tags:
-        - "ActorType:BankAccountActor"
       parameters:
         - $ref: '#/components/parameters/ActorId'
       requestBody:
@@ -130,14 +120,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/BankAccountState'
 
-  /BankAccountActor/{actorId}/method/deposit:
+  /BankAccount/{actorId}/method/deposit:
     post:
       summary: Deposit money to account
       description: |
         Deposits money to the account.
         Event-sourced operation - stores MoneyDeposited event.
-      tags:
-        - "ActorType:BankAccountActor"
       parameters:
         - $ref: '#/components/parameters/ActorId'
       requestBody:
@@ -154,14 +142,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/BankAccountState'
 
-  /BankAccountActor/{actorId}/method/withdraw:
+  /BankAccount/{actorId}/method/withdraw:
     post:
       summary: Withdraw money from account
       description: |
         Withdraws money from the account if sufficient balance exists.
         Event-sourced operation - stores MoneyWithdrawn event.
-      tags:
-        - "ActorType:BankAccountActor"
       parameters:
         - $ref: '#/components/parameters/ActorId'
       requestBody:
@@ -180,14 +166,12 @@ paths:
         '400':
           description: Insufficient funds
 
-  /BankAccountActor/{actorId}/method/getBalance:
+  /BankAccount/{actorId}/method/getBalance:
     get:
       summary: Get current account balance
       description: |
         Gets current account balance and details.
         Event-sourced - balance calculated from event history.
-      tags:
-        - "ActorType:BankAccountActor"
       parameters:
         - $ref: '#/components/parameters/ActorId'
       responses:
@@ -198,14 +182,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/BankAccountState'
 
-  /BankAccountActor/{actorId}/method/getHistory:
+  /BankAccount/{actorId}/method/getHistory:
     get:
       summary: Get transaction history
       description: |
         Gets complete transaction history for the account.
         Shows the power of event sourcing - full audit trail.
-      tags:
-        - "ActorType:BankAccountActor"
       parameters:
         - $ref: '#/components/parameters/ActorId'
       responses:

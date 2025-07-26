@@ -3,6 +3,12 @@
 // Code generated from OpenAPI specification. DO NOT EDIT manually.
 package {{.PackageName}}
 
+{{if .SharedTypes}}
+import (
+	"github.com/shogotsuneto/dapr-actor-experiment/internal/shared"
+)
+{{end}}
+
 {{range .Types.Structs}}
 // {{.Name}} {{.Description}}
 type {{.Name}} struct {

@@ -8,7 +8,7 @@ import (
 
 	"github.com/dapr/go-sdk/client"
 	
-	"github.com/shogotsuneto/dapr-actor-experiment/internal/counteractor"
+	"github.com/shogotsuneto/dapr-actor-experiment/internal/counter"
 )
 
 func main() {
@@ -37,7 +37,7 @@ func main() {
 		log.Fatalf("Failed to get counter value: %v", err)
 	}
 
-	var state counteractor.CounterState
+	var state counter.CounterState
 	if err := json.Unmarshal(response.Data, &state); err != nil {
 		log.Fatalf("Failed to unmarshal response: %v", err)
 	}

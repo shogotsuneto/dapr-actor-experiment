@@ -1,4 +1,4 @@
-package counteractor
+package counter
 
 import (
 	"context"
@@ -19,7 +19,7 @@ type CounterActor struct {
 }
 
 func (c *CounterActor) Type() string {
-	return ActorTypeCounterActor
+	return ActorTypeCounter
 }
 
 func (c *CounterActor) Increment(ctx context.Context) (*CounterState, error) {
