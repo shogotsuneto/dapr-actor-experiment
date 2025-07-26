@@ -8,24 +8,25 @@ type Field struct {
 	Comment string
 }
 
-// TypeDef represents a type definition in the intermediate model
-// It can be either a struct type or a type alias
-type TypeDef struct {
+// StructType represents a struct type definition in the intermediate model
+type StructType struct {
 	Name        string
 	Description string
-	Fields      []Field    // For struct types - empty for type aliases
-	AliasTarget string     // For type aliases - empty for struct types
-	OriginalName string    // For type aliases - original parameter name
+	Fields      []Field
 }
 
-// IsAlias returns true if this TypeDef represents a type alias
-func (t *TypeDef) IsAlias() bool {
-	return t.AliasTarget != ""
+// TypeAlias represents a type alias definition in the intermediate model
+type TypeAlias struct {
+	Name         string
+	Description  string
+	AliasTarget  string
+	OriginalName string // For type aliases - original parameter name
 }
 
-// IsStruct returns true if this TypeDef represents a struct type
-func (t *TypeDef) IsStruct() bool {
-	return len(t.Fields) > 0
+// TypeDefinitions represents a collection of type definitions
+type TypeDefinitions struct {
+	Structs []StructType
+	Aliases []TypeAlias
 }
 
 // Method represents an actor method in the intermediate model
@@ -43,8 +44,8 @@ type ActorInterface struct {
 	InterfaceName string
 	InterfaceDesc string
 	Methods       []Method
-	// Types contains type definitions (both structs and aliases) specific to this actor only
-	Types []TypeDef
+	// Types contains type definitions specific to this actor only
+	Types TypeDefinitions
 }
 
 // GenerationModel represents the complete intermediate data structure
@@ -52,22 +53,22 @@ type ActorInterface struct {
 type GenerationModel struct {
 	// Actors contains all actor interfaces with their methods and actor-specific types
 	Actors []ActorInterface
-	// SharedTypes contains types (both structs and aliases) that should be generated in a shared package (used by multiple actors)
-	SharedTypes []TypeDef
+	// SharedTypes contains types that should be generated in a shared package (used by multiple actors)
+	SharedTypes TypeDefinitions
 }
 
 // ActorModel represents a single actor's complete model for generation
 type ActorModel struct {
 	ActorType       string
 	PackageName     string
-	Types           []TypeDef
+	Types           TypeDefinitions
 	ActorInterface  ActorInterface
 }
 
 // TypesTemplateData represents data for types template generation
 type TypesTemplateData struct {
 	PackageName string
-	Types       []TypeDef
+	Types       TypeDefinitions
 }
 
 // InterfaceTemplateData represents data for interface template generation
@@ -85,5 +86,5 @@ type SingleActorTemplateData struct {
 // SharedTypesTemplateData represents data for shared types template generation
 type SharedTypesTemplateData struct {
 	PackageName string
-	SharedTypes []TypeDef
+	SharedTypes TypeDefinitions
 }

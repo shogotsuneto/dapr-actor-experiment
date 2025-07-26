@@ -9,8 +9,7 @@ import (
 )
 {{end}}
 
-{{range .Types}}
-{{- if .IsStruct}}
+{{range .Types.Structs}}
 // {{.Name}} {{.Description}}
 type {{.Name}} struct {
 {{- range .Fields}}
@@ -18,8 +17,9 @@ type {{.Name}} struct {
 	{{.Name}} {{.Type}} `json:"{{.JSONTag}}"`
 {{- end}}
 }
-{{- else if .IsAlias}}
+{{end}}
+
+{{range .Types.Aliases}}
 // {{.Name}} {{.Description}}
 type {{.Name}} = {{.AliasTarget}}
-{{- end}}
 {{end}}

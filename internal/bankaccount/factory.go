@@ -1,4 +1,4 @@
-// Package bankaccountactor provides primitives for OpenAPI-based schema validation.
+// Package bankaccount provides primitives for OpenAPI-based schema validation.
 //
 // Code generated from OpenAPI specification. DO NOT EDIT manually.
 package bankaccount
@@ -10,7 +10,7 @@ import (
 
 // NewActorFactory creates a factory function for BankAccountActor with a cleaner API.
 // Returns a factory function compatible with Dapr's RegisterActorImplFactoryContext.
-// Usage: s.RegisterActorImplFactoryContext(bankaccountactor.NewActorFactory())
+// Usage: s.RegisterActorImplFactoryContext(bankaccount.NewActorFactory())
 func NewActorFactory() func() actor.ServerContext {
 	return func() actor.ServerContext {
 		// Create a new BankAccountActor instance

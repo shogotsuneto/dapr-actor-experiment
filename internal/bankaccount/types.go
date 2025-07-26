@@ -24,6 +24,8 @@ type WithdrawRequest struct {
 
 // BankAccountState Current state of bank account (computed from events)
 type BankAccountState struct {
+	// Account creation timestamp
+	CreatedAt string `json:"createdAt,omitempty"`
 	// Whether account is active
 	IsActive bool `json:"isActive"`
 	// Account owner name
@@ -32,8 +34,6 @@ type BankAccountState struct {
 	AccountId string `json:"accountId"`
 	// Current account balance (computed from events)
 	Balance float64 `json:"balance"`
-	// Account creation timestamp
-	CreatedAt string `json:"createdAt,omitempty"`
 }
 
 // CreateAccountRequest Request to create a new bank account
@@ -51,4 +51,5 @@ type DepositRequest struct {
 	// Description of the deposit
 	Description string `json:"description"`
 }
+
 

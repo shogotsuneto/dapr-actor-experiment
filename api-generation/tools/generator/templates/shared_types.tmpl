@@ -3,8 +3,7 @@
 // Code generated from OpenAPI specification. DO NOT EDIT manually.
 package {{.PackageName}}
 
-{{range .SharedTypes}}
-{{- if .IsStruct}}
+{{range .SharedTypes.Structs}}
 // {{.Name}} {{.Description}}
 type {{.Name}} struct {
 {{- range .Fields}}
@@ -12,8 +11,9 @@ type {{.Name}} struct {
 	{{.Name}} {{.Type}} `json:"{{.JSONTag}}"`
 {{- end}}
 }
-{{- else if .IsAlias}}
+{{end}}
+
+{{range .SharedTypes.Aliases}}
 // {{.Name}} {{.Description}}
 type {{.Name}} = {{.AliasTarget}}
-{{- end}}
 {{end}}

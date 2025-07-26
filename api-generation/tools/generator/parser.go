@@ -42,7 +42,8 @@ func (p *OpenAPIParser) parseAndCategorizeTypes(model *GenerationModel) error {
 	}
 
 	// First, parse all types from the OpenAPI spec
-	var allTypes []TypeDef
+	var allStructs []StructType
+	var allAliases []TypeAlias
 
 	// Parse struct types from schemas
 	for name, schemaRef := range p.doc.Components.Schemas {
@@ -64,7 +65,7 @@ func (p *OpenAPIParser) parseAndCategorizeTypes(model *GenerationModel) error {
 					Comment: prop.Description,
 				})
 			}
-			allTypes = append(allTypes, TypeDef{
+			allStructs = append(allStructs, StructType{
 				Name:        name,
 				Description: schema.Description,
 				Fields:      fields,
@@ -78,7 +79,7 @@ func (p *OpenAPIParser) parseAndCategorizeTypes(model *GenerationModel) error {
 			p := param.Value
 			if p.Schema != nil && p.Schema.Value.Type.Is("string") {
 				aliasName := capitalizeFirst(p.Name)
-				allTypes = append(allTypes, TypeDef{
+				allAliases = append(allAliases, TypeAlias{
 					Name:         aliasName,
 					Description:  fmt.Sprintf("defines model for %s", p.Name),
 					AliasTarget:  "string",
@@ -94,7 +95,7 @@ func (p *OpenAPIParser) parseAndCategorizeTypes(model *GenerationModel) error {
 			param := paramRef.Value
 			if param.Schema != nil && param.Schema.Value.Type.Is("string") {
 				aliasName := capitalizeFirst(paramName)
-				allTypes = append(allTypes, TypeDef{
+				allAliases = append(allAliases, TypeAlias{
 					Name:         aliasName,
 					Description:  fmt.Sprintf("defines model for %s", param.Name),
 					AliasTarget:  "string",
@@ -105,6 +106,10 @@ func (p *OpenAPIParser) parseAndCategorizeTypes(model *GenerationModel) error {
 	}
 
 	// Now categorize types based on usage by actors
+	allTypes := TypeDefinitions{
+		Structs: allStructs,
+		Aliases: allAliases,
+	}
 	return p.categorizeTypesIntoActors(model, allTypes)
 }
 
@@ -341,7 +346,8 @@ func (p *OpenAPIParser) getActorTypes() []string {
 }
 
 // isCustomType checks if a type name refers to a custom type defined in the model
-func isCustomType(typeName string, types []TypeDef) bool {
+// isCustomTypeInDefinitions checks if a type name exists in our type definitions
+func (p *OpenAPIParser) isCustomTypeInDefinitions(typeName string, types TypeDefinitions) bool {
 	// List of Go built-in types that are not custom
 	builtinTypes := map[string]bool{
 		"string": true, "int": true, "int32": true, "int64": true,
@@ -353,9 +359,16 @@ func isCustomType(typeName string, types []TypeDef) bool {
 		return false
 	}
 	
-	// Check if it's defined in our types
-	for _, typeDef := range types {
-		if typeDef.Name == typeName {
+	// Check if it's defined in our struct types
+	for _, structType := range types.Structs {
+		if structType.Name == typeName {
+			return true
+		}
+	}
+	
+	// Check if it's defined in our type aliases
+	for _, aliasType := range types.Aliases {
+		if aliasType.Name == typeName {
 			return true
 		}
 	}
@@ -364,13 +377,16 @@ func isCustomType(typeName string, types []TypeDef) bool {
 }
 
 // categorizeTypesIntoActors analyzes types and assigns them directly to actors or shared collections
-func (p *OpenAPIParser) categorizeTypesIntoActors(model *GenerationModel, allTypes []TypeDef) error {
+func (p *OpenAPIParser) categorizeTypesIntoActors(model *GenerationModel, allTypes TypeDefinitions) error {
 	// Create a map to track which types are used by which actors
 	typeUsage := make(map[string]map[string]bool) // type -> actor -> used
 	
-	// Initialize usage map for all types
-	for _, typeDef := range allTypes {
-		typeUsage[typeDef.Name] = make(map[string]bool)
+	// Initialize usage map for all types (both structs and aliases)
+	for _, structType := range allTypes.Structs {
+		typeUsage[structType.Name] = make(map[string]bool)
+	}
+	for _, aliasType := range allTypes.Aliases {
+		typeUsage[aliasType.Name] = make(map[string]bool)
 	}
 	
 	// Analyze which actors use which types by examining request/response schemas
@@ -397,18 +413,16 @@ func (p *OpenAPIParser) categorizeTypesIntoActors(model *GenerationModel, allTyp
 	// Also analyze type dependencies - if a type references another type, 
 	// the referenced type should be shared if the referencing type is used by multiple actors
 	typeDependencies := make(map[string][]string) // type -> []referenced_types
-	for _, typeDef := range allTypes {
-		if typeDef.IsStruct() {
-			for _, field := range typeDef.Fields {
-				// Extract referenced type from field type (handle arrays and pointers)
-				fieldType := field.Type
-				fieldType = strings.TrimPrefix(fieldType, "[]")
-				fieldType = strings.TrimPrefix(fieldType, "*")
-				
-				// Check if this is a custom type (not a built-in Go type)
-				if isCustomType(fieldType, allTypes) {
-					typeDependencies[typeDef.Name] = append(typeDependencies[typeDef.Name], fieldType)
-				}
+	for _, structType := range allTypes.Structs {
+		for _, field := range structType.Fields {
+			// Extract referenced type from field type (handle arrays and pointers)
+			fieldType := field.Type
+			fieldType = strings.TrimPrefix(fieldType, "[]")
+			fieldType = strings.TrimPrefix(fieldType, "*")
+			
+			// Check if this is a custom type (not a built-in Go type)
+			if p.isCustomTypeInDefinitions(fieldType, allTypes) {
+				typeDependencies[structType.Name] = append(typeDependencies[structType.Name], fieldType)
 			}
 		}
 	}
@@ -428,30 +442,66 @@ func (p *OpenAPIParser) categorizeTypesIntoActors(model *GenerationModel, allTyp
 			}
 		}
 	}
+
+	// Initialize actor type collections
+	for i := range model.Actors {
+		model.Actors[i].Types = TypeDefinitions{
+			Structs: []StructType{},
+			Aliases: []TypeAlias{},
+		}
+	}
+	model.SharedTypes = TypeDefinitions{
+		Structs: []StructType{},
+		Aliases: []TypeAlias{},
+	}
 	
-	// Assign types directly to actors or shared collections
-	for _, typeDef := range allTypes {
-		usedByActors := typeUsage[typeDef.Name]
+	// Assign struct types to actors or shared collections
+	for _, structType := range allTypes.Structs {
+		usedByActors := typeUsage[structType.Name]
 		actorCount := len(usedByActors)
 		
 		if actorCount > 1 {
 			// Used by multiple actors - make it shared
-			model.SharedTypes = append(model.SharedTypes, typeDef)
+			model.SharedTypes.Structs = append(model.SharedTypes.Structs, structType)
 		} else if actorCount == 1 {
 			// Used by single actor - assign it directly to that actor
 			for actorType := range usedByActors {
 				// Find the actor and add the type to it
 				for i, actor := range model.Actors {
 					if actor.ActorType == actorType {
-						model.Actors[i].Types = append(model.Actors[i].Types, typeDef)
+						model.Actors[i].Types.Structs = append(model.Actors[i].Types.Structs, structType)
 						break
 					}
 				}
 			}
 		} else {
-			// Not used by any actor - check if it's a type alias (they're often reusable)
-			// Default type aliases to shared, struct types to shared as well for safety
-			model.SharedTypes = append(model.SharedTypes, typeDef)
+			// Not used by any actor - default to shared for safety
+			model.SharedTypes.Structs = append(model.SharedTypes.Structs, structType)
+		}
+	}
+
+	// Assign type aliases to actors or shared collections
+	for _, aliasType := range allTypes.Aliases {
+		usedByActors := typeUsage[aliasType.Name]
+		actorCount := len(usedByActors)
+		
+		if actorCount > 1 {
+			// Used by multiple actors - make it shared
+			model.SharedTypes.Aliases = append(model.SharedTypes.Aliases, aliasType)
+		} else if actorCount == 1 {
+			// Used by single actor - assign it directly to that actor
+			for actorType := range usedByActors {
+				// Find the actor and add the type to it
+				for i, actor := range model.Actors {
+					if actor.ActorType == actorType {
+						model.Actors[i].Types.Aliases = append(model.Actors[i].Types.Aliases, aliasType)
+						break
+					}
+				}
+			}
+		} else {
+			// Not used by any actor - type aliases are often reusable, default to shared
+			model.SharedTypes.Aliases = append(model.SharedTypes.Aliases, aliasType)
 		}
 	}
 	

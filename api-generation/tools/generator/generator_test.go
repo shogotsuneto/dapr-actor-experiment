@@ -52,9 +52,9 @@ func TestOpenAPIParser(t *testing.T) {
 	}
 
 	// Verify that we have type definitions (either shared or actor-specific)
-	totalTypes := len(model.SharedTypes)
+	totalTypes := len(model.SharedTypes.Structs) + len(model.SharedTypes.Aliases)
 	for _, actor := range model.Actors {
-		totalTypes += len(actor.Types)
+		totalTypes += len(actor.Types.Structs) + len(actor.Types.Aliases)
 	}
 	if totalTypes == 0 {
 		t.Error("Expected to find type definitions in parsed model")
@@ -64,22 +64,22 @@ func TestOpenAPIParser(t *testing.T) {
 	foundCounterState := false
 	for _, actor := range model.Actors {
 		if actor.ActorType == "CounterActor" {
-			for _, typeDef := range actor.Types {
-				if typeDef.Name == "CounterState" {
+			for _, structType := range actor.Types.Structs {
+				if structType.Name == "CounterState" {
 					foundCounterState = true
-					if len(typeDef.Fields) != 1 {
-						t.Errorf("Expected CounterState to have 1 field, got %d", len(typeDef.Fields))
+					if len(structType.Fields) != 1 {
+						t.Errorf("Expected CounterState to have 1 field, got %d", len(structType.Fields))
 					}
 				}
 			}
 		}
 	}
 	// Also check shared types in case it's shared
-	for _, typeDef := range model.SharedTypes {
-		if typeDef.Name == "CounterState" {
+	for _, structType := range model.SharedTypes.Structs {
+		if structType.Name == "CounterState" {
 			foundCounterState = true
-			if len(typeDef.Fields) != 1 {
-				t.Errorf("Expected CounterState to have 1 field, got %d", len(typeDef.Fields))
+			if len(structType.Fields) != 1 {
+				t.Errorf("Expected CounterState to have 1 field, got %d", len(structType.Fields))
 			}
 		}
 	}

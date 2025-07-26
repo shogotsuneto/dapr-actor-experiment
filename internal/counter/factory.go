@@ -1,4 +1,4 @@
-// Package counteractor provides primitives for OpenAPI-based schema validation.
+// Package counter provides primitives for OpenAPI-based schema validation.
 //
 // Code generated from OpenAPI specification. DO NOT EDIT manually.
 package counter
@@ -10,7 +10,7 @@ import (
 
 // NewActorFactory creates a factory function for CounterActor with a cleaner API.
 // Returns a factory function compatible with Dapr's RegisterActorImplFactoryContext.
-// Usage: s.RegisterActorImplFactoryContext(counteractor.NewActorFactory())
+// Usage: s.RegisterActorImplFactoryContext(counter.NewActorFactory())
 func NewActorFactory() func() actor.ServerContext {
 	return func() actor.ServerContext {
 		// Create a new CounterActor instance
