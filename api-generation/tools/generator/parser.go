@@ -141,14 +141,9 @@ func (p *OpenAPIParser) parseAndCategorizeTypes(model *GenerationModel) error {
 
 // parseActors extracts actor interfaces and their methods from OpenAPI paths
 func (p *OpenAPIParser) parseActors(model *GenerationModel) error {
-	// Get all actor types
-	actorTypes, err := p.getActorTypes()
-	if err != nil {
-		return err
-	}
-
-	// Group methods by actor type
+	// Group methods by actor type and track discovered actor types
 	actorMethodsMap := make(map[string][]Method)
+	discoveredActorTypes := make(map[string]bool)
 
 	for path, pathItem := range p.doc.Paths.Map() {
 		// Process all HTTP methods in the path
@@ -166,11 +161,14 @@ func (p *OpenAPIParser) parseActors(model *GenerationModel) error {
 			}
 
 			// Extract actor type from path pattern
-			operationActorType := p.extractActorTypeFromPath(path)
+			actorType := p.extractActorTypeFromPath(path)
 
-			if operationActorType == "" {
+			if actorType == "" {
 				continue // Skip operations without identifiable actor type
 			}
+
+			// Track discovered actor types
+			discoveredActorTypes[actorType] = true
 
 			// Extract method details
 			method, err := p.extractMethodFromOperation(op, httpMethod, path)
@@ -178,12 +176,17 @@ func (p *OpenAPIParser) parseActors(model *GenerationModel) error {
 				return fmt.Errorf("failed to extract method from operation %s %s: %v", httpMethod, path, err)
 			}
 
-			actorMethodsMap[operationActorType] = append(actorMethodsMap[operationActorType], *method)
+			actorMethodsMap[actorType] = append(actorMethodsMap[actorType], *method)
 		}
 	}
 
+	// Fail if no actor types found
+	if len(discoveredActorTypes) == 0 {
+		return fmt.Errorf("no actor types found in OpenAPI specification - paths must follow pattern: .../{actorType}/{actorId}/method/{methodName}")
+	}
+
 	// Create actor interfaces
-	for _, actorType := range actorTypes {
+	for actorType := range discoveredActorTypes {
 		methods := actorMethodsMap[actorType]
 		if len(methods) == 0 {
 			continue // Skip actor types with no methods
@@ -318,31 +321,6 @@ func (p *OpenAPIParser) extractReturnType(op *openapi3.Operation) string {
 	}
 
 	return ""
-}
-
-// getActorTypes extracts all actor types from OpenAPI spec
-func (p *OpenAPIParser) getActorTypes() ([]string, error) {
-	actorTypeSet := make(map[string]bool)
-
-	// Extract from path patterns (e.g., "/CounterActor/{actorId}/method/get")
-	for path := range p.doc.Paths.Map() {
-		if actorType := p.extractActorTypeFromPath(path); actorType != "" {
-			actorTypeSet[actorType] = true
-		}
-	}
-
-	// Convert set to slice
-	var actorTypes []string
-	for actorType := range actorTypeSet {
-		actorTypes = append(actorTypes, actorType)
-	}
-
-	// Fail if no actor types found
-	if len(actorTypes) == 0 {
-		return nil, fmt.Errorf("no actor types found in OpenAPI specification - paths must follow pattern: .../{actorType}/{actorId}/method/{methodName}")
-	}
-
-	return actorTypes, nil
 }
 
 // isCustomType checks if a type name refers to a custom type defined in the model
