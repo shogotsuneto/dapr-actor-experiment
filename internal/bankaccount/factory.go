@@ -13,8 +13,8 @@ import (
 // Usage: s.RegisterActorImplFactoryContext(bankaccount.NewActorFactory())
 func NewActorFactory() func() actor.ServerContext {
 	return func() actor.ServerContext {
-		// Create a new BankAccount instance
-		impl := &BankAccount{}
+		// Create a new BankAccountActor instance
+		impl := &BankAccountActor{}
 		
 		// Compile-time check ensures the implementation satisfies the schema
 		var _ BankAccountAPI = impl

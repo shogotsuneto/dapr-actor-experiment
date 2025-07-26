@@ -71,7 +71,7 @@ type StoredEvent struct {
 }
 
 func (b *BankAccountActor) Type() string {
-	return ActorTypeBankAccountActor
+	return ActorTypeBankAccount
 }
 
 // ensureStateLoaded loads and caches state from events if not already loaded.

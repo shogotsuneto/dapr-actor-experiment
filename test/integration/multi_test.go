@@ -41,13 +41,13 @@ func testMultipleActorTypes(t *testing.T, client *DaprClient) {
 	// Test that both actor types can operate simultaneously
 	// This replicates the test-multi-actors.sh functionality
 
-	// CounterActor operations
+	// Counter operations
 	counterActorID := "multi-test-counter"
 	var counterState counter.CounterState
 
 	// Initialize counter
 	err := client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
-		ActorType: "CounterActor",
+		ActorType: "Counter",
 		ActorID:   counterActorID,
 		Method:    "Set",
 		Data:      counter.SetValueRequest{Value: int32(5)},
@@ -55,13 +55,13 @@ func testMultipleActorTypes(t *testing.T, client *DaprClient) {
 	require.NoError(t, err)
 	assert.Equal(t, int32(5), counterState.Value)
 
-	// BankAccountActor operations
+	// BankAccount operations
 	bankActorID := "multi-test-account"
 	
 	// Create account
 	var createResult interface{}
 	err = client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
-		ActorType: "BankAccountActor",
+		ActorType: "BankAccount",
 		ActorID:   bankActorID,
 		Method:    "CreateAccount",
 		Data: bankaccount.CreateAccountRequest{
@@ -74,7 +74,7 @@ func testMultipleActorTypes(t *testing.T, client *DaprClient) {
 	// Perform operations on both actors interleaved
 	// Increment counter
 	err = client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
-		ActorType: "CounterActor",
+		ActorType: "Counter",
 		ActorID:   counterActorID,
 		Method:    "Increment",
 	}, &counterState)
@@ -84,7 +84,7 @@ func testMultipleActorTypes(t *testing.T, client *DaprClient) {
 	// Deposit to bank account
 	var depositResult interface{}
 	err = client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
-		ActorType: "BankAccountActor",
+		ActorType: "BankAccount",
 		ActorID:   bankActorID,
 		Method:    "Deposit",
 		Data: bankaccount.DepositRequest{
@@ -96,7 +96,7 @@ func testMultipleActorTypes(t *testing.T, client *DaprClient) {
 
 	// Decrement counter
 	err = client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
-		ActorType: "CounterActor",
+		ActorType: "Counter",
 		ActorID:   counterActorID,
 		Method:    "Decrement",
 	}, &counterState)
@@ -106,7 +106,7 @@ func testMultipleActorTypes(t *testing.T, client *DaprClient) {
 	// Withdraw from bank account
 	var withdrawResult interface{}
 	err = client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
-		ActorType: "BankAccountActor",
+		ActorType: "BankAccount",
 		ActorID:   bankActorID,
 		Method:    "Withdraw",
 		Data: bankaccount.WithdrawRequest{
@@ -119,7 +119,7 @@ func testMultipleActorTypes(t *testing.T, client *DaprClient) {
 	// Verify final states
 	// Counter should be 5
 	err = client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
-		ActorType: "CounterActor",
+		ActorType: "Counter",
 		ActorID:   counterActorID,
 		Method:    "Get",
 	}, &counterState)
@@ -129,7 +129,7 @@ func testMultipleActorTypes(t *testing.T, client *DaprClient) {
 	// Bank account should be 2200.0 (2000 + 500 - 300)
 	var balance bankaccount.BankAccountState
 	err = client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
-		ActorType: "BankAccountActor",
+		ActorType: "BankAccount",
 		ActorID:   bankActorID,
 		Method:    "GetBalance",
 	}, &balance)
@@ -143,10 +143,10 @@ func testActorTypesIsolation(t *testing.T, client *DaprClient) {
 	// Test that different actor types with same ID don't interfere
 	actorID := "isolation-test"
 
-	// Create CounterActor with ID "isolation-test"
+	// Create Counter with ID "isolation-test"
 	var counterState counter.CounterState
 	err := client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
-		ActorType: "CounterActor",
+		ActorType: "Counter",
 		ActorID:   actorID,
 		Method:    "Set",
 		Data:      counter.SetValueRequest{Value: int32(100)},
@@ -154,10 +154,10 @@ func testActorTypesIsolation(t *testing.T, client *DaprClient) {
 	require.NoError(t, err)
 	assert.Equal(t, int32(100), counterState.Value)
 
-	// Create BankAccountActor with same ID "isolation-test"
+	// Create BankAccount with same ID "isolation-test"
 	var createResult interface{}
 	err = client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
-		ActorType: "BankAccountActor",
+		ActorType: "BankAccount",
 		ActorID:   actorID,
 		Method:    "CreateAccount",
 		Data: bankaccount.CreateAccountRequest{
@@ -170,22 +170,22 @@ func testActorTypesIsolation(t *testing.T, client *DaprClient) {
 	// Verify both actors maintain separate state despite same ID
 	// Check counter
 	err = client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
-		ActorType: "CounterActor",
+		ActorType: "Counter",
 		ActorID:   actorID,
 		Method:    "Get",
 	}, &counterState)
 	require.NoError(t, err)
-	assert.Equal(t, int32(100), counterState.Value, "CounterActor should maintain its state")
+	assert.Equal(t, int32(100), counterState.Value, "Counter should maintain its state")
 
 	// Check bank account
 	var balance bankaccount.BankAccountState
 	err = client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
-		ActorType: "BankAccountActor",
+		ActorType: "BankAccount",
 		ActorID:   actorID,
 		Method:    "GetBalance",
 	}, &balance)
 	require.NoError(t, err)
-	assert.Equal(t, 1000.0, balance.Balance, "BankAccountActor should maintain its state")
+	assert.Equal(t, 1000.0, balance.Balance, "BankAccount should maintain its state")
 }
 
 func testConcurrentActorOperations(t *testing.T, client *DaprClient) {
@@ -213,7 +213,7 @@ func testConcurrentActorOperations(t *testing.T, client *DaprClient) {
 	for i, actorID := range counterActors {
 		var state counter.CounterState
 		err := client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
-			ActorType: "CounterActor",
+			ActorType: "Counter",
 			ActorID:   actorID,
 			Method:    "Set",
 			Data:      counter.SetValueRequest{Value: counterValues[i]},
@@ -225,7 +225,7 @@ func testConcurrentActorOperations(t *testing.T, client *DaprClient) {
 	for _, account := range bankActors {
 		var createResult interface{}
 		err := client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
-			ActorType: "BankAccountActor",
+			ActorType: "BankAccount",
 			ActorID:   account.id,
 			Method:    "CreateAccount",
 			Data: bankaccount.CreateAccountRequest{
@@ -241,7 +241,7 @@ func testConcurrentActorOperations(t *testing.T, client *DaprClient) {
 	for i, actorID := range counterActors {
 		var state counter.CounterState
 		err := client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
-			ActorType: "CounterActor",
+			ActorType: "Counter",
 			ActorID:   actorID,
 			Method:    "Increment",
 		}, &state)
@@ -255,7 +255,7 @@ func testConcurrentActorOperations(t *testing.T, client *DaprClient) {
 	for _, account := range bankActors {
 		var depositResult interface{}
 		err := client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
-			ActorType: "BankAccountActor",
+			ActorType: "BankAccount",
 			ActorID:   account.id,
 			Method:    "Deposit",
 			Data: bankaccount.DepositRequest{
@@ -270,7 +270,7 @@ func testConcurrentActorOperations(t *testing.T, client *DaprClient) {
 	for i, actorID := range counterActors {
 		var state counter.CounterState
 		err := client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
-			ActorType: "CounterActor",
+			ActorType: "Counter",
 			ActorID:   actorID,
 			Method:    "Get",
 		}, &state)
@@ -281,7 +281,7 @@ func testConcurrentActorOperations(t *testing.T, client *DaprClient) {
 	for _, account := range bankActors {
 		var balance bankaccount.BankAccountState
 		err := client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
-			ActorType: "BankAccountActor",
+			ActorType: "BankAccount",
 			ActorID:   account.id,
 			Method:    "GetBalance",
 		}, &balance)
@@ -294,7 +294,7 @@ func testConcurrentActorOperations(t *testing.T, client *DaprClient) {
 	// Test transaction history for one of the bank accounts
 	var history bankaccount.TransactionHistory
 	err := client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
-		ActorType: "BankAccountActor",
+		ActorType: "BankAccount",
 		ActorID:   bankActors[0].id,
 		Method:    "GetHistory",
 	}, &history)

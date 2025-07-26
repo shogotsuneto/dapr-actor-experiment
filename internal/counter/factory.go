@@ -13,8 +13,8 @@ import (
 // Usage: s.RegisterActorImplFactoryContext(counter.NewActorFactory())
 func NewActorFactory() func() actor.ServerContext {
 	return func() actor.ServerContext {
-		// Create a new Counter instance
-		impl := &Counter{}
+		// Create a new CounterActor instance
+		impl := &CounterActor{}
 		
 		// Compile-time check ensures the implementation satisfies the schema
 		var _ CounterAPI = impl
