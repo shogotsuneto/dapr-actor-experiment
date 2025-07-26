@@ -45,15 +45,40 @@ func (p *OpenAPIParser) parseAndCategorizeTypes(model *GenerationModel) error {
 	var allStructs []StructType
 	var allAliases []TypeAlias
 
-	// Parse struct types from schemas
+	// Parse struct types and type aliases from schemas
 	for name, schemaRef := range p.doc.Components.Schemas {
 		schema := schemaRef.Value
-		if schema.Type.Is("object") && schema.Properties != nil {
+		
+		// Check if this should be a type alias (simple type without properties or with only basic properties)
+		if !schema.Type.Is("object") || schema.Properties == nil || len(schema.Properties) == 0 {
+			// This should be a type alias
+			goType := getGoType(schema)
+			allAliases = append(allAliases, TypeAlias{
+				Name:         name,
+				Description:  schema.Description,
+				AliasTarget:  goType,
+				OriginalName: name,
+			})
+		} else if schema.Type.Is("object") && schema.Properties != nil {
 			// Generate struct type
 			fields := []Field{}
 			for propName, propRef := range schema.Properties {
 				prop := propRef.Value
-				goType := getGoType(prop)
+				
+				// Check if this property is a reference to another schema
+				var goType string
+				if propRef.Ref != "" {
+					// Extract referenced type name from $ref
+					refParts := strings.Split(propRef.Ref, "/")
+					if len(refParts) > 0 {
+						goType = refParts[len(refParts)-1]
+					} else {
+						goType = getGoType(prop)
+					}
+				} else {
+					goType = getGoType(prop)
+				}
+				
 				jsonTag := propName
 				if !contains(schema.Required, propName) {
 					jsonTag += ",omitempty"
@@ -194,7 +219,7 @@ func (p *OpenAPIParser) extractMethodFromOperation(op *openapi3.Operation, httpM
 	}
 
 	// Capitalize the method name for Go interface (exported method)
-	methodName = strings.Title(methodName)
+	methodName = capitalizeFirst(methodName)
 
 	method := &Method{
 		Name:       methodName,
