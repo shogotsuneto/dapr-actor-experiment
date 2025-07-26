@@ -7,9 +7,6 @@ info:
 paths:
   /TestActor/{actorId}/method/GetValue:
     get:
-      operationId: GetValue
-      tags:
-        - "ActorType:TestActor"
       parameters:
         - name: actorId
           in: path
@@ -26,9 +23,6 @@ paths:
 
   /TestActor/{actorId}/method/SetValue:
     post:
-      operationId: SetValue
-      tags:
-        - "ActorType:TestActor"
       parameters:
         - name: actorId
           in: path

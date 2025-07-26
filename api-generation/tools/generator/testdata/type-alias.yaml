@@ -7,9 +7,6 @@ info:
 paths:
   /UserActor/{actorId}/method/GetUser:
     get:
-      operationId: GetUser
-      tags:
-        - "ActorType:UserActor"
       parameters:
         - name: actorId
           in: path
@@ -26,9 +23,6 @@ paths:
 
   /UserActor/{actorId}/method/UpdateEmail:
     post:
-      operationId: UpdateEmail
-      tags:
-        - "ActorType:UserActor"
       parameters:
         - name: actorId
           in: path
@@ -47,9 +41,6 @@ paths:
 
   /UserActor/{actorId}/method/UpdateStatus:
     post:
-      operationId: UpdateStatus
-      tags:
-        - "ActorType:UserActor"
       parameters:
         - name: actorId
           in: path

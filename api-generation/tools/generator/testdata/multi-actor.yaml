@@ -8,9 +8,6 @@ paths:
   # CounterActor methods
   /CounterActor/{actorId}/method/GetCount:
     get:
-      operationId: GetCount
-      tags:
-        - "ActorType:CounterActor"
       parameters:
         - name: actorId
           in: path
@@ -27,9 +24,6 @@ paths:
 
   /CounterActor/{actorId}/method/Increment:
     post:
-      operationId: Increment
-      tags:
-        - "ActorType:CounterActor"
       parameters:
         - name: actorId
           in: path
@@ -46,9 +40,6 @@ paths:
 
   /CounterActor/{actorId}/method/Reset:
     post:
-      operationId: Reset
-      tags:
-        - "ActorType:CounterActor"
       parameters:
         - name: actorId
           in: path
@@ -66,9 +57,6 @@ paths:
   # CalculatorActor methods
   /CalculatorActor/{actorId}/method/Add:
     post:
-      operationId: Add
-      tags:
-        - "ActorType:CalculatorActor"
       parameters:
         - name: actorId
           in: path
@@ -91,9 +79,6 @@ paths:
 
   /CalculatorActor/{actorId}/method/Multiply:
     post:
-      operationId: Multiply
-      tags:
-        - "ActorType:CalculatorActor"
       parameters:
         - name: actorId
           in: path
@@ -116,9 +101,6 @@ paths:
 
   /CalculatorActor/{actorId}/method/GetHistory:
     get:
-      operationId: GetHistory
-      tags:
-        - "ActorType:CalculatorActor"
       parameters:
         - name: actorId
           in: path

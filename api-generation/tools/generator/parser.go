@@ -141,9 +141,9 @@ func (p *OpenAPIParser) parseAndCategorizeTypes(model *GenerationModel) error {
 // parseActors extracts actor interfaces and their methods from OpenAPI paths
 func (p *OpenAPIParser) parseActors(model *GenerationModel) error {
 	// Get all actor types
-	actorTypes := p.getActorTypes()
-	if len(actorTypes) == 0 {
-		return fmt.Errorf("no actor types found in OpenAPI specification")
+	actorTypes, err := p.getActorTypes()
+	if err != nil {
+		return err
 	}
 
 	// Group methods by actor type
@@ -261,20 +261,30 @@ func (p *OpenAPIParser) extractMethodNameFromPath(path string) string {
 }
 
 // extractActorTypeFromPath extracts the actor type from Dapr actor path
+// Uses relative position from "method" to find the actor type
 // e.g., "/CounterActor/{actorId}/method/get" -> "CounterActor"
+// e.g., "/actors/CounterActor/{actorId}/method/get" -> "CounterActor"
 func (p *OpenAPIParser) extractActorTypeFromPath(path string) string {
-	// Look for pattern: /{actorType}/{actorId}/method/{methodName}
-	// The actor type is the first non-empty part after the initial slash
 	parts := strings.Split(path, "/")
-	if len(parts) >= 4 && parts[0] == "" { // paths start with /
-		// parts[1] should be the actor type
-		// parts[2] should be {actorId} or similar parameter
-		// parts[3] should be "method"
-		// parts[4] should be the method name
-		if len(parts) >= 4 && parts[3] == "method" {
-			return parts[1]
+	if len(parts) < 4 || parts[0] != "" { // paths should start with /
+		return ""
+	}
+	
+	// Find the position of "method" in the path
+	methodIndex := -1
+	for i, part := range parts {
+		if part == "method" {
+			methodIndex = i
+			break
 		}
 	}
+	
+	// Actor type should be 2 positions before "method"
+	// .../actorType/{actorId}/method/methodName
+	if methodIndex >= 2 {
+		return parts[methodIndex-2]
+	}
+	
 	return ""
 }
 
@@ -351,37 +361,13 @@ func (p *OpenAPIParser) extractReturnType(op *openapi3.Operation) string {
 }
 
 // getActorTypes extracts all actor types from OpenAPI spec
-func (p *OpenAPIParser) getActorTypes() []string {
+func (p *OpenAPIParser) getActorTypes() ([]string, error) {
 	actorTypeSet := make(map[string]bool)
 
-	// Primary method: Extract from path patterns (e.g., "/CounterActor/{actorId}/method/get")
+	// Extract from path patterns (e.g., "/CounterActor/{actorId}/method/get")
 	for path := range p.doc.Paths.Map() {
 		if actorType := p.extractActorTypeFromPath(path); actorType != "" {
 			actorTypeSet[actorType] = true
-		}
-	}
-
-	// Fallback method: Extract from tags in operations (e.g., "ActorType:CounterActor")
-	if len(actorTypeSet) == 0 {
-		for _, pathItem := range p.doc.Paths.Map() {
-			operations := []*openapi3.Operation{
-				pathItem.Get, pathItem.Post, pathItem.Put, pathItem.Delete, pathItem.Patch,
-			}
-
-			for _, op := range operations {
-				if op == nil || op.Tags == nil {
-					continue
-				}
-
-				for _, tag := range op.Tags {
-					if strings.HasPrefix(tag, "ActorType:") {
-						actorType := strings.TrimPrefix(tag, "ActorType:")
-						if actorType != "" {
-							actorTypeSet[actorType] = true
-						}
-					}
-				}
-			}
 		}
 	}
 
@@ -391,25 +377,12 @@ func (p *OpenAPIParser) getActorTypes() []string {
 		actorTypes = append(actorTypes, actorType)
 	}
 
-	// Fallback if no actor types found
+	// Fail if no actor types found
 	if len(actorTypes) == 0 {
-		if p.doc.Info != nil && p.doc.Info.Title != "" {
-			title := p.doc.Info.Title
-			// Remove common suffixes
-			for _, suffix := range []string{" API", " Service", " Interface"} {
-				if strings.HasSuffix(title, suffix) {
-					title = strings.TrimSuffix(title, suffix)
-					break
-				}
-			}
-			// Convert to PascalCase
-			actorTypes = append(actorTypes, strings.ReplaceAll(title, " ", ""))
-		} else {
-			actorTypes = append(actorTypes, "Actor")
-		}
+		return nil, fmt.Errorf("no actor types found in OpenAPI specification - paths must follow pattern: .../{actorType}/{actorId}/method/{methodName}")
 	}
 
-	return actorTypes
+	return actorTypes, nil
 }
 
 // isCustomType checks if a type name refers to a custom type defined in the model
