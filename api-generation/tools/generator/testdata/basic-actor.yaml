@@ -5,17 +5,12 @@ info:
   description: Simple single actor for testing basic parsing functionality
 
 paths:
-  /actors/{actorType}/{actorId}/method/GetValue:
+  /TestActor/{actorId}/method/GetValue:
     get:
       operationId: GetValue
       tags:
         - "ActorType:TestActor"
       parameters:
-        - name: actorType
-          in: path
-          required: true
-          schema:
-            type: string
         - name: actorId
           in: path
           required: true
@@ -29,17 +24,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/TestState'
 
-  /actors/{actorType}/{actorId}/method/SetValue:
+  /TestActor/{actorId}/method/SetValue:
     post:
       operationId: SetValue
       tags:
         - "ActorType:TestActor"
       parameters:
-        - name: actorType
-          in: path
-          required: true
-          schema:
-            type: string
         - name: actorId
           in: path
           required: true

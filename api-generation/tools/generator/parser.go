@@ -164,9 +164,11 @@ func (p *OpenAPIParser) parseActors(model *GenerationModel) error {
 				continue
 			}
 
-			// Find which actor type this operation belongs to
-			var operationActorType string
-			if op.Tags != nil {
+			// Primary method: Extract actor type from path pattern
+			operationActorType := p.extractActorTypeFromPath(path)
+			
+			// Fallback: Find which actor type this operation belongs to from tags
+			if operationActorType == "" && op.Tags != nil {
 				for _, tag := range op.Tags {
 					if strings.HasPrefix(tag, "ActorType:") {
 						operationActorType = strings.TrimPrefix(tag, "ActorType:")
@@ -176,7 +178,7 @@ func (p *OpenAPIParser) parseActors(model *GenerationModel) error {
 			}
 
 			if operationActorType == "" {
-				continue // Skip operations without actor type
+				continue // Skip operations without identifiable actor type
 			}
 
 			// Extract method details
@@ -212,10 +214,10 @@ func (p *OpenAPIParser) parseActors(model *GenerationModel) error {
 
 // extractMethodFromOperation extracts method information from OpenAPI operation
 func (p *OpenAPIParser) extractMethodFromOperation(op *openapi3.Operation, httpMethod, path string) (*Method, error) {
-	// For Dapr actors, extract method name from path (e.g., /{actorId}/method/get -> get)
-	methodName := extractMethodNameFromPath(path)
+	// For Dapr actors, extract method name from path (e.g., /{actorType}/{actorId}/method/get -> get)
+	methodName := p.extractMethodNameFromPath(path)
 	if methodName == "" {
-		return nil, fmt.Errorf("failed to extract method name from path '%s': path must follow pattern '/{actorId}/method/{methodName}'", path)
+		return nil, fmt.Errorf("failed to extract method name from path '%s': path must follow pattern '/{actorType}/{actorId}/method/{methodName}'", path)
 	}
 
 	// Capitalize the method name for Go interface (exported method)
@@ -246,13 +248,31 @@ func (p *OpenAPIParser) extractMethodFromOperation(op *openapi3.Operation, httpM
 }
 
 // extractMethodNameFromPath extracts the method name from Dapr actor path
-// e.g., "/{actorId}/method/get" -> "get"
+// e.g., "/CounterActor/{actorId}/method/get" -> "get"
 func (p *OpenAPIParser) extractMethodNameFromPath(path string) string {
-	// Look for pattern: /{actorId}/method/{methodName}
+	// Look for pattern: /{actorType}/{actorId}/method/{methodName}
 	parts := strings.Split(path, "/")
 	for i, part := range parts {
 		if part == "method" && i+1 < len(parts) {
 			return parts[i+1]
+		}
+	}
+	return ""
+}
+
+// extractActorTypeFromPath extracts the actor type from Dapr actor path
+// e.g., "/CounterActor/{actorId}/method/get" -> "CounterActor"
+func (p *OpenAPIParser) extractActorTypeFromPath(path string) string {
+	// Look for pattern: /{actorType}/{actorId}/method/{methodName}
+	// The actor type is the first non-empty part after the initial slash
+	parts := strings.Split(path, "/")
+	if len(parts) >= 4 && parts[0] == "" { // paths start with /
+		// parts[1] should be the actor type
+		// parts[2] should be {actorId} or similar parameter
+		// parts[3] should be "method"
+		// parts[4] should be the method name
+		if len(parts) >= 4 && parts[3] == "method" {
+			return parts[1]
 		}
 	}
 	return ""
@@ -334,22 +354,31 @@ func (p *OpenAPIParser) extractReturnType(op *openapi3.Operation) string {
 func (p *OpenAPIParser) getActorTypes() []string {
 	actorTypeSet := make(map[string]bool)
 
-	// Extract from tags in operations (e.g., "ActorType:CounterActor")
-	for _, pathItem := range p.doc.Paths.Map() {
-		operations := []*openapi3.Operation{
-			pathItem.Get, pathItem.Post, pathItem.Put, pathItem.Delete, pathItem.Patch,
+	// Primary method: Extract from path patterns (e.g., "/CounterActor/{actorId}/method/get")
+	for path := range p.doc.Paths.Map() {
+		if actorType := p.extractActorTypeFromPath(path); actorType != "" {
+			actorTypeSet[actorType] = true
 		}
+	}
 
-		for _, op := range operations {
-			if op == nil || op.Tags == nil {
-				continue
+	// Fallback method: Extract from tags in operations (e.g., "ActorType:CounterActor")
+	if len(actorTypeSet) == 0 {
+		for _, pathItem := range p.doc.Paths.Map() {
+			operations := []*openapi3.Operation{
+				pathItem.Get, pathItem.Post, pathItem.Put, pathItem.Delete, pathItem.Patch,
 			}
 
-			for _, tag := range op.Tags {
-				if strings.HasPrefix(tag, "ActorType:") {
-					actorType := strings.TrimPrefix(tag, "ActorType:")
-					if actorType != "" {
-						actorTypeSet[actorType] = true
+			for _, op := range operations {
+				if op == nil || op.Tags == nil {
+					continue
+				}
+
+				for _, tag := range op.Tags {
+					if strings.HasPrefix(tag, "ActorType:") {
+						actorType := strings.TrimPrefix(tag, "ActorType:")
+						if actorType != "" {
+							actorTypeSet[actorType] = true
+						}
 					}
 				}
 			}

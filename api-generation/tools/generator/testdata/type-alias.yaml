@@ -5,17 +5,12 @@ info:
   description: API with schema-defined type aliases for testing type alias generation
 
 paths:
-  /actors/{actorType}/{actorId}/method/GetUser:
+  /UserActor/{actorId}/method/GetUser:
     get:
       operationId: GetUser
       tags:
         - "ActorType:UserActor"
       parameters:
-        - name: actorType
-          in: path
-          required: true
-          schema:
-            type: string
         - name: actorId
           in: path
           required: true
@@ -29,17 +24,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/UserProfile'
 
-  /actors/{actorType}/{actorId}/method/UpdateEmail:
+  /UserActor/{actorId}/method/UpdateEmail:
     post:
       operationId: UpdateEmail
       tags:
         - "ActorType:UserActor"
       parameters:
-        - name: actorType
-          in: path
-          required: true
-          schema:
-            type: string
         - name: actorId
           in: path
           required: true
@@ -55,17 +45,12 @@ paths:
         '200':
           description: Email updated successfully
 
-  /actors/{actorType}/{actorId}/method/UpdateStatus:
+  /UserActor/{actorId}/method/UpdateStatus:
     post:
       operationId: UpdateStatus
       tags:
         - "ActorType:UserActor"
       parameters:
-        - name: actorType
-          in: path
-          required: true
-          schema:
-            type: string
         - name: actorId
           in: path
           required: true
