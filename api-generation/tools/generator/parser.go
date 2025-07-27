@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"unicode"
 
@@ -47,7 +48,15 @@ func (p *OpenAPIParser) parseAndCategorizeTypes(model *GenerationModel) error {
 	var allAliases []TypeAlias
 
 	// Parse struct types and type aliases from schemas
-	for name, schemaRef := range p.doc.Components.Schemas {
+	// Sort schema names for consistent ordering
+	var schemaNames []string
+	for name := range p.doc.Components.Schemas {
+		schemaNames = append(schemaNames, name)
+	}
+	sort.Strings(schemaNames)
+	
+	for _, name := range schemaNames {
+		schemaRef := p.doc.Components.Schemas[name]
 		schema := schemaRef.Value
 		
 		// Check if this should be a type alias (simple type without properties or with only basic properties)
@@ -63,7 +72,16 @@ func (p *OpenAPIParser) parseAndCategorizeTypes(model *GenerationModel) error {
 		} else if schema.Type.Is("object") && schema.Properties != nil {
 			// Generate struct type
 			fields := []Field{}
-			for propName, propRef := range schema.Properties {
+			
+			// Sort property names for consistent field ordering
+			var propNames []string
+			for propName := range schema.Properties {
+				propNames = append(propNames, propName)
+			}
+			sort.Strings(propNames)
+			
+			for _, propName := range propNames {
+				propRef := schema.Properties[propName]
 				prop := propRef.Value
 				
 				// Check if this property is a reference to another schema
@@ -131,6 +149,14 @@ func (p *OpenAPIParser) parseAndCategorizeTypes(model *GenerationModel) error {
 		}
 	}
 
+	// Sort all structs and aliases by name for consistent ordering
+	sort.Slice(allStructs, func(i, j int) bool {
+		return allStructs[i].Name < allStructs[j].Name
+	})
+	sort.Slice(allAliases, func(i, j int) bool {
+		return allAliases[i].Name < allAliases[j].Name
+	})
+
 	// Now categorize types based on usage by actors
 	allTypes := TypeDefinitions{
 		Structs: allStructs,
@@ -192,6 +218,11 @@ func (p *OpenAPIParser) parseActors(model *GenerationModel) error {
 			continue // Skip actor types with no methods
 		}
 
+		// Sort methods by name for consistent ordering
+		sort.Slice(methods, func(i, j int) bool {
+			return methods[i].Name < methods[j].Name
+		})
+
 		interfaceName := actorType + "API"
 		interfaceDesc := fmt.Sprintf("defines the interface that must be implemented to satisfy the OpenAPI schema for %s", actorType)
 
@@ -202,6 +233,11 @@ func (p *OpenAPIParser) parseActors(model *GenerationModel) error {
 			Methods:       methods,
 		})
 	}
+
+	// Sort actors by type name for consistent ordering
+	sort.Slice(model.Actors, func(i, j int) bool {
+		return model.Actors[i].ActorType < model.Actors[j].ActorType
+	})
 
 	return nil
 }
@@ -460,6 +496,16 @@ func (p *OpenAPIParser) categorizeTypesIntoActors(model *GenerationModel, allTyp
 				}
 			}
 		}
+	}
+	
+	// Sort types within each actor for consistent ordering
+	for i := range model.Actors {
+		sort.Slice(model.Actors[i].Types.Structs, func(j, k int) bool {
+			return model.Actors[i].Types.Structs[j].Name < model.Actors[i].Types.Structs[k].Name
+		})
+		sort.Slice(model.Actors[i].Types.Aliases, func(j, k int) bool {
+			return model.Actors[i].Types.Aliases[j].Name < model.Actors[i].Types.Aliases[k].Name
+		})
 	}
 	
 	return nil
