@@ -17,10 +17,10 @@ type CounterAPI interface {
 	actor.ServerContext
 	// Increment counter by 1
 	Increment(ctx context.Context) (*CounterState, error)
-	// Get current counter value
-	Get(ctx context.Context) (*CounterState, error)
 	// Decrement counter by 1
 	Decrement(ctx context.Context) (*CounterState, error)
+	// Get current counter value
+	Get(ctx context.Context) (*CounterState, error)
 	// Set counter to specific value
 	Set(ctx context.Context, request SetValueRequest) (*CounterState, error)
 }
