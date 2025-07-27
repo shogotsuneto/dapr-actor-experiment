@@ -6,7 +6,6 @@ package counter
 import (
 	"context"
 	"github.com/dapr/go-sdk/actor"
-	"github.com/shogotsuneto/dapr-actor-experiment/internal/shared"
 )
 
 // ActorTypeCounter is the Dapr actor type identifier for Counter
@@ -17,11 +16,11 @@ const ActorTypeCounter = "Counter"
 type CounterAPI interface {
 	actor.ServerContext
 	// Decrement counter by 1
-	Decrement(ctx context.Context) (*shared.CounterState, error)
+	Decrement(ctx context.Context) (*DecrementResponse, error)
 	// Get current counter value
-	Get(ctx context.Context) (*shared.CounterState, error)
+	Get(ctx context.Context) (*GetResponse, error)
 	// Increment counter by 1
-	Increment(ctx context.Context) (*shared.CounterState, error)
+	Increment(ctx context.Context) (*IncrementResponse, error)
 	// Set counter to specific value
-	Set(ctx context.Context, request SetValueRequest) (*shared.CounterState, error)
+	Set(ctx context.Context, request SetValueRequest) (*SetResponse, error)
 }

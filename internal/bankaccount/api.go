@@ -6,7 +6,6 @@ package bankaccount
 import (
 	"context"
 	"github.com/dapr/go-sdk/actor"
-	"github.com/shogotsuneto/dapr-actor-experiment/internal/shared"
 )
 
 // ActorTypeBankAccount is the Dapr actor type identifier for BankAccount
@@ -17,13 +16,13 @@ const ActorTypeBankAccount = "BankAccount"
 type BankAccountAPI interface {
 	actor.ServerContext
 	// Get current account balance
-	GetBalance(ctx context.Context) (*shared.BankAccountState, error)
+	GetBalance(ctx context.Context) (*GetBalanceResponse, error)
 	// Withdraw money from account
-	Withdraw(ctx context.Context, request WithdrawRequest) (*shared.BankAccountState, error)
+	Withdraw(ctx context.Context, request WithdrawRequest) (*WithdrawResponse, error)
 	// Get transaction history
-	GetHistory(ctx context.Context) (*shared.TransactionHistory, error)
+	GetHistory(ctx context.Context) (*GetHistoryResponse, error)
 	// Create new bank account
-	CreateAccount(ctx context.Context, request CreateAccountRequest) (*shared.BankAccountState, error)
+	CreateAccount(ctx context.Context, request CreateAccountRequest) (*CreateAccountResponse, error)
 	// Deposit money to account
-	Deposit(ctx context.Context, request DepositRequest) (*shared.BankAccountState, error)
+	Deposit(ctx context.Context, request DepositRequest) (*DepositResponse, error)
 }

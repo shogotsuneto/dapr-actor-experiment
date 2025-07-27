@@ -113,7 +113,7 @@ func (b *BankAccountActor) getCachedState() (*shared.BankAccountState, error) {
 	return b.cachedState, nil
 }
 
-func (b *BankAccountActor) CreateAccount(ctx context.Context, request CreateAccountRequest) (*shared.BankAccountState, error) {
+func (b *BankAccountActor) CreateAccount(ctx context.Context, request CreateAccountRequest) (*CreateAccountResponse, error) {
 	// Ensure state is loaded
 	if err := b.ensureStateLoaded(ctx); err != nil {
 		return nil, err
@@ -153,10 +153,10 @@ func (b *BankAccountActor) CreateAccount(ctx context.Context, request CreateAcco
 	}
 	b.accountExists = true
 	
-	return b.cachedState, nil
+	return &CreateAccountResponse{BankAccountState: *b.cachedState}, nil
 }
 
-func (b *BankAccountActor) Deposit(ctx context.Context, request DepositRequest) (*shared.BankAccountState, error) {
+func (b *BankAccountActor) Deposit(ctx context.Context, request DepositRequest) (*DepositResponse, error) {
 	// Validate request
 	if request.Amount <= 0 {
 		return nil, errors.New("deposit amount must be positive")
@@ -184,10 +184,10 @@ func (b *BankAccountActor) Deposit(ctx context.Context, request DepositRequest) 
 	// Update in-memory cached state for fast access
 	b.cachedState.Balance += request.Amount
 	
-	return b.cachedState, nil
+	return &DepositResponse{BankAccountState: *b.cachedState}, nil
 }
 
-func (b *BankAccountActor) Withdraw(ctx context.Context, request WithdrawRequest) (*shared.BankAccountState, error) {
+func (b *BankAccountActor) Withdraw(ctx context.Context, request WithdrawRequest) (*WithdrawResponse, error) {
 	// Validate request
 	if request.Amount <= 0 {
 		return nil, errors.New("withdrawal amount must be positive")
@@ -221,20 +221,25 @@ func (b *BankAccountActor) Withdraw(ctx context.Context, request WithdrawRequest
 	// Update in-memory cached state for fast access
 	b.cachedState.Balance -= request.Amount
 	
-	return b.cachedState, nil
+	return &WithdrawResponse{BankAccountState: *b.cachedState}, nil
 }
 
-func (b *BankAccountActor) GetBalance(ctx context.Context) (*shared.BankAccountState, error) {
+func (b *BankAccountActor) GetBalance(ctx context.Context) (*GetBalanceResponse, error) {
 	// Ensure state is loaded
 	if err := b.ensureStateLoaded(ctx); err != nil {
 		return nil, err
 	}
 	
 	// Return fast in-memory cached state
-	return b.getCachedState()
+	state, err := b.getCachedState()
+	if err != nil {
+		return nil, err
+	}
+	
+	return &GetBalanceResponse{BankAccountState: *state}, nil
 }
 
-func (b *BankAccountActor) GetHistory(ctx context.Context) (*shared.TransactionHistory, error) {
+func (b *BankAccountActor) GetHistory(ctx context.Context) (*GetHistoryResponse, error) {
 	// Ensure state is loaded and account exists
 	if err := b.ensureStateLoaded(ctx); err != nil {
 		return nil, err
@@ -261,9 +266,11 @@ func (b *BankAccountActor) GetHistory(ctx context.Context) (*shared.TransactionH
 		apiEvents = append(apiEvents, apiEvent)
 	}
 	
-	return &shared.TransactionHistory{
-		AccountId: b.ID(),
-		Events:    apiEvents,
+	return &GetHistoryResponse{
+		TransactionHistory: shared.TransactionHistory{
+			AccountId: b.ID(),
+			Events:    apiEvents,
+		},
 	}, nil
 }
 

@@ -3,8 +3,7 @@
 // Code generated from OpenAPI specification. DO NOT EDIT manually.
 package bankaccount
 
-
-
+import "github.com/shogotsuneto/dapr-actor-experiment/internal/shared"
 
 // WithdrawRequest Request to withdraw money
 type WithdrawRequest struct {
@@ -28,6 +27,31 @@ type DepositRequest struct {
 	Description string `json:"description"`
 	// Amount to deposit
 	Amount float64 `json:"amount"`
+}
+
+// GetBalanceResponse Response from get balance operation
+type GetBalanceResponse struct {
+	shared.BankAccountState
+}
+
+// WithdrawResponse Response from withdraw operation
+type WithdrawResponse struct {
+	shared.BankAccountState
+}
+
+// GetHistoryResponse Response from get history operation
+type GetHistoryResponse struct {
+	shared.TransactionHistory
+}
+
+// CreateAccountResponse Response from create account operation
+type CreateAccountResponse struct {
+	shared.BankAccountState
+}
+
+// DepositResponse Response from deposit operation
+type DepositResponse struct {
+	shared.BankAccountState
 }
 
 

@@ -23,7 +23,7 @@ func (c *CounterActor) Type() string {
 	return ActorTypeCounter
 }
 
-func (c *CounterActor) Increment(ctx context.Context) (*shared.CounterState, error) {
+func (c *CounterActor) Increment(ctx context.Context) (*IncrementResponse, error) {
 	state, err := c.getState(ctx)
 	if err != nil {
 		return nil, err
@@ -35,10 +35,10 @@ func (c *CounterActor) Increment(ctx context.Context) (*shared.CounterState, err
 		return nil, err
 	}
 	
-	return state, nil
+	return &IncrementResponse{CounterState: *state}, nil
 }
 
-func (c *CounterActor) Decrement(ctx context.Context) (*shared.CounterState, error) {
+func (c *CounterActor) Decrement(ctx context.Context) (*DecrementResponse, error) {
 	state, err := c.getState(ctx)
 	if err != nil {
 		return nil, err
@@ -50,19 +50,19 @@ func (c *CounterActor) Decrement(ctx context.Context) (*shared.CounterState, err
 		return nil, err
 	}
 	
-	return state, nil
+	return &DecrementResponse{CounterState: *state}, nil
 }
 
-func (c *CounterActor) Get(ctx context.Context) (*shared.CounterState, error) {
+func (c *CounterActor) Get(ctx context.Context) (*GetResponse, error) {
 	state, err := c.getState(ctx)
 	if err != nil {
 		return nil, err
 	}
 	
-	return state, nil
+	return &GetResponse{CounterState: *state}, nil
 }
 
-func (c *CounterActor) Set(ctx context.Context, request SetValueRequest) (*shared.CounterState, error) {
+func (c *CounterActor) Set(ctx context.Context, request SetValueRequest) (*SetResponse, error) {
 	if err := c.validateSetRequest(request); err != nil {
 		return nil, err
 	}
@@ -73,7 +73,7 @@ func (c *CounterActor) Set(ctx context.Context, request SetValueRequest) (*share
 		return nil, err
 	}
 	
-	return state, nil
+	return &SetResponse{CounterState: *state}, nil
 }
 
 func (c *CounterActor) getState(ctx context.Context) (*shared.CounterState, error) {
