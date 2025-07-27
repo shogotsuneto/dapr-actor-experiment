@@ -2,23 +2,59 @@
 
 This tool generates Go actor implementations from OpenAPI specifications for Dapr actors.
 
-## Architecture
+## Current Architecture
 
-The generator is now organized into separate, modular components:
+The generator creates a clear separation between shared domain concepts and actor-specific operation parameters:
+
+### Generated Package Structure
+
+```
+internal/
+├── shared/
+│   └── types.go          # Domain concepts (CounterState, BankAccountState, etc.)
+├── counter/
+│   ├── api.go           # Interface with response type returns
+│   ├── types.go         # Request types + Response wrappers  
+│   └── counter.go       # Implementation
+└── bankaccount/
+    ├── api.go           # Interface with response type returns
+    ├── types.go         # Request types + Response wrappers
+    └── bankaccount.go   # Implementation
+```
+
+### Type Organization Strategy
+
+**Shared Package** (`internal/shared/types.go`):
+- **State types**: Core data models (e.g., `CounterState`, `BankAccountState`)
+- **Event types**: Domain events (e.g., `AccountEvent`)
+- **History/aggregate types**: Computed views (e.g., `TransactionHistory`)
+- **Type aliases**: Reusable identifiers (e.g., `ActorId`)
+
+**Actor-Specific Packages** (`internal/{actor}/types.go`):
+- **Request types**: Operation parameters (e.g., `SetValueRequest`, `DepositRequest`)
+- **Response types**: Auto-generated wrappers that embed shared types (e.g., `GetResponse` embeds `shared.CounterState`)
+
+### Response Type Generation
+
+The generator automatically creates response types for each method:
+- Method `Get()` returns `*GetResponse` (embeds `shared.CounterState`)  
+- Method `Set()` returns `*SetResponse` (embeds `shared.CounterState`)
+- This provides clean API boundaries while maintaining indirect references to shared types
 
 ### Core Components
 
 1. **Parser (`parser.go`)** - Converts OpenAPI specifications to an intermediate model
 2. **Intermediate Model (`model.go`)** - Schema-agnostic data structures representing the target code structure  
-3. **Generator (`main.go`)** - Converts the intermediate model to Go code using templates
+3. **Generator (`main.go`)** - Converts the intermediate model to Go code using templates with automatic response type generation
 4. **Utilities (`utils.go`)** - Shared utility functions
 
-### Benefits of Separation
+### Benefits of Current Architecture
 
-- **Extensibility**: Easy to add support for other schema formats (JSON Schema, AsyncAPI, etc.) by implementing new parsers
+- **Clear separation**: Domain concepts in shared, operation parameters in actor packages
+- **Type safety**: Auto-generated response wrappers provide compile-time safety
+- **Maintainability**: Semantic-based organization makes type purpose immediately clear
+- **Extensibility**: Easy to add support for other schema formats by implementing new parsers
 - **Testability**: Each component can be tested independently
-- **Maintainability**: Clear separation of concerns between parsing, modeling, and code generation
-- **Reusability**: The intermediate model can be used by different generators for different target languages
 
 ## Usage
 
@@ -52,13 +88,13 @@ GenerationModel (Root) - Main container for all parsed data
 │       ├── InterfaceName: string - Generated interface name (e.g., "CounterActor")
 │       ├── InterfaceDesc: string - Actor description from OpenAPI
 │       ├── Types TypeDefinitions - Type definitions used ONLY by this actor
-│       │   ├── Structs []StructType - Go struct types to be generated
+│       │   ├── Structs []StructType - Request types + auto-generated response types
 │       │   │   └── StructType - Go struct type definition
-│       │   │       ├── Name: string - Struct name (e.g., "CounterState")
+│       │   │       ├── Name: string - Struct name (e.g., "SetValueRequest", "GetResponse")
 │       │   │       ├── Description: string - Documentation comment
 │       │   │       └── Fields: []Field - Struct fields
 │       │   │           └── Field - Individual struct field
-│       │   │               ├── Name: string - Field name
+│       │   │               ├── Name: string - Field name (embedded types use shared type)
 │       │   │               ├── Type: string - Go type (e.g., "int", "string")
 │       │   │               ├── JSONTag: string - JSON struct tag
 │       │   │               └── Comment: string - Field documentation
@@ -74,11 +110,12 @@ GenerationModel (Root) - Main container for all parsed data
 │               ├── Comment: string - Method documentation
 │               ├── HasRequest: bool - Whether method takes parameters
 │               ├── RequestType: string - Parameter type name
-│               └── ReturnType: string - Return type name
-└── SharedTypes TypeDefinitions - Type definitions used by MULTIPLE actors (generated in shared package)
-    ├── Structs []StructType - Same structure as above, but for shared types like "AccountEvent"
-    └── Aliases []TypeAlias - Same structure as above, but for shared aliases like "ActorId"
-```
+│               ├── ReturnType: string - Original return type from OpenAPI (fallback)
+│               ├── ResponseType: string - Generated response type name (preferred)
+│               └── EmbeddedType: string - Shared type that response embeds
+└── SharedTypes TypeDefinitions - Domain concepts used by multiple actors
+    ├── Structs []StructType - State, event, and aggregate types (e.g., "CounterState", "AccountEvent")
+    └── Aliases []TypeAlias - Shared identifiers (e.g., "ActorId")
 ```
 
 ### Key Distinctions
@@ -90,17 +127,22 @@ GenerationModel (Root) - Main container for all parsed data
 - Generated Go type alias = actual `type X = Y` code created from `TypeAlias` data
 
 **Actor-Specific vs Shared:**
-- **Actor-Specific Types**: Stored in `ActorInterface.Types`, generated in `internal/{actor}/types.go`
-- **Shared Types**: Stored in `GenerationModel.SharedTypes`, generated in `internal/shared/types.go`
+- **Actor-Specific Types**: Request parameters + response wrappers stored in `ActorInterface.Types`, generated in `internal/{actor}/types.go`
+- **Shared Types**: Domain concepts stored in `GenerationModel.SharedTypes`, generated in `internal/shared/types.go`
+
+**Return Type Strategy:**
+- **ReturnType**: Original type from OpenAPI spec (fallback for backward compatibility)
+- **ResponseType**: Auto-generated wrapper type name (preferred when available) 
+- **EmbeddedType**: The shared domain type that the response wrapper embeds
 
 **Template Data Structures:**
 ```
 Template Data Structures:
 ├── ActorModel (for individual actor generation)
-├── TypesTemplateData (for types.go files) - contains TypeDefinitions
+├── TypesTemplateData (for types.go files) - contains TypeDefinitions with response types
 ├── InterfaceTemplateData (for interface generation)
-├── SingleActorTemplateData (for single actor files)  
-└── SharedTypesTemplateData (for shared types package) - contains TypeDefinitions
+├── SingleActorTemplateData (for single actor files) - handles shared imports
+└── SharedTypesTemplateData (for shared types package) - contains domain TypeDefinitions
 ```
 
 ## Files
