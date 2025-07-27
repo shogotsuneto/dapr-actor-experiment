@@ -36,27 +36,35 @@ func (p *OpenAPIParser) Parse() (*GenerationModel, error) {
 	return model, nil
 }
 
-// parseAndCategorizeTypes extracts type definitions from OpenAPI components 
-// and assigns them to actors that use them
+// parseAndCategorizeTypes orchestrates the parsing, sorting, and categorization of types
 func (p *OpenAPIParser) parseAndCategorizeTypes(model *GenerationModel) error {
-	if p.doc.Components == nil || p.doc.Components.Schemas == nil {
-		return nil
+	// Parse all types from the OpenAPI spec
+	allTypes, err := p.parseTypes()
+	if err != nil {
+		return err
 	}
 
-	// First, parse all types from the OpenAPI spec
+	// Sort all types for consistent ordering
+	p.sortTypes(&allTypes)
+
+	// Categorize types based on usage by actors
+	return p.categorizeTypesIntoActors(model, allTypes)
+}
+
+// parseTypes extracts type definitions from OpenAPI components
+func (p *OpenAPIParser) parseTypes() (TypeDefinitions, error) {
 	var allStructs []StructType
 	var allAliases []TypeAlias
 
-	// Parse struct types and type aliases from schemas
-	// Sort schema names for consistent ordering
-	var schemaNames []string
-	for name := range p.doc.Components.Schemas {
-		schemaNames = append(schemaNames, name)
+	if p.doc.Components == nil || p.doc.Components.Schemas == nil {
+		return TypeDefinitions{
+			Structs: allStructs,
+			Aliases: allAliases,
+		}, nil
 	}
-	sort.Strings(schemaNames)
-	
-	for _, name := range schemaNames {
-		schemaRef := p.doc.Components.Schemas[name]
+
+	// Parse struct types and type aliases from schemas
+	for name, schemaRef := range p.doc.Components.Schemas {
 		schema := schemaRef.Value
 		
 		// Check if this should be a type alias (simple type without properties or with only basic properties)
@@ -73,15 +81,7 @@ func (p *OpenAPIParser) parseAndCategorizeTypes(model *GenerationModel) error {
 			// Generate struct type
 			fields := []Field{}
 			
-			// Sort property names for consistent field ordering
-			var propNames []string
-			for propName := range schema.Properties {
-				propNames = append(propNames, propName)
-			}
-			sort.Strings(propNames)
-			
-			for _, propName := range propNames {
-				propRef := schema.Properties[propName]
+			for propName, propRef := range schema.Properties {
 				prop := propRef.Value
 				
 				// Check if this property is a reference to another schema
@@ -149,20 +149,30 @@ func (p *OpenAPIParser) parseAndCategorizeTypes(model *GenerationModel) error {
 		}
 	}
 
-	// Sort all structs and aliases by name for consistent ordering
-	sort.Slice(allStructs, func(i, j int) bool {
-		return allStructs[i].Name < allStructs[j].Name
-	})
-	sort.Slice(allAliases, func(i, j int) bool {
-		return allAliases[i].Name < allAliases[j].Name
-	})
-
-	// Now categorize types based on usage by actors
-	allTypes := TypeDefinitions{
+	return TypeDefinitions{
 		Structs: allStructs,
 		Aliases: allAliases,
+	}, nil
+}
+
+// sortTypes handles all sorting logic for consistent ordering
+func (p *OpenAPIParser) sortTypes(types *TypeDefinitions) {
+	// Sort all structs by name
+	sort.Slice(types.Structs, func(i, j int) bool {
+		return types.Structs[i].Name < types.Structs[j].Name
+	})
+
+	// Sort fields within each struct by name
+	for i := range types.Structs {
+		sort.Slice(types.Structs[i].Fields, func(j, k int) bool {
+			return types.Structs[i].Fields[j].Name < types.Structs[i].Fields[k].Name
+		})
 	}
-	return p.categorizeTypesIntoActors(model, allTypes)
+
+	// Sort all aliases by name
+	sort.Slice(types.Aliases, func(i, j int) bool {
+		return types.Aliases[i].Name < types.Aliases[j].Name
+	})
 }
 
 // parseActors extracts actor interfaces and their methods from OpenAPI paths
