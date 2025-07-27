@@ -238,6 +238,9 @@ func (p *OpenAPIParser) extractMethodFromOperation(op *openapi3.Operation, httpM
 	// Extract return type from 200 response
 	if returnType := p.extractReturnType(op); returnType != "" {
 		method.ReturnType = returnType
+		method.EmbeddedType = returnType
+		// Generate response type name: capitalize method name + "Response"
+		method.ResponseType = methodName + "Response"
 	}
 
 	return method, nil

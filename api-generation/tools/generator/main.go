@@ -173,8 +173,31 @@ func (g *Generator) generateActorTypes(actorModel *ActorModel, outputDir string)
 	copy(processedTypes.Structs, actorModel.Types.Structs)
 	copy(processedTypes.Aliases, actorModel.Types.Aliases)
 	
+	// Generate response types for each method that has a return type
+	responseTypes := []StructType{}
+	for _, method := range actorModel.ActorInterface.Methods {
+		if method.ResponseType != "" && method.EmbeddedType != "" {
+			responseType := StructType{
+				Name:        method.ResponseType,
+				Description: fmt.Sprintf("Response from %s operation", strings.ToLower(method.Name)),
+				Fields: []Field{
+					{
+						Name:    "shared." + method.EmbeddedType,
+						Type:    "",  // This is an embedded type, no field name
+						JSONTag: "",  // Embedded types don't have JSON tags
+						Comment: "",  // No comment needed for embedded types
+					},
+				},
+			}
+			responseTypes = append(responseTypes, responseType)
+		}
+	}
+	
+	// Add response types to processed types
+	processedTypes.Structs = append(processedTypes.Structs, responseTypes...)
+	
 	// Check if any field types reference shared types (for import decision)
-	hasSharedTypeReferences := false
+	hasSharedTypeReferences := len(responseTypes) > 0 // If we have response types, we need shared import
 	// Note: In a more complete implementation, we would:
 	// 1. Check each field type to see if it references a shared type
 	// 2. Replace those references with "types.TypeName"
@@ -233,13 +256,18 @@ func (g *Generator) generateActorInterface(actorModel *ActorModel, outputDir str
 			}
 		}
 		
-		// Process return type (remove pointer prefix for analysis, but keep it in the final type)
-		returnType := strings.TrimPrefix(method.ReturnType, "*")
-		if returnType != "" && returnType != "interface{}" {
-			if g.isSharedType(returnType) {
-				sharedTypes[returnType] = true
-				needsSharedImport = true
-				processedMethod.ReturnType = "shared." + returnType
+		// Use response type if available, otherwise use the original return type
+		if method.ResponseType != "" {
+			processedMethod.ReturnType = method.ResponseType
+		} else {
+			// Process return type (remove pointer prefix for analysis, but keep it in the final type)
+			returnType := strings.TrimPrefix(method.ReturnType, "*")
+			if returnType != "" && returnType != "interface{}" {
+				if g.isSharedType(returnType) {
+					sharedTypes[returnType] = true
+					needsSharedImport = true
+					processedMethod.ReturnType = "shared." + returnType
+				}
 			}
 		}
 		

@@ -36,6 +36,10 @@ type Method struct {
 	HasRequest  bool
 	RequestType string
 	ReturnType  string
+	// Generated response type name (e.g., "GetResponse")
+	ResponseType string
+	// The underlying shared type that the response embeds (e.g., "CounterState")
+	EmbeddedType string
 }
 
 // ActorInterface represents an actor interface in the intermediate model

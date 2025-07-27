@@ -13,8 +13,12 @@ import (
 // {{.Name}} {{.Description}}
 type {{.Name}} struct {
 {{- range .Fields}}
+{{- if .Type}}
 	// {{.Comment}}
 	{{.Name}} {{.Type}} `json:"{{.JSONTag}}"`
+{{- else}}
+	{{.Name}}
+{{- end}}
 {{- end}}
 }
 {{end}}

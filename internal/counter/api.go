@@ -15,12 +15,12 @@ const ActorTypeCounter = "Counter"
 // This interface enforces compile-time schema compliance and includes actor.ServerContext for proper Dapr actor implementation.
 type CounterAPI interface {
 	actor.ServerContext
-	// Decrement counter by 1
-	Decrement(ctx context.Context) (*DecrementResponse, error)
 	// Get current counter value
 	Get(ctx context.Context) (*GetResponse, error)
-	// Increment counter by 1
-	Increment(ctx context.Context) (*IncrementResponse, error)
 	// Set counter to specific value
 	Set(ctx context.Context, request SetValueRequest) (*SetResponse, error)
+	// Decrement counter by 1
+	Decrement(ctx context.Context) (*DecrementResponse, error)
+	// Increment counter by 1
+	Increment(ctx context.Context) (*IncrementResponse, error)
 }

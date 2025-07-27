@@ -3,7 +3,12 @@
 // Code generated from OpenAPI specification. DO NOT EDIT manually.
 package counter
 
-import "github.com/shogotsuneto/dapr-actor-experiment/internal/shared"
+
+import (
+	"github.com/shogotsuneto/dapr-actor-experiment/internal/shared"
+)
+
+
 
 // SetValueRequest Request to set the counter to a specific value
 type SetValueRequest struct {
@@ -11,23 +16,23 @@ type SetValueRequest struct {
 	Value int32 `json:"value"`
 }
 
-// DecrementResponse Response from decrement operation
-type DecrementResponse struct {
-	shared.CounterState
-}
-
 // GetResponse Response from get operation
 type GetResponse struct {
 	shared.CounterState
 }
 
-// IncrementResponse Response from increment operation
-type IncrementResponse struct {
+// SetResponse Response from set operation
+type SetResponse struct {
 	shared.CounterState
 }
 
-// SetResponse Response from set operation
-type SetResponse struct {
+// DecrementResponse Response from decrement operation
+type DecrementResponse struct {
+	shared.CounterState
+}
+
+// IncrementResponse Response from increment operation
+type IncrementResponse struct {
 	shared.CounterState
 }
 
