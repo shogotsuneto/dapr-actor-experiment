@@ -75,11 +75,6 @@ GenerationModel (Root) - Main container for all parsed data
 │               ├── HasRequest: bool - Whether method takes parameters
 │               ├── RequestType: string - Parameter type name
 │               └── ReturnType: string - Return type name
-└── SharedTypes TypeDefinitions - DEPRECATED: No longer used
-```
-    ├── Structs []StructType - Same structure as above, but for shared types like "AccountEvent"
-    └── Aliases []TypeAlias - Same structure as above, but for shared aliases like "ActorId"
-```
 ```
 
 ### Key Distinctions
@@ -93,7 +88,7 @@ GenerationModel (Root) - Main container for all parsed data
 **Type Assignment:**
 - All types are now assigned directly to the actors that use them
 - Types used by multiple actors are duplicated in each actor's package
-- No shared types package is generated anymore
+- No shared types package is generated - types used by multiple actors are duplicated in each actor's package
 
 **Template Data Structures:**
 ```

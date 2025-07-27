@@ -27,7 +27,7 @@ func (p *OpenAPIParser) Parse() (*GenerationModel, error) {
 		return nil, fmt.Errorf("failed to parse actors: %v", err)
 	}
 
-	// Parse types and categorize them into shared vs actor-specific
+	// Parse types and assign them to actors that use them
 	if err := p.parseAndCategorizeTypes(model); err != nil {
 		return nil, fmt.Errorf("failed to parse and categorize types: %v", err)
 	}
@@ -36,7 +36,7 @@ func (p *OpenAPIParser) Parse() (*GenerationModel, error) {
 }
 
 // parseAndCategorizeTypes extracts type definitions from OpenAPI components 
-// and categorizes them into shared vs actor-specific types
+// and assigns them to actors that use them
 func (p *OpenAPIParser) parseAndCategorizeTypes(model *GenerationModel) error {
 	if p.doc.Components == nil || p.doc.Components.Schemas == nil {
 		return nil
@@ -355,7 +355,7 @@ func (p *OpenAPIParser) isCustomTypeInDefinitions(typeName string, types TypeDef
 }
 
 // categorizeTypesIntoActors analyzes types and assigns them directly to actors that use them
-// No shared types are generated anymore - each actor gets its own copy of types it uses
+// Each actor gets its own copy of types it uses
 func (p *OpenAPIParser) categorizeTypesIntoActors(model *GenerationModel, allTypes TypeDefinitions) error {
 	// Create a map to track which types are used by which actors
 	typeUsage := make(map[string]map[string]bool) // type -> actor -> used
@@ -428,11 +428,6 @@ func (p *OpenAPIParser) categorizeTypesIntoActors(model *GenerationModel, allTyp
 			Structs: []StructType{},
 			Aliases: []TypeAlias{},
 		}
-	}
-	// Initialize empty shared types (no longer used)
-	model.SharedTypes = TypeDefinitions{
-		Structs: []StructType{},
-		Aliases: []TypeAlias{},
 	}
 	
 	// Assign struct types directly to each actor that uses them

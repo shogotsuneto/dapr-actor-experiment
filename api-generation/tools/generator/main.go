@@ -121,11 +121,9 @@ func (g *Generator) generateActorTypes(actorModel *ActorModel, outputDir string)
 	data := struct {
 		PackageName string
 		Types       TypeDefinitions
-		SharedTypes bool // Always false now since we don't generate shared types
 	}{
 		PackageName: actorModel.PackageName,
 		Types:       processedTypes,
-		SharedTypes: false, // No shared types package to import
 	}
 
 	typesFile, err := os.Create(fmt.Sprintf("%s/types.go", outputDir))

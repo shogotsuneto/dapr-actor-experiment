@@ -50,7 +50,7 @@ func TestBasicActorParsing(t *testing.T) {
 		t.Error("Expected 'SetValue' method not found")
 	}
 
-	// Verify actor-specific types (should not be shared since only one actor)
+	// Verify actor-specific types (single actor gets all types it uses)
 	if len(actor.Types.Structs) < 2 {
 		t.Errorf("Expected at least 2 struct types for TestActor, got %d", len(actor.Types.Structs))
 	}
@@ -67,13 +67,9 @@ func TestBasicActorParsing(t *testing.T) {
 		t.Error("Expected 'SetValueRequest' type not found")
 	}
 
-	// Should have no shared types since only one actor
-	if len(model.SharedTypes.Structs) > 0 {
-		t.Errorf("Expected no shared types with single actor, got %d", len(model.SharedTypes.Structs))
-	}
 }
 
-func TestMultiActorWithoutSharedTypes(t *testing.T) {
+func TestMultiActorTypeDuplication(t *testing.T) {
 	// Load the multi-actor test OpenAPI spec
 	loader := openapi3.NewLoader()
 	doc, err := loader.LoadFromFile("testdata/multi-actor.yaml")
@@ -119,15 +115,7 @@ func TestMultiActorWithoutSharedTypes(t *testing.T) {
 		t.Errorf("Expected Calculator to have 3 methods, got %d", len(calcActor.Methods))
 	}
 
-	// Verify no shared types are generated (new behavior after removing shared types)
-	if len(model.SharedTypes.Structs) != 0 {
-		t.Errorf("Expected no shared types, got %d", len(model.SharedTypes.Structs))
-	}
-	if len(model.SharedTypes.Aliases) != 0 {
-		t.Errorf("Expected no shared type aliases, got %d", len(model.SharedTypes.Aliases))
-	}
-
-	// Verify that previously shared types are now duplicated in each actor that uses them
+	// Verify that types are duplicated in each actor that uses them
 	if hasCounter {
 		counterTypeNames := make(map[string]bool)
 		for _, structType := range counterActor.Types.Structs {
