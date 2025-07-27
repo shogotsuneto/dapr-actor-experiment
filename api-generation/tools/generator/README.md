@@ -110,8 +110,7 @@ GenerationModel (Root) - Main container for all parsed data
 │               ├── Comment: string - Method documentation
 │               ├── HasRequest: bool - Whether method takes parameters
 │               ├── RequestType: string - Parameter type name
-│               ├── ReturnType: string - Original return type from OpenAPI (fallback)
-│               ├── ResponseType: string - Generated response type name (preferred)
+│               ├── ResponseType: string - Generated response type name
 │               └── EmbeddedType: string - Shared type that response embeds
 └── SharedTypes TypeDefinitions - Domain concepts used by multiple actors
     ├── Structs []StructType - State, event, and aggregate types (e.g., "CounterState", "AccountEvent")
@@ -131,8 +130,7 @@ GenerationModel (Root) - Main container for all parsed data
 - **Shared Types**: Domain concepts stored in `GenerationModel.SharedTypes`, generated in `internal/shared/types.go`
 
 **Return Type Strategy:**
-- **ReturnType**: Original type from OpenAPI spec (fallback for backward compatibility)
-- **ResponseType**: Auto-generated wrapper type name (preferred when available) 
+- **ResponseType**: Auto-generated wrapper type name for all methods with return values
 - **EmbeddedType**: The shared domain type that the response wrapper embeds
 
 **Template Data Structures:**

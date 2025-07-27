@@ -256,19 +256,9 @@ func (g *Generator) generateActorInterface(actorModel *ActorModel, outputDir str
 			}
 		}
 		
-		// Use response type if available, otherwise use the original return type
+		// Use response type as return type
 		if method.ResponseType != "" {
-			processedMethod.ReturnType = method.ResponseType
-		} else {
-			// Process return type (remove pointer prefix for analysis, but keep it in the final type)
-			returnType := strings.TrimPrefix(method.ReturnType, "*")
-			if returnType != "" && returnType != "interface{}" {
-				if g.isSharedType(returnType) {
-					sharedTypes[returnType] = true
-					needsSharedImport = true
-					processedMethod.ReturnType = "shared." + returnType
-				}
-			}
+			processedMethod.ResponseType = method.ResponseType
 		}
 		
 		processedMethods[i] = processedMethod

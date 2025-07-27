@@ -223,7 +223,6 @@ func (p *OpenAPIParser) extractMethodFromOperation(op *openapi3.Operation, httpM
 		Name:       methodName,
 		Comment:    getOperationComment(op),
 		HasRequest: false,
-		ReturnType: "interface{}", // default return type
 	}
 
 	// Check if operation has request body
@@ -237,7 +236,6 @@ func (p *OpenAPIParser) extractMethodFromOperation(op *openapi3.Operation, httpM
 
 	// Extract return type from 200 response
 	if returnType := p.extractReturnType(op); returnType != "" {
-		method.ReturnType = returnType
 		method.EmbeddedType = returnType
 		// Generate response type name: capitalize method name + "Response"
 		method.ResponseType = methodName + "Response"
@@ -393,13 +391,15 @@ func (p *OpenAPIParser) categorizeTypesIntoActors(model *GenerationModel, allTyp
 					typeUsage[method.RequestType][actor.ActorType] = true
 				}
 			}
-			// Track return types (remove pointer/slice prefixes for analysis)
-			returnType := method.ReturnType
-			returnType = strings.TrimPrefix(returnType, "*")
-			returnType = strings.TrimPrefix(returnType, "[]")
-			if returnType != "interface{}" && returnType != "" {
-				if _, exists := typeUsage[returnType]; exists {
-					typeUsage[returnType][actor.ActorType] = true
+			// Track embedded types (the underlying shared types)
+			if method.EmbeddedType != "" {
+				returnType := method.EmbeddedType
+				returnType = strings.TrimPrefix(returnType, "*")
+				returnType = strings.TrimPrefix(returnType, "[]")
+				if returnType != "interface{}" && returnType != "" {
+					if _, exists := typeUsage[returnType]; exists {
+						typeUsage[returnType][actor.ActorType] = true
+					}
 				}
 			}
 		}

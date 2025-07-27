@@ -35,7 +35,6 @@ type Method struct {
 	Comment     string
 	HasRequest  bool
 	RequestType string
-	ReturnType  string
 	// Generated response type name (e.g., "GetResponse")
 	ResponseType string
 	// The underlying shared type that the response embeds (e.g., "CounterState")
