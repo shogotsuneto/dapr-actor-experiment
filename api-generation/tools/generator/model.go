@@ -53,7 +53,8 @@ type ActorInterface struct {
 type GenerationModel struct {
 	// Actors contains all actor interfaces with their methods and actor-specific types
 	Actors []ActorInterface
-	// SharedTypes contains types that should be generated in a shared package (used by multiple actors)
+	// SharedTypes is deprecated - no longer used as shared types are not generated anymore
+	// All types are now assigned directly to the actors that use them
 	SharedTypes TypeDefinitions
 }
 

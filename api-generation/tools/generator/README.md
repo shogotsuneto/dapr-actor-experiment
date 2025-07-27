@@ -51,7 +51,7 @@ GenerationModel (Root) - Main container for all parsed data
 │       ├── ActorType: string - Actor type name (e.g., "Counter")
 │       ├── InterfaceName: string - Generated interface name (e.g., "CounterActor")
 │       ├── InterfaceDesc: string - Actor description from OpenAPI
-│       ├── Types TypeDefinitions - Type definitions used ONLY by this actor
+│       ├── Types TypeDefinitions - Type definitions used by this actor
 │       │   ├── Structs []StructType - Go struct types to be generated
 │       │   │   └── StructType - Go struct type definition
 │       │   │       ├── Name: string - Struct name (e.g., "CounterState")
@@ -75,7 +75,8 @@ GenerationModel (Root) - Main container for all parsed data
 │               ├── HasRequest: bool - Whether method takes parameters
 │               ├── RequestType: string - Parameter type name
 │               └── ReturnType: string - Return type name
-└── SharedTypes TypeDefinitions - Type definitions used by MULTIPLE actors (generated in shared package)
+└── SharedTypes TypeDefinitions - DEPRECATED: No longer used
+```
     ├── Structs []StructType - Same structure as above, but for shared types like "AccountEvent"
     └── Aliases []TypeAlias - Same structure as above, but for shared aliases like "ActorId"
 ```
@@ -89,9 +90,10 @@ GenerationModel (Root) - Main container for all parsed data
 - `TypeAlias` struct = metadata describing a Go type alias to be generated  
 - Generated Go type alias = actual `type X = Y` code created from `TypeAlias` data
 
-**Actor-Specific vs Shared:**
-- **Actor-Specific Types**: Stored in `ActorInterface.Types`, generated in `internal/{actor}/types.go`
-- **Shared Types**: Stored in `GenerationModel.SharedTypes`, generated in `internal/shared/types.go`
+**Type Assignment:**
+- All types are now assigned directly to the actors that use them
+- Types used by multiple actors are duplicated in each actor's package
+- No shared types package is generated anymore
 
 **Template Data Structures:**
 ```
@@ -99,8 +101,7 @@ Template Data Structures:
 ├── ActorModel (for individual actor generation)
 ├── TypesTemplateData (for types.go files) - contains TypeDefinitions
 ├── InterfaceTemplateData (for interface generation)
-├── SingleActorTemplateData (for single actor files)  
-└── SharedTypesTemplateData (for shared types package) - contains TypeDefinitions
+└── SingleActorTemplateData (for single actor files)  
 ```
 
 ## Files
