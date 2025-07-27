@@ -10,14 +10,6 @@ import (
 
 
 
-// WithdrawRequest Request to withdraw money
-type WithdrawRequest struct {
-	// Amount to withdraw
-	Amount float64 `json:"amount"`
-	// Description of the withdrawal
-	Description string `json:"description"`
-}
-
 // CreateAccountRequest Request to create a new bank account
 type CreateAccountRequest struct {
 	// Initial deposit amount
@@ -28,19 +20,27 @@ type CreateAccountRequest struct {
 
 // DepositRequest Request to deposit money
 type DepositRequest struct {
-	// Amount to deposit
-	Amount float64 `json:"amount"`
 	// Description of the deposit
 	Description string `json:"description"`
+	// Amount to deposit
+	Amount float64 `json:"amount"`
+}
+
+// WithdrawRequest Request to withdraw money
+type WithdrawRequest struct {
+	// Amount to withdraw
+	Amount float64 `json:"amount"`
+	// Description of the withdrawal
+	Description string `json:"description"`
+}
+
+// GetHistoryResponse Response from gethistory operation
+type GetHistoryResponse struct {
+	shared.TransactionHistory
 }
 
 // CreateAccountResponse Response from createaccount operation
 type CreateAccountResponse struct {
-	shared.BankAccountState
-}
-
-// GetBalanceResponse Response from getbalance operation
-type GetBalanceResponse struct {
 	shared.BankAccountState
 }
 
@@ -49,13 +49,13 @@ type DepositResponse struct {
 	shared.BankAccountState
 }
 
-// GetHistoryResponse Response from gethistory operation
-type GetHistoryResponse struct {
-	shared.TransactionHistory
-}
-
 // WithdrawResponse Response from withdraw operation
 type WithdrawResponse struct {
+	shared.BankAccountState
+}
+
+// GetBalanceResponse Response from getbalance operation
+type GetBalanceResponse struct {
 	shared.BankAccountState
 }
 

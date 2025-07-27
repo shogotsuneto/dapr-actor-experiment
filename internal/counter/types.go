@@ -21,11 +21,6 @@ type GetResponse struct {
 	shared.CounterState
 }
 
-// SetResponse Response from set operation
-type SetResponse struct {
-	shared.CounterState
-}
-
 // DecrementResponse Response from decrement operation
 type DecrementResponse struct {
 	shared.CounterState
@@ -33,6 +28,11 @@ type DecrementResponse struct {
 
 // IncrementResponse Response from increment operation
 type IncrementResponse struct {
+	shared.CounterState
+}
+
+// SetResponse Response from set operation
+type SetResponse struct {
 	shared.CounterState
 }
 

@@ -92,10 +92,10 @@ GenerationModel (Root) - Main container for all parsed data
 │       │   │   └── StructType - Go struct type definition
 │       │   │       ├── Name: string - Struct name (e.g., "SetValueRequest", "GetResponse")
 │       │   │       ├── Description: string - Documentation comment
-│       │   │       └── Fields: []Field - Struct fields
+│       │   │       └── Fields: []Field - Struct fields (response types embed shared types)
 │       │   │           └── Field - Individual struct field
-│       │   │               ├── Name: string - Field name (embedded types use shared type)
-│       │   │               ├── Type: string - Go type (e.g., "int", "string")
+│       │   │               ├── Name: string - Field name (embedded types use shared type name)
+│       │   │               ├── Type: string - Go type (e.g., "int", "string", "shared.CounterState")
 │       │   │               ├── JSONTag: string - JSON struct tag
 │       │   │               └── Comment: string - Field documentation
 │       │   └── Aliases []TypeAlias - Go type aliases to be generated
@@ -130,8 +130,15 @@ GenerationModel (Root) - Main container for all parsed data
 - **Shared Types**: Domain concepts stored in `GenerationModel.SharedTypes`, generated in `internal/shared/types.go`
 
 **Return Type Strategy:**
-- **ResponseType**: Auto-generated wrapper type name for all methods with return values
-- **EmbeddedType**: The shared domain type that the response wrapper embeds
+- **ResponseType**: Auto-generated wrapper type name for all methods with return values (e.g., "GetResponse")
+- **EmbeddedType**: The shared domain type that the response wrapper embeds (e.g., "CounterState")
+- **Response Type Generation**: Each method's response type is generated as a struct that embeds the corresponding shared type:
+  ```go
+  // Generated in internal/{actor}/types.go
+  type GetResponse struct {
+      shared.CounterState  // Embedded shared type
+  }
+  ```
 
 **Template Data Structures:**
 ```

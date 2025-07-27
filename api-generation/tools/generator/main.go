@@ -293,7 +293,13 @@ func (g *Generator) generateActorInterface(actorModel *ActorModel, outputDir str
 func (g *Generator) generateActorFactory(actorModel *ActorModel, outputDir string) error {
 	// Load template from file
 	templatePath := getTemplatePath("factory.tmpl")
-	tmpl, err := template.ParseFiles(templatePath)
+	
+	// Create template with custom functions
+	funcMap := template.FuncMap{
+		"hasSuffix": strings.HasSuffix,
+	}
+	
+	tmpl, err := template.New(filepath.Base(templatePath)).Funcs(funcMap).ParseFiles(templatePath)
 	if err != nil {
 		return fmt.Errorf("failed to parse factory template: %v", err)
 	}

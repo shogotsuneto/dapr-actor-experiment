@@ -4,26 +4,6 @@
 package shared
 
 
-// TransactionHistory Complete transaction history (event sourcing benefit)
-type TransactionHistory struct {
-	// List of all events in chronological order
-	Events []interface{} `json:"events"`
-	// Account identifier
-	AccountId string `json:"accountId"`
-}
-
-// AccountEvent A single account event
-type AccountEvent struct {
-	// Event-specific data
-	Data map[string]interface{} `json:"data"`
-	// Unique event identifier
-	EventId string `json:"eventId"`
-	// Type of event
-	EventType string `json:"eventType"`
-	// When the event occurred
-	Timestamp string `json:"timestamp"`
-}
-
 // BankAccountState Current state of bank account (computed from events)
 type BankAccountState struct {
 	// Account owner name
@@ -42,6 +22,26 @@ type BankAccountState struct {
 type CounterState struct {
 	// The current counter value
 	Value int32 `json:"value"`
+}
+
+// TransactionHistory Complete transaction history (event sourcing benefit)
+type TransactionHistory struct {
+	// Account identifier
+	AccountId string `json:"accountId"`
+	// List of all events in chronological order
+	Events []interface{} `json:"events"`
+}
+
+// AccountEvent A single account event
+type AccountEvent struct {
+	// Event-specific data
+	Data map[string]interface{} `json:"data"`
+	// Unique event identifier
+	EventId string `json:"eventId"`
+	// Type of event
+	EventType string `json:"eventType"`
+	// When the event occurred
+	Timestamp string `json:"timestamp"`
 }
 
 

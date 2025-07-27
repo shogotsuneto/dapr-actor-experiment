@@ -13,8 +13,8 @@ import (
 // Usage: s.RegisterActorImplFactoryContext({{.PackageName}}.NewActorFactory())
 func NewActorFactory() func() actor.ServerContext {
 	return func() actor.ServerContext {
-		// Create a new {{.Actor.ActorType}}Actor instance
-		impl := &{{.Actor.ActorType}}Actor{}
+		// Create a new {{.Actor.ActorType}}{{if not (hasSuffix .Actor.ActorType "Actor")}}Actor{{end}} instance
+		impl := &{{.Actor.ActorType}}{{if not (hasSuffix .Actor.ActorType "Actor")}}Actor{{end}}{}
 		
 		// Compile-time check ensures the implementation satisfies the schema
 		var _ {{.Actor.InterfaceName}} = impl
