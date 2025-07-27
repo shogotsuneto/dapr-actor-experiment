@@ -175,10 +175,30 @@ func (p *OpenAPIParser) sortTypes(types *TypeDefinitions) {
 	})
 }
 
-// parseActors extracts actor interfaces and their methods from OpenAPI paths
+// parseActors orchestrates the parsing, building, sorting, and creation of actor interfaces
 func (p *OpenAPIParser) parseActors(model *GenerationModel) error {
-	// Group methods by actor type and track discovered actor types
-	actorMethodsMap := make(map[string][]Method)
+	// Extract operations grouped by actor type
+	actorOperations, err := p.extractActorOperations()
+	if err != nil {
+		return err
+	}
+
+	// Build methods from operations
+	actorMethods, err := p.buildActorMethods(actorOperations)
+	if err != nil {
+		return err
+	}
+
+	// Sort actors and methods for consistent ordering
+	p.sortActors(&actorMethods)
+
+	// Build final actor interfaces
+	return p.buildActorInterfaces(model, actorMethods)
+}
+
+// extractActorOperations extracts and groups operations by actor type from OpenAPI paths
+func (p *OpenAPIParser) extractActorOperations() (map[string][]ActorOperation, error) {
+	actorOperations := make(map[string][]ActorOperation)
 	discoveredActorTypes := make(map[string]bool)
 
 	for path, pathItem := range p.doc.Paths.Map() {
@@ -198,7 +218,6 @@ func (p *OpenAPIParser) parseActors(model *GenerationModel) error {
 
 			// Extract actor type from path pattern
 			actorType := p.extractActorTypeFromPath(path)
-
 			if actorType == "" {
 				continue // Skip operations without identifiable actor type
 			}
@@ -206,32 +225,64 @@ func (p *OpenAPIParser) parseActors(model *GenerationModel) error {
 			// Track discovered actor types
 			discoveredActorTypes[actorType] = true
 
-			// Extract method details
-			method, err := p.extractMethodFromOperation(op, httpMethod, path)
-			if err != nil {
-				return fmt.Errorf("failed to extract method from operation %s %s: %v", httpMethod, path, err)
-			}
-
-			actorMethodsMap[actorType] = append(actorMethodsMap[actorType], *method)
+			// Store operation for processing
+			actorOperations[actorType] = append(actorOperations[actorType], ActorOperation{
+				Operation:  op,
+				HTTPMethod: httpMethod,
+				Path:       path,
+			})
 		}
 	}
 
 	// Fail if no actor types found
 	if len(discoveredActorTypes) == 0 {
-		return fmt.Errorf("no actor types found in OpenAPI specification - paths must follow pattern: .../{actorType}/{actorId}/method/{methodName}")
+		return nil, fmt.Errorf("no actor types found in OpenAPI specification - paths must follow pattern: .../{actorType}/{actorId}/method/{methodName}")
 	}
 
-	// Create actor interfaces
-	for actorType := range discoveredActorTypes {
-		methods := actorMethodsMap[actorType]
-		if len(methods) == 0 {
-			continue // Skip actor types with no methods
+	return actorOperations, nil
+}
+
+// buildActorMethods builds method definitions from actor operations
+func (p *OpenAPIParser) buildActorMethods(actorOperations map[string][]ActorOperation) (map[string][]Method, error) {
+	actorMethods := make(map[string][]Method)
+
+	for actorType, operations := range actorOperations {
+		var methods []Method
+
+		for _, operation := range operations {
+			// Extract method details
+			method, err := p.extractMethodFromOperation(operation.Operation, operation.HTTPMethod, operation.Path)
+			if err != nil {
+				return nil, fmt.Errorf("failed to extract method from operation %s %s: %v", operation.HTTPMethod, operation.Path, err)
+			}
+
+			methods = append(methods, *method)
 		}
 
-		// Sort methods by name for consistent ordering
+		actorMethods[actorType] = methods
+	}
+
+	return actorMethods, nil
+}
+
+// sortActors handles all sorting logic for consistent ordering
+func (p *OpenAPIParser) sortActors(actorMethods *map[string][]Method) {
+	// Sort methods within each actor by name
+	for actorType := range *actorMethods {
+		methods := (*actorMethods)[actorType]
 		sort.Slice(methods, func(i, j int) bool {
 			return methods[i].Name < methods[j].Name
 		})
+		(*actorMethods)[actorType] = methods
+	}
+}
+
+// buildActorInterfaces creates the final ActorInterface structs
+func (p *OpenAPIParser) buildActorInterfaces(model *GenerationModel, actorMethods map[string][]Method) error {
+	for actorType, methods := range actorMethods {
+		if len(methods) == 0 {
+			continue // Skip actor types with no methods
+		}
 
 		interfaceName := actorType + "API"
 		interfaceDesc := fmt.Sprintf("defines the interface that must be implemented to satisfy the OpenAPI schema for %s", actorType)
