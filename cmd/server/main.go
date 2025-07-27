@@ -47,11 +47,11 @@ func main() {
 	// Create Dapr service
 	s := daprd.NewService(":8080")
 	
-	// Register CounterActor using generated factory with contract enforcement
+	// Register Counter using generated factory with contract enforcement
 	log.Printf("Registering %s with state-based pattern", counter.ActorTypeCounter)
 	s.RegisterActorImplFactoryContext(counter.NewActorFactory())
 	
-	// Register BankAccountActor using generated factory with contract enforcement
+	// Register BankAccount using generated factory with contract enforcement
 	log.Printf("Registering %s with event sourcing pattern", bankaccount.ActorTypeBankAccount)
 	s.RegisterActorImplFactoryContext(bankaccount.NewActorFactory())
 	

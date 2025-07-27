@@ -19,7 +19,7 @@ type AccountEvent struct {
 	Data      map[string]interface{} `json:"data"`
 }
 
-// BankAccountActor demonstrates event sourcing pattern with in-memory state caching.
+// BankAccount demonstrates event sourcing pattern with in-memory state caching.
 // This actor stores events for durability and audit trail, while maintaining fast access
 // through ephemeral in-memory state cache as long as the actor is activated.
 //
@@ -33,7 +33,7 @@ type AccountEvent struct {
 // COMPARISON WITH PURE EVENT SOURCING:
 // - Before: Every operation called getAllEvents() + computeStateFromEvents() = O(n) events read
 // - After: State loaded once, operations use cached state = O(1) access time
-type BankAccountActor struct {
+type BankAccount struct {
 	actor.ServerImplBaseCtx
 	
 	// Ephemeral in-memory state for fast access (cached from events)
@@ -76,7 +76,7 @@ type StoredEvent struct {
 	Data      interface{} `json:"data"`
 }
 
-func (b *BankAccountActor) Type() string {
+func (b *BankAccount) Type() string {
 	return ActorTypeBankAccount
 }
 
@@ -85,7 +85,7 @@ func (b *BankAccountActor) Type() string {
 // 
 // PERFORMANCE: This method implements lazy loading - state is computed from events
 // only once when the actor is first accessed, then cached for subsequent operations.
-func (b *BankAccountActor) ensureStateLoaded(ctx context.Context) error {
+func (b *BankAccount) ensureStateLoaded(ctx context.Context) error {
 	if b.stateLoaded {
 		return nil // State already loaded and cached - fast path!
 	}
@@ -112,14 +112,14 @@ func (b *BankAccountActor) ensureStateLoaded(ctx context.Context) error {
 
 // getCachedState returns the in-memory cached state for fast O(1) access.
 // This leverages the actor pattern's stateful nature for optimal performance.
-func (b *BankAccountActor) getCachedState() (*BankAccountState, error) {
+func (b *BankAccount) getCachedState() (*BankAccountState, error) {
 	if !b.accountExists {
 		return nil, errors.New("account does not exist - create account first")
 	}
 	return b.cachedState, nil
 }
 
-func (b *BankAccountActor) CreateAccount(ctx context.Context, request CreateAccountRequest) (*BankAccountState, error) {
+func (b *BankAccount) CreateAccount(ctx context.Context, request CreateAccountRequest) (*BankAccountState, error) {
 	// Ensure state is loaded
 	if err := b.ensureStateLoaded(ctx); err != nil {
 		return nil, err
@@ -162,7 +162,7 @@ func (b *BankAccountActor) CreateAccount(ctx context.Context, request CreateAcco
 	return b.cachedState, nil
 }
 
-func (b *BankAccountActor) Deposit(ctx context.Context, request DepositRequest) (*BankAccountState, error) {
+func (b *BankAccount) Deposit(ctx context.Context, request DepositRequest) (*BankAccountState, error) {
 	// Validate request
 	if request.Amount <= 0 {
 		return nil, errors.New("deposit amount must be positive")
@@ -193,7 +193,7 @@ func (b *BankAccountActor) Deposit(ctx context.Context, request DepositRequest) 
 	return b.cachedState, nil
 }
 
-func (b *BankAccountActor) Withdraw(ctx context.Context, request WithdrawRequest) (*BankAccountState, error) {
+func (b *BankAccount) Withdraw(ctx context.Context, request WithdrawRequest) (*BankAccountState, error) {
 	// Validate request
 	if request.Amount <= 0 {
 		return nil, errors.New("withdrawal amount must be positive")
@@ -230,7 +230,7 @@ func (b *BankAccountActor) Withdraw(ctx context.Context, request WithdrawRequest
 	return b.cachedState, nil
 }
 
-func (b *BankAccountActor) GetBalance(ctx context.Context) (*BankAccountState, error) {
+func (b *BankAccount) GetBalance(ctx context.Context) (*BankAccountState, error) {
 	// Ensure state is loaded
 	if err := b.ensureStateLoaded(ctx); err != nil {
 		return nil, err
@@ -240,7 +240,7 @@ func (b *BankAccountActor) GetBalance(ctx context.Context) (*BankAccountState, e
 	return b.getCachedState()
 }
 
-func (b *BankAccountActor) GetHistory(ctx context.Context) (*TransactionHistory, error) {
+func (b *BankAccount) GetHistory(ctx context.Context) (*TransactionHistory, error) {
 	// Ensure state is loaded and account exists
 	if err := b.ensureStateLoaded(ctx); err != nil {
 		return nil, err
@@ -275,7 +275,7 @@ func (b *BankAccountActor) GetHistory(ctx context.Context) (*TransactionHistory,
 
 // Event sourcing implementation details
 
-func (b *BankAccountActor) appendEvent(ctx context.Context, eventType string, eventData interface{}) error {
+func (b *BankAccount) appendEvent(ctx context.Context, eventType string, eventData interface{}) error {
 	event := StoredEvent{
 		EventID:   uuid.New().String(),
 		EventType: eventType,
@@ -297,7 +297,7 @@ func (b *BankAccountActor) appendEvent(ctx context.Context, eventType string, ev
 	return b.GetStateManager().Set(ctx, eventsKey, events)
 }
 
-func (b *BankAccountActor) getAllEvents(ctx context.Context) ([]StoredEvent, error) {
+func (b *BankAccount) getAllEvents(ctx context.Context) ([]StoredEvent, error) {
 	eventsKey := "events"
 	var events []StoredEvent
 	
@@ -318,7 +318,7 @@ func (b *BankAccountActor) getAllEvents(ctx context.Context) ([]StoredEvent, err
 	return events, nil
 }
 
-func (b *BankAccountActor) computeStateFromEvents(ctx context.Context) (*BankAccountState, error) {
+func (b *BankAccount) computeStateFromEvents(ctx context.Context) (*BankAccountState, error) {
 	events, err := b.getAllEvents(ctx)
 	if err != nil {
 		return nil, err
@@ -369,7 +369,7 @@ func (b *BankAccountActor) computeStateFromEvents(ctx context.Context) (*BankAcc
 	return state, nil
 }
 
-func (b *BankAccountActor) parseEventData(data interface{}, target interface{}) (interface{}, error) {
+func (b *BankAccount) parseEventData(data interface{}, target interface{}) (interface{}, error) {
 	// Convert to JSON and back to parse properly
 	jsonData, err := json.Marshal(data)
 	if err != nil {
@@ -384,7 +384,7 @@ func (b *BankAccountActor) parseEventData(data interface{}, target interface{}) 
 	return target, nil
 }
 
-func (b *BankAccountActor) convertEventDataToMap(data interface{}) map[string]interface{} {
+func (b *BankAccount) convertEventDataToMap(data interface{}) map[string]interface{} {
 	// Convert to JSON and back to get a map
 	jsonData, err := json.Marshal(data)
 	if err != nil {
