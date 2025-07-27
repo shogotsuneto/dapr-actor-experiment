@@ -20,7 +20,7 @@ func main() {
 	defer c.Close()
 
 	ctx := context.Background()
-	actorType := "CounterActor"
+	actorType := "Counter"
 	actorID := "counter-1"
 
 	log.Println("=== Dapr Actor Demo Client ===")

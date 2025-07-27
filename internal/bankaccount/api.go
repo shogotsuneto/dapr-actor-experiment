@@ -15,12 +15,12 @@ const ActorTypeBankAccount = "BankAccount"
 // This interface enforces compile-time schema compliance and includes actor.ServerContext for proper Dapr actor implementation.
 type BankAccountAPI interface {
 	actor.ServerContext
+	// Create new bank account
+	CreateAccount(ctx context.Context, request CreateAccountRequest) (*BankAccountState, error)
 	// Deposit money to account
 	Deposit(ctx context.Context, request DepositRequest) (*BankAccountState, error)
 	// Get current account balance
 	GetBalance(ctx context.Context) (*BankAccountState, error)
-	// Create new bank account
-	CreateAccount(ctx context.Context, request CreateAccountRequest) (*BankAccountState, error)
 	// Get transaction history
 	GetHistory(ctx context.Context) (*TransactionHistory, error)
 	// Withdraw money from account

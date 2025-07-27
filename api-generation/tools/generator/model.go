@@ -1,5 +1,7 @@
 package main
 
+import "github.com/getkin/kin-openapi/openapi3"
+
 // Field represents a struct field in the intermediate model
 type Field struct {
 	Name    string
@@ -36,6 +38,13 @@ type Method struct {
 	HasRequest  bool
 	RequestType string
 	ReturnType  string
+}
+
+// ActorOperation represents an OpenAPI operation grouped by actor type
+type ActorOperation struct {
+	Operation  *openapi3.Operation
+	HTTPMethod string
+	Path       string
 }
 
 // ActorInterface represents an actor interface in the intermediate model

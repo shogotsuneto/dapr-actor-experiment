@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"unicode"
 
@@ -35,16 +36,32 @@ func (p *OpenAPIParser) Parse() (*GenerationModel, error) {
 	return model, nil
 }
 
-// parseAndCategorizeTypes extracts type definitions from OpenAPI components 
-// and assigns them to actors that use them
+// parseAndCategorizeTypes orchestrates the parsing, sorting, and categorization of types
 func (p *OpenAPIParser) parseAndCategorizeTypes(model *GenerationModel) error {
-	if p.doc.Components == nil || p.doc.Components.Schemas == nil {
-		return nil
+	// Parse all types from the OpenAPI spec
+	allTypes, err := p.parseTypes()
+	if err != nil {
+		return err
 	}
 
-	// First, parse all types from the OpenAPI spec
+	// Sort all types for consistent ordering
+	p.sortTypes(&allTypes)
+
+	// Categorize types based on usage by actors
+	return p.categorizeTypesIntoActors(model, allTypes)
+}
+
+// parseTypes extracts type definitions from OpenAPI components
+func (p *OpenAPIParser) parseTypes() (TypeDefinitions, error) {
 	var allStructs []StructType
 	var allAliases []TypeAlias
+
+	if p.doc.Components == nil || p.doc.Components.Schemas == nil {
+		return TypeDefinitions{
+			Structs: allStructs,
+			Aliases: allAliases,
+		}, nil
+	}
 
 	// Parse struct types and type aliases from schemas
 	for name, schemaRef := range p.doc.Components.Schemas {
@@ -63,6 +80,7 @@ func (p *OpenAPIParser) parseAndCategorizeTypes(model *GenerationModel) error {
 		} else if schema.Type.Is("object") && schema.Properties != nil {
 			// Generate struct type
 			fields := []Field{}
+			
 			for propName, propRef := range schema.Properties {
 				prop := propRef.Value
 				
@@ -131,18 +149,56 @@ func (p *OpenAPIParser) parseAndCategorizeTypes(model *GenerationModel) error {
 		}
 	}
 
-	// Now categorize types based on usage by actors
-	allTypes := TypeDefinitions{
+	return TypeDefinitions{
 		Structs: allStructs,
 		Aliases: allAliases,
-	}
-	return p.categorizeTypesIntoActors(model, allTypes)
+	}, nil
 }
 
-// parseActors extracts actor interfaces and their methods from OpenAPI paths
+// sortTypes handles all sorting logic for consistent ordering
+func (p *OpenAPIParser) sortTypes(types *TypeDefinitions) {
+	// Sort all structs by name
+	sort.Slice(types.Structs, func(i, j int) bool {
+		return types.Structs[i].Name < types.Structs[j].Name
+	})
+
+	// Sort fields within each struct by name
+	for i := range types.Structs {
+		sort.Slice(types.Structs[i].Fields, func(j, k int) bool {
+			return types.Structs[i].Fields[j].Name < types.Structs[i].Fields[k].Name
+		})
+	}
+
+	// Sort all aliases by name
+	sort.Slice(types.Aliases, func(i, j int) bool {
+		return types.Aliases[i].Name < types.Aliases[j].Name
+	})
+}
+
+// parseActors orchestrates the parsing, building, sorting, and creation of actor interfaces
 func (p *OpenAPIParser) parseActors(model *GenerationModel) error {
-	// Group methods by actor type and track discovered actor types
-	actorMethodsMap := make(map[string][]Method)
+	// Extract operations grouped by actor type
+	actorOperations, err := p.extractActorOperations()
+	if err != nil {
+		return err
+	}
+
+	// Build methods from operations
+	actorMethods, err := p.buildActorMethods(actorOperations)
+	if err != nil {
+		return err
+	}
+
+	// Sort actors and methods for consistent ordering
+	p.sortActors(&actorMethods)
+
+	// Build final actor interfaces
+	return p.buildActorInterfaces(model, actorMethods)
+}
+
+// extractActorOperations extracts and groups operations by actor type from OpenAPI paths
+func (p *OpenAPIParser) extractActorOperations() (map[string][]ActorOperation, error) {
+	actorOperations := make(map[string][]ActorOperation)
 	discoveredActorTypes := make(map[string]bool)
 
 	for path, pathItem := range p.doc.Paths.Map() {
@@ -162,7 +218,6 @@ func (p *OpenAPIParser) parseActors(model *GenerationModel) error {
 
 			// Extract actor type from path pattern
 			actorType := p.extractActorTypeFromPath(path)
-
 			if actorType == "" {
 				continue // Skip operations without identifiable actor type
 			}
@@ -170,24 +225,61 @@ func (p *OpenAPIParser) parseActors(model *GenerationModel) error {
 			// Track discovered actor types
 			discoveredActorTypes[actorType] = true
 
-			// Extract method details
-			method, err := p.extractMethodFromOperation(op, httpMethod, path)
-			if err != nil {
-				return fmt.Errorf("failed to extract method from operation %s %s: %v", httpMethod, path, err)
-			}
-
-			actorMethodsMap[actorType] = append(actorMethodsMap[actorType], *method)
+			// Store operation for processing
+			actorOperations[actorType] = append(actorOperations[actorType], ActorOperation{
+				Operation:  op,
+				HTTPMethod: httpMethod,
+				Path:       path,
+			})
 		}
 	}
 
 	// Fail if no actor types found
 	if len(discoveredActorTypes) == 0 {
-		return fmt.Errorf("no actor types found in OpenAPI specification - paths must follow pattern: .../{actorType}/{actorId}/method/{methodName}")
+		return nil, fmt.Errorf("no actor types found in OpenAPI specification - paths must follow pattern: .../{actorType}/{actorId}/method/{methodName}")
 	}
 
-	// Create actor interfaces
-	for actorType := range discoveredActorTypes {
-		methods := actorMethodsMap[actorType]
+	return actorOperations, nil
+}
+
+// buildActorMethods builds method definitions from actor operations
+func (p *OpenAPIParser) buildActorMethods(actorOperations map[string][]ActorOperation) (map[string][]Method, error) {
+	actorMethods := make(map[string][]Method)
+
+	for actorType, operations := range actorOperations {
+		var methods []Method
+
+		for _, operation := range operations {
+			// Extract method details
+			method, err := p.extractMethodFromOperation(operation.Operation, operation.HTTPMethod, operation.Path)
+			if err != nil {
+				return nil, fmt.Errorf("failed to extract method from operation %s %s: %v", operation.HTTPMethod, operation.Path, err)
+			}
+
+			methods = append(methods, *method)
+		}
+
+		actorMethods[actorType] = methods
+	}
+
+	return actorMethods, nil
+}
+
+// sortActors handles all sorting logic for consistent ordering
+func (p *OpenAPIParser) sortActors(actorMethods *map[string][]Method) {
+	// Sort methods within each actor by name
+	for actorType := range *actorMethods {
+		methods := (*actorMethods)[actorType]
+		sort.Slice(methods, func(i, j int) bool {
+			return methods[i].Name < methods[j].Name
+		})
+		(*actorMethods)[actorType] = methods
+	}
+}
+
+// buildActorInterfaces creates the final ActorInterface structs
+func (p *OpenAPIParser) buildActorInterfaces(model *GenerationModel, actorMethods map[string][]Method) error {
+	for actorType, methods := range actorMethods {
 		if len(methods) == 0 {
 			continue // Skip actor types with no methods
 		}
@@ -202,6 +294,11 @@ func (p *OpenAPIParser) parseActors(model *GenerationModel) error {
 			Methods:       methods,
 		})
 	}
+
+	// Sort actors by type name for consistent ordering
+	sort.Slice(model.Actors, func(i, j int) bool {
+		return model.Actors[i].ActorType < model.Actors[j].ActorType
+	})
 
 	return nil
 }
@@ -460,6 +557,16 @@ func (p *OpenAPIParser) categorizeTypesIntoActors(model *GenerationModel, allTyp
 				}
 			}
 		}
+	}
+	
+	// Sort types within each actor for consistent ordering
+	for i := range model.Actors {
+		sort.Slice(model.Actors[i].Types.Structs, func(j, k int) bool {
+			return model.Actors[i].Types.Structs[j].Name < model.Actors[i].Types.Structs[k].Name
+		})
+		sort.Slice(model.Actors[i].Types.Aliases, func(j, k int) bool {
+			return model.Actors[i].Types.Aliases[j].Name < model.Actors[i].Types.Aliases[k].Name
+		})
 	}
 	
 	return nil
