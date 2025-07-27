@@ -4,8 +4,6 @@
 package counter
 
 
-
-
 // SetValueRequest Request to set the counter to a specific value
 type SetValueRequest struct {
 	// The value to set the counter to

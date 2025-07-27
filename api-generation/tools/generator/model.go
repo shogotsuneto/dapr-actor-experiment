@@ -53,8 +53,6 @@ type ActorInterface struct {
 type GenerationModel struct {
 	// Actors contains all actor interfaces with their methods and actor-specific types
 	Actors []ActorInterface
-	// SharedTypes contains types that should be generated in a shared package (used by multiple actors)
-	SharedTypes TypeDefinitions
 }
 
 // ActorModel represents a single actor's complete model for generation
@@ -81,10 +79,4 @@ type InterfaceTemplateData struct {
 type SingleActorTemplateData struct {
 	PackageName string
 	Actor       ActorInterface
-}
-
-// SharedTypesTemplateData represents data for shared types template generation
-type SharedTypesTemplateData struct {
-	PackageName string
-	SharedTypes TypeDefinitions
 }

@@ -27,7 +27,7 @@ func (p *OpenAPIParser) Parse() (*GenerationModel, error) {
 		return nil, fmt.Errorf("failed to parse actors: %v", err)
 	}
 
-	// Parse types and categorize them into shared vs actor-specific
+	// Parse types and assign them to actors that use them
 	if err := p.parseAndCategorizeTypes(model); err != nil {
 		return nil, fmt.Errorf("failed to parse and categorize types: %v", err)
 	}
@@ -36,7 +36,7 @@ func (p *OpenAPIParser) Parse() (*GenerationModel, error) {
 }
 
 // parseAndCategorizeTypes extracts type definitions from OpenAPI components 
-// and categorizes them into shared vs actor-specific types
+// and assigns them to actors that use them
 func (p *OpenAPIParser) parseAndCategorizeTypes(model *GenerationModel) error {
 	if p.doc.Components == nil || p.doc.Components.Schemas == nil {
 		return nil
@@ -354,7 +354,8 @@ func (p *OpenAPIParser) isCustomTypeInDefinitions(typeName string, types TypeDef
 	return false
 }
 
-// categorizeTypesIntoActors analyzes types and assigns them directly to actors or shared collections
+// categorizeTypesIntoActors analyzes types and assigns them directly to actors that use them
+// Each actor gets its own copy of types it uses
 func (p *OpenAPIParser) categorizeTypesIntoActors(model *GenerationModel, allTypes TypeDefinitions) error {
 	// Create a map to track which types are used by which actors
 	typeUsage := make(map[string]map[string]bool) // type -> actor -> used
@@ -389,7 +390,7 @@ func (p *OpenAPIParser) categorizeTypesIntoActors(model *GenerationModel, allTyp
 	}
 	
 	// Also analyze type dependencies - if a type references another type, 
-	// the referenced type should be shared if the referencing type is used by multiple actors
+	// the referenced type should also be included in actors that use the referencing type
 	typeDependencies := make(map[string][]string) // type -> []referenced_types
 	for _, structType := range allTypes.Structs {
 		for _, field := range structType.Fields {
@@ -428,58 +429,36 @@ func (p *OpenAPIParser) categorizeTypesIntoActors(model *GenerationModel, allTyp
 			Aliases: []TypeAlias{},
 		}
 	}
-	model.SharedTypes = TypeDefinitions{
-		Structs: []StructType{},
-		Aliases: []TypeAlias{},
-	}
 	
-	// Assign struct types to actors or shared collections
+	// Assign struct types directly to each actor that uses them
 	for _, structType := range allTypes.Structs {
 		usedByActors := typeUsage[structType.Name]
-		actorCount := len(usedByActors)
 		
-		if actorCount > 1 {
-			// Used by multiple actors - make it shared
-			model.SharedTypes.Structs = append(model.SharedTypes.Structs, structType)
-		} else if actorCount == 1 {
-			// Used by single actor - assign it directly to that actor
-			for actorType := range usedByActors {
-				// Find the actor and add the type to it
-				for i, actor := range model.Actors {
-					if actor.ActorType == actorType {
-						model.Actors[i].Types.Structs = append(model.Actors[i].Types.Structs, structType)
-						break
-					}
+		// Assign to each actor that uses this type
+		for actorType := range usedByActors {
+			// Find the actor and add the type to it
+			for i, actor := range model.Actors {
+				if actor.ActorType == actorType {
+					model.Actors[i].Types.Structs = append(model.Actors[i].Types.Structs, structType)
+					break
 				}
 			}
-		} else {
-			// Not used by any actor - default to shared for safety
-			model.SharedTypes.Structs = append(model.SharedTypes.Structs, structType)
 		}
 	}
 
-	// Assign type aliases to actors or shared collections
+	// Assign type aliases directly to each actor that uses them
 	for _, aliasType := range allTypes.Aliases {
 		usedByActors := typeUsage[aliasType.Name]
-		actorCount := len(usedByActors)
 		
-		if actorCount > 1 {
-			// Used by multiple actors - make it shared
-			model.SharedTypes.Aliases = append(model.SharedTypes.Aliases, aliasType)
-		} else if actorCount == 1 {
-			// Used by single actor - assign it directly to that actor
-			for actorType := range usedByActors {
-				// Find the actor and add the type to it
-				for i, actor := range model.Actors {
-					if actor.ActorType == actorType {
-						model.Actors[i].Types.Aliases = append(model.Actors[i].Types.Aliases, aliasType)
-						break
-					}
+		// Assign to each actor that uses this type
+		for actorType := range usedByActors {
+			// Find the actor and add the type to it
+			for i, actor := range model.Actors {
+				if actor.ActorType == actorType {
+					model.Actors[i].Types.Aliases = append(model.Actors[i].Types.Aliases, aliasType)
+					break
 				}
 			}
-		} else {
-			// Not used by any actor - type aliases are often reusable, default to shared
-			model.SharedTypes.Aliases = append(model.SharedTypes.Aliases, aliasType)
 		}
 	}
 	
