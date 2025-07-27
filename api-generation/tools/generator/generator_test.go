@@ -73,7 +73,7 @@ func TestBasicActorParsing(t *testing.T) {
 	}
 }
 
-func TestMultiActorWithSharedTypes(t *testing.T) {
+func TestMultiActorWithoutSharedTypes(t *testing.T) {
 	// Load the multi-actor test OpenAPI spec
 	loader := openapi3.NewLoader()
 	doc, err := loader.LoadFromFile("testdata/multi-actor.yaml")
@@ -119,30 +119,30 @@ func TestMultiActorWithSharedTypes(t *testing.T) {
 		t.Errorf("Expected Calculator to have 3 methods, got %d", len(calcActor.Methods))
 	}
 
-	// Verify shared types exist (OperationLog and LogMetadata should be shared)
-	if len(model.SharedTypes.Structs) < 2 {
-		t.Errorf("Expected at least 2 shared types, got %d", len(model.SharedTypes.Structs))
+	// Verify no shared types are generated (new behavior after removing shared types)
+	if len(model.SharedTypes.Structs) != 0 {
+		t.Errorf("Expected no shared types, got %d", len(model.SharedTypes.Structs))
+	}
+	if len(model.SharedTypes.Aliases) != 0 {
+		t.Errorf("Expected no shared type aliases, got %d", len(model.SharedTypes.Aliases))
 	}
 
-	sharedTypeNames := make(map[string]bool)
-	for _, structType := range model.SharedTypes.Structs {
-		sharedTypeNames[structType.Name] = true
-	}
-	if !sharedTypeNames["OperationLog"] {
-		t.Error("Expected shared type 'OperationLog' not found")
-	}
-	if !sharedTypeNames["LogMetadata"] {
-		t.Error("Expected shared type 'LogMetadata' not found")
-	}
-
-	// Verify actor-specific types
+	// Verify that previously shared types are now duplicated in each actor that uses them
 	if hasCounter {
 		counterTypeNames := make(map[string]bool)
 		for _, structType := range counterActor.Types.Structs {
 			counterTypeNames[structType.Name] = true
 		}
+		// CounterState should be actor-specific
 		if !counterTypeNames["CounterState"] {
 			t.Error("Expected CounterActor-specific type 'CounterState' not found")
+		}
+		// OperationLog and LogMetadata should now be duplicated in Counter actor
+		if !counterTypeNames["OperationLog"] {
+			t.Error("Expected type 'OperationLog' in Counter actor not found")
+		}
+		if !counterTypeNames["LogMetadata"] {
+			t.Error("Expected type 'LogMetadata' in Counter actor not found")
 		}
 	}
 
@@ -151,11 +151,19 @@ func TestMultiActorWithSharedTypes(t *testing.T) {
 		for _, structType := range calcActor.Types.Structs {
 			calcTypeNames[structType.Name] = true
 		}
+		// Calculator-specific types
 		if !calcTypeNames["MathOperation"] {
 			t.Error("Expected CalculatorActor-specific type 'MathOperation' not found")
 		}
 		if !calcTypeNames["OperationResult"] {
 			t.Error("Expected CalculatorActor-specific type 'OperationResult' not found")
+		}
+		// OperationLog and LogMetadata should now be duplicated in Calculator actor too
+		if !calcTypeNames["OperationLog"] {
+			t.Error("Expected type 'OperationLog' in Calculator actor not found")
+		}
+		if !calcTypeNames["LogMetadata"] {
+			t.Error("Expected type 'LogMetadata' in Calculator actor not found")
 		}
 	}
 }

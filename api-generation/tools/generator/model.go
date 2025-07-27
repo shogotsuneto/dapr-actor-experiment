@@ -82,9 +82,3 @@ type SingleActorTemplateData struct {
 	PackageName string
 	Actor       ActorInterface
 }
-
-// SharedTypesTemplateData represents data for shared types template generation
-type SharedTypesTemplateData struct {
-	PackageName string
-	SharedTypes TypeDefinitions
-}
