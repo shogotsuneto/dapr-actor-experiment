@@ -105,9 +105,14 @@ log_info ""
 case "$SCHEMA_TYPE" in
     "openapi")
         log_step "Generating OpenAPI code..."
-        check_tool "generator"
         
-        # Generate types and interface using consolidated generator
+        # Check if Docker is available
+        if ! command -v docker &> /dev/null; then
+            log_error "Docker is not installed. Please install Docker and try again."
+            exit 1
+        fi
+        
+        # Generate types and interface using external Docker generator
         log_info "Generating Go types and interface..."
         
         # Determine base output directory - should generate directly to internal/
@@ -118,7 +123,28 @@ case "$SCHEMA_TYPE" in
             BASE_OUTPUT_DIR="$API_GEN_DIR/internal"
         fi
         
-        "$BIN_DIR/generator" "$SCHEMA_PATH" "$BASE_OUTPUT_DIR"
+        # Get absolute paths
+        SCHEMA_PATH=$(realpath "$SCHEMA_PATH")
+        BASE_OUTPUT_DIR=$(realpath "$BASE_OUTPUT_DIR")
+        
+        # Find templates directory
+        TEMPLATES_DIR="$API_GEN_DIR/tools/generator/templates"
+        if [ ! -d "$TEMPLATES_DIR" ]; then
+            log_error "Templates directory not found at $TEMPLATES_DIR"
+            exit 1
+        fi
+        TEMPLATES_DIR=$(realpath "$TEMPLATES_DIR")
+        
+        # Create output directory if it doesn't exist
+        mkdir -p "$BASE_OUTPUT_DIR"
+        
+        # Run the Docker generator directly
+        docker run --rm -u root \
+            -v "$SCHEMA_PATH:/input.yaml" \
+            -v "$BASE_OUTPUT_DIR:/output" \
+            -v "$TEMPLATES_DIR:/root/templates" \
+            ghcr.io/shogotsuneto/dapr-actor-gen:v0.0.1 \
+            /input.yaml /output
         
         log_info "✓ OpenAPI code generated successfully"
         ;;

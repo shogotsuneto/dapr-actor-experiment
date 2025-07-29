@@ -1,117 +1,26 @@
-# OpenAPI to Dapr Actor Generator
+# Templates for External Dapr Actor Generator
 
-This tool generates Go actor implementations from OpenAPI specifications for Dapr actors.
+This directory contains the Go templates used by the external Docker-based Dapr actor generator (`ghcr.io/shogotsuneto/dapr-actor-gen:v0.0.1`).
 
-## Architecture
+## Templates
 
-The generator is now organized into separate, modular components:
+The following templates are mounted into the Docker container at `/root/templates/`:
 
-### Core Components
-
-1. **Parser (`parser.go`)** - Converts OpenAPI specifications to an intermediate model
-2. **Intermediate Model (`model.go`)** - Schema-agnostic data structures representing the target code structure  
-3. **Generator (`main.go`)** - Converts the intermediate model to Go code using templates
-4. **Utilities (`utils.go`)** - Shared utility functions
-
-### Benefits of Separation
-
-- **Extensibility**: Easy to add support for other schema formats (JSON Schema, AsyncAPI, etc.) by implementing new parsers
-- **Testability**: Each component can be tested independently
-- **Maintainability**: Clear separation of concerns between parsing, modeling, and code generation
-- **Reusability**: The intermediate model can be used by different generators for different target languages
+- `actor_types.tmpl` - Generates type definitions for each actor package
+- `factory.tmpl` - Generates actor factory functions
+- `interface.tmpl` - Generates actor interface definitions  
+- `types.tmpl` - Generates shared type definitions
 
 ## Usage
 
-```bash
-go build -o bin/generator .
-./bin/generator <openapi-file> <output-directory>
-```
+These templates are automatically used by the external Docker generator and do not need to be invoked directly. The generation scripts in `../scripts/` handle mounting these templates into the Docker container.
 
-Example:
-```bash
-./bin/generator ../../schemas/openapi/multi-actors.yaml ./generated
-```
+## Architecture
 
-## Architecture Diagram
+The external Docker generator:
+1. Reads OpenAPI specifications
+2. Parses them into an intermediate model
+3. Uses these templates to generate Go actor code
+4. Outputs organized actor packages to the specified directory
 
-```
-OpenAPI Spec → Parser → Intermediate Model → Generator → Go Code
-                ↓              ↓               ↓
-           parser.go      model.go        main.go + templates
-```
-
-## Model Organization
-
-The intermediate model (`model.go`) is organized in a hierarchical structure:
-
-```
-GenerationModel (Root) - Main container for all parsed data
-├── Actors []ActorInterface - Collection of actor definitions
-│   └── ActorInterface - Individual actor definition
-│       ├── ActorType: string - Actor type name (e.g., "Counter")
-│       ├── InterfaceName: string - Generated interface name (e.g., "CounterActor")
-│       ├── InterfaceDesc: string - Actor description from OpenAPI
-│       ├── Types TypeDefinitions - Type definitions used by this actor
-│       │   ├── Structs []StructType - Go struct types to be generated
-│       │   │   └── StructType - Go struct type definition
-│       │   │       ├── Name: string - Struct name (e.g., "CounterState")
-│       │   │       ├── Description: string - Documentation comment
-│       │   │       └── Fields: []Field - Struct fields
-│       │   │           └── Field - Individual struct field
-│       │   │               ├── Name: string - Field name
-│       │   │               ├── Type: string - Go type (e.g., "int", "string")
-│       │   │               ├── JSONTag: string - JSON struct tag
-│       │   │               └── Comment: string - Field documentation
-│       │   └── Aliases []TypeAlias - Go type aliases to be generated
-│       │       └── TypeAlias - Go type alias definition
-│       │           ├── Name: string - Alias name
-│       │           ├── Description: string - Documentation comment
-│       │           ├── AliasTarget: string - Underlying Go type
-│       │           └── OriginalName: string - Original OpenAPI name
-│       └── Methods: []Method - Actor method definitions
-│           └── Method - Individual actor method
-│               ├── Name: string - Method name
-│               ├── Comment: string - Method documentation
-│               ├── HasRequest: bool - Whether method takes parameters
-│               ├── RequestType: string - Parameter type name
-│               └── ReturnType: string - Return type name
-```
-
-### Key Distinctions
-
-**Data Structures vs Generated Code:**
-- `StructType` struct = metadata describing a Go struct to be generated
-- Generated Go struct = actual `.go` code created from `StructType` data
-- `TypeAlias` struct = metadata describing a Go type alias to be generated  
-- Generated Go type alias = actual `type X = Y` code created from `TypeAlias` data
-
-**Type Assignment:**
-- All types are now assigned directly to the actors that use them
-- Types used by multiple actors are duplicated in each actor's package
-- No shared types package is generated - types used by multiple actors are duplicated in each actor's package
-
-**Template Data Structures:**
-```
-Template Data Structures:
-├── ActorModel (for individual actor generation)
-├── TypesTemplateData (for types.go files) - contains TypeDefinitions
-├── InterfaceTemplateData (for interface generation)
-└── SingleActorTemplateData (for single actor files)  
-```
-
-## Files
-
-- `main.go` - Entry point and code generation logic using intermediate model
-- `parser.go` - OpenAPI parsing and conversion to intermediate model
-- `model.go` - Intermediate data structures independent of source schema format
-- `utils.go` - Shared utility functions for parsing and generation
-- `generator_test.go` - Tests for the separated architecture
-- `templates/` - Go templates for code generation
-
-## Testing
-
-Run tests to verify the parser and generator work correctly:
-
-```bash
-go test -v .
-```
+The internal Go-based generator has been removed in favor of the external Docker-based approach for consistency and reproducibility.

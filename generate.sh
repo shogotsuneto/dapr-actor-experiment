@@ -128,9 +128,15 @@ case "$COMMAND" in
             exit 1
         fi
         
-        # Ensure tools are installed
-        if [ ! -f "$SCRIPT_DIR/api-generation/tools/bin/generator" ]; then
-            log_warn "Generator not installed. Installing now..."
+        # Ensure Docker is available  
+        if ! command -v docker &> /dev/null; then
+            log_error "Docker is not installed. Please install Docker and try again."
+            exit 1
+        fi
+        
+        # Ensure Docker image is available
+        if ! docker image inspect ghcr.io/shogotsuneto/dapr-actor-gen:v0.0.1 >/dev/null 2>&1; then
+            log_warn "Docker generator image not found. Installing now..."
             cd "$SCRIPT_DIR/api-generation"
             ./tools/scripts/install.sh
             cd - > /dev/null
