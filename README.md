@@ -12,7 +12,7 @@ This project showcases:
 - **Multiple Actor Types**: Support for different actor patterns in a single application
 - **Counter Actor**: Simple state-based counter with increment, decrement, get, and set operations
 - **Bank Account Actor**: Event-sourced bank account demonstrating transaction history and audit trails
-- **JWT Authentication**: End-user JWT validation with JWKS for secure actor access
+- **JWT Authentication**: End-user JWT validation with JWKS using Dapr Bearer middleware for secure actor access
 - **Docker-Only Setup**: Simple deployment using Docker Compose, no Dapr CLI required
 
 ## Quick Start
@@ -142,34 +142,41 @@ See [Integration Tests README](test/integration/README.md) for detailed document
 
 ## Architecture
 
-### JWT-Protected Architecture (Default)
+### JWT-Protected Architecture (Dapr Bearer Middleware)
 
 ```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│                 │    │                 │    │                 │    │                 │
-│     Client      │───▶│   JWT Gateway   │───▶│  Dapr Sidecar   │───▶│  Actor Service  │
-│ [Bearer Token]  │    │ (Validates JWT) │    │   (HTTP API)    │    │ (Counter/Bank)  │
-└─────────────────┘    └─────────────────┘    └─────────────────┘    └─────────────────┘
-                                │                        │                        │
-                                ▼                        │                        │
-                       ┌─────────────────┐              │                        ▼
-                       │                 │              │             ┌─────────────────┐
-                       │   JWKS Server   │              │             │                 │
-                       │ (Validates Keys)│              │             │  State Manager  │
-                       └─────────────────┘              │             │                 │
-                                                        ▼             └─────────────────┘
-                                               ┌─────────────────┐             │
-                                               │                 │             │
-                                               │      Redis      │◀────────────┘
-                                               │  (State Store)  │
-                                               └─────────────────┘
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│                 │    │                 │    │                 │
+│     Client      │───▶│  Dapr Sidecar   │───▶│  Actor Service  │
+│ [Bearer Token]  │    │ (Bearer M/W +   │    │ (Counter/Bank)  │
+│                 │    │  HTTP API)      │    │                 │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+                                │                        │
+                                ▼                        │
+                       ┌─────────────────┐              │
+                       │                 │              │
+                       │   JWKS Server   │              │
+                       │ (Validates Keys)│              │
+                       └─────────────────┘              ▼
+                                                ┌─────────────────┐
+                                                │                 │
+                                                │  State Manager  │
+                                                │                 │
+                                                └─────────────────┘
+                                                         │
+                                                         │
+                                                ┌─────────────────┐
+                                                │                 │
+                                                │      Redis      │
+                                                │  (State Store)  │
+                                                └─────────────────┘
 ```
 
 **Key Features:**
-- 🔐 **JWT Validation**: Actor endpoints require valid JWT tokens
-- 🔑 **JWKS Integration**: Public keys from JWKS server validate token signatures  
-- ⚡ **Selective Protection**: Non-actor endpoints accessible without JWT
-- 🚫 **Automatic Rejection**: Invalid tokens return HTTP 401
+- 🔐 **JWT Validation**: Actor endpoints require valid JWT tokens via Dapr Bearer middleware
+- 🔑 **JWKS Integration**: Public keys from JWKS server validate token signatures using native Dapr integration
+- 🚀 **Native Dapr**: Uses Dapr's built-in Bearer middleware for production-ready JWT validation  
+- 🚫 **Automatic Rejection**: Invalid tokens return HTTP 401 via Dapr's middleware pipeline
 
 ## Features
 

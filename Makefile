@@ -10,8 +10,6 @@ build:
 	@go build -o bin/server ./cmd/server
 	@echo "Building client..."
 	@go build -o bin/client ./cmd/client
-	@echo "Building JWT gateway..."
-	@go build -o bin/jwt-gateway ./cmd/jwt-gateway
 
 # Clean build artifacts
 clean:
@@ -85,7 +83,7 @@ test-integration-docker:
 # Display help
 help:
 	@echo "Available targets:"
-	@echo "  build                   - Build server, client, and JWT gateway binaries"
+	@echo "  build                   - Build server and client binaries"
 	@echo "  clean                   - Remove build artifacts"
 	@echo "  generate                - Generate actor code from OpenAPI schema"
 	@echo "  generate-install        - Install code generation tools (Docker-based)"

@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	
-	"github.com/dapr/go-sdk/actor"
 )
 
 // JWTAwareCounter demonstrates how JWT information can be used within actors
