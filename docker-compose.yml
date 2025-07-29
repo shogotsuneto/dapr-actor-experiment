@@ -10,6 +10,25 @@
 # All services use health checks to ensure proper startup ordering.
 
 services:
+  # JWKS Mock Server for JWT validation
+  jwks-server:
+    image: golang:1.24-alpine
+    working_dir: /app
+    command: |
+      sh -c "
+        apk add --no-cache curl &&
+        curl -L -o jwks-mock-api https://github.com/shogotsuneto/jwks-mock-api/releases/download/v0.0.3/jwks-mock-api-v0.0.3-linux-amd64 &&
+        chmod +x jwks-mock-api &&
+        ./jwks-mock-api
+      "
+    ports:
+      - "3001:3000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   # Redis for state store
   redis:
     image: redis:7-alpine
@@ -52,7 +71,7 @@ services:
       "-app-id", "actor-service",
       "-app-port", "8080",
       "-app-channel-address", "actor-service",
-      "-dapr-http-port", "3500",
+      "-dapr-http-port", "3501", # Changed from 3500 to avoid conflict with JWT gateway
       "-dapr-grpc-port", "50001",
       "-placement-host-address", "placement:50006",
       "-resources-path", "/components",
@@ -63,7 +82,7 @@ services:
       - "./configs/dapr:/components"
       - "./configs/dapr:/config"
     ports:
-      - "3500:3500"
+      - "3501:3501" # Internal Dapr port
       - "50001:50001"
     depends_on:
       actor-service:
@@ -72,6 +91,25 @@ services:
         condition: service_healthy
       placement:
         condition: service_started
+
+  # JWT Gateway that validates JWTs and forwards to Dapr sidecar
+  jwt-gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile.jwt-gateway
+    ports:
+      - "3500:3500" # External port for clients (replaces direct Dapr access)
+    environment:
+      - PROXY_PORT=3500
+      - DAPR_ENDPOINT=http://actor-service-dapr:3501
+      - JWKS_URL=http://jwks-server:3000/.well-known/jwks.json
+      - JWT_ISSUER=http://localhost:3000
+      - JWT_AUDIENCE=dev-api
+    depends_on:
+      actor-service-dapr:
+        condition: service_started
+      jwks-server:
+        condition: service_healthy
 
   # Client application
   client:
