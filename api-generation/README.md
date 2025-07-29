@@ -69,8 +69,9 @@ Each actor type gets its own complete package containing:
 This functional organization provides better cohesion and reduced coupling compared to technical layer separation.
 
 ### Tool Installation Strategy
-Only currently implemented tools are installed:
-- ✅ **OpenAPI tools**: Custom generators based on `kin-openapi` (actively used and tested)
+The project now uses an external Docker-based generator for consistency and reproducibility:
+- ✅ **External Docker Generator**: Uses `ghcr.io/shogotsuneto/dapr-actor-gen:v0.0.1` for OpenAPI code generation
+- ✅ **Template Mounting**: Leverages existing templates from the project structure
 - ⏳ **Other tools**: Can be added when needed
 │## Quick Start
 
@@ -80,14 +81,16 @@ cd api-generation
 ./tools/scripts/install.sh
 ```
 
+This installs the external Docker-based generator `ghcr.io/shogotsuneto/dapr-actor-gen:v0.0.1` and creates a wrapper script.
+
 ### 2. Generate Code from Schema
 ```bash
 # Generate from OpenAPI (only currently supported format)
 ./tools/scripts/generate.sh openapi schemas/openapi/multi-actors.yaml
 
 # Generated code is organized by actor type:
-ls ../internal/counteractor/      # api.go factory.go types.go counter.go  
-ls ../internal/bankaccountactor/  # api.go factory.go types.go bankaccount.go
+ls ../internal/counter/      # api.go factory.go types.go counter.go  
+ls ../internal/bankaccount/  # api.go factory.go types.go bankaccount.go
 ```
 
 The generator directly creates actor-specific packages containing:

@@ -58,26 +58,68 @@ install_go_tool() {
     fi
 }
 
-# Install OpenAPI tools (currently used)
-log_info "Building custom OpenAPI code generation tools..."
+# Install OpenAPI tools (using external Docker generator)
+log_info "Setting up external Docker-based code generation tools..."
 
-# Build consolidated generator
-log_info "Building consolidated generator..."
+# Check if Docker is installed
+if ! command -v docker &> /dev/null; then
+    log_error "Docker is not installed. Please install Docker and try again."
+    exit 1
+fi
+
+# Pull the external generator Docker image
+log_info "Pulling external generator Docker image..."
+docker pull ghcr.io/shogotsuneto/dapr-actor-gen:v0.0.1
+
+# Create wrapper script for the Docker-based generator
+log_info "Creating Docker generator wrapper..."
+cat > "$BIN_DIR/generator" << 'EOF'
+#!/bin/bash
+# Docker wrapper for dapr-actor-gen
+# Usage: generator <openapi-file> <base-output-dir>
+
+if [ $# -ne 2 ]; then
+    echo "Usage: generator <openapi-file> <base-output-dir>" >&2
+    exit 1
+fi
+
+SCHEMA_FILE="$1"
+OUTPUT_DIR="$2"
+
+# Get absolute paths
+SCHEMA_FILE=$(realpath "$SCHEMA_FILE")
+OUTPUT_DIR=$(realpath "$OUTPUT_DIR")
+
+# Find templates directory (relative to the generator wrapper location)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR/../generator"
-go mod tidy
-go build -o "$BIN_DIR/generator" .
-cd - > /dev/null
-log_info "✓ generator built successfully"
+TEMPLATES_DIR="$SCRIPT_DIR/../generator/templates"
 
-# Check for external dependencies (if needed for future expansion)
+if [ ! -d "$TEMPLATES_DIR" ]; then
+    echo "Error: Templates directory not found at $TEMPLATES_DIR" >&2
+    exit 1
+fi
+
+TEMPLATES_DIR=$(realpath "$TEMPLATES_DIR")
+
+# Create output directory if it doesn't exist
+mkdir -p "$OUTPUT_DIR"
+
+# Run the Docker generator with mounted schema, output, and templates
+docker run --rm -u root \
+    -v "$SCHEMA_FILE:/input.yaml" \
+    -v "$OUTPUT_DIR:/output" \
+    -v "$TEMPLATES_DIR:/root/templates" \
+    ghcr.io/shogotsuneto/dapr-actor-gen:v0.0.1 \
+    /input.yaml /output
+EOF
+
+chmod +x "$BIN_DIR/generator"
+log_info "✓ Docker generator wrapper created successfully"
+
+# Check for external dependencies
 log_info "Checking external dependencies..."
 
-# Note: We use a consolidated generator based on kin-openapi for full control over code generation
-# Additional tools can be installed when needed:
-# - protoc (for Protocol Buffers)
-# - Additional schema validation tools
-log_info "ℹ️  Consolidated OpenAPI generator built (replaces separate types/interface generators)"
+log_info "ℹ️  External Docker-based generator configured (replaces internal generator)"
 
 # Create PATH export script
 PATH_SCRIPT="$TOOLS_DIR/scripts/setup-env.sh"

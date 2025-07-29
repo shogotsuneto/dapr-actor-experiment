@@ -76,6 +76,15 @@ The project includes a Makefile for common tasks:
 # Build all binaries
 make build
 
+# Generate actor code from OpenAPI schema
+make generate
+
+# Install code generation tools (Docker-based)
+make generate-install
+
+# Clean generated code (preserves implementations)  
+make generate-clean
+
 # Run all tests (unit + integration)
 make test
 
@@ -259,13 +268,25 @@ curl http://localhost:8080/status
 
 ### API Schema Generation (Advanced)
 
-For schema-first development with code generation:
+For schema-first development with code generation using the external Docker-based generator:
 
 ```bash
-# Generate types and interfaces from OpenAPI schema
+# Easy way: Use the standalone script
+./generate.sh                    # Generate with defaults
+./generate.sh install            # Install Docker-based tools
+./generate.sh clean              # Clean generated files
+
+# Or use Makefile targets
+make generate                    # Generate actor code
+make generate-install           # Install generation tools
+make generate-clean             # Clean generated code
+
+# Or use the generation scripts directly
 cd api-generation && ./tools/scripts/install.sh
 ./tools/scripts/generate.sh openapi schemas/openapi/multi-actors.yaml
 ```
+
+The generation now uses the external Docker image `ghcr.io/shogotsuneto/dapr-actor-gen:v0.0.1` for consistent, reproducible code generation.
 
 See **[API Generation README](api-generation/README.md)** for comprehensive documentation.
 

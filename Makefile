@@ -1,4 +1,4 @@
-.PHONY: build clean test test-unit test-integration test-integration-quick test-integration-docker help
+.PHONY: build clean test test-unit test-integration test-integration-quick test-integration-docker generate generate-install generate-clean help
 
 # Default target
 all: build
@@ -15,6 +15,23 @@ build:
 clean:
 	@echo "Cleaning build artifacts..."
 	@rm -rf bin/
+
+# Generate actor code from OpenAPI schema
+generate:
+	@echo "Generating actor code from OpenAPI schema..."
+	@cd api-generation && ./tools/scripts/generate.sh openapi schemas/openapi/multi-actors.yaml
+
+# Install code generation tools
+generate-install:
+	@echo "Installing code generation tools..."
+	@cd api-generation && ./tools/scripts/install.sh
+
+# Clean generated code
+generate-clean:
+	@echo "Cleaning generated actor code..."
+	@rm -rf internal/counter/types.go internal/counter/api.go internal/counter/factory.go
+	@rm -rf internal/bankaccount/types.go internal/bankaccount/api.go internal/bankaccount/factory.go
+	@echo "✓ Generated code cleaned (implementation files preserved)"
 
 # Run all tests
 test: test-unit test-integration
@@ -59,6 +76,9 @@ help:
 	@echo "Available targets:"
 	@echo "  build                   - Build server and client binaries"
 	@echo "  clean                   - Remove build artifacts"
+	@echo "  generate                - Generate actor code from OpenAPI schema"
+	@echo "  generate-install        - Install code generation tools (Docker-based)"
+	@echo "  generate-clean          - Clean generated actor code (preserves implementations)"
 	@echo "  test                    - Run all tests (unit + integration)"
 	@echo "  test-unit               - Run unit tests only"
 	@echo "  test-integration        - Run integration tests (starts/stops Docker services)"
