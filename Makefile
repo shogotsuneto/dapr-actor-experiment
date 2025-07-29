@@ -1,4 +1,4 @@
-.PHONY: build clean test test-unit test-integration test-integration-quick test-integration-docker help
+.PHONY: build clean test test-unit test-integration test-integration-quick test-integration-docker generate generate-install generate-clean help
 
 # Default target
 all: build
@@ -15,6 +15,32 @@ build:
 clean:
 	@echo "Cleaning build artifacts..."
 	@rm -rf bin/
+
+# Generate actor code from OpenAPI schema
+generate:
+	@echo "Generating actor code from OpenAPI schema..."
+	@echo "Schema file: schemas/openapi/multi-actors.yaml"
+	@echo "Output directory: internal/"
+	@docker run --rm -u root \
+		-v "$(PWD)/schemas/openapi/multi-actors.yaml:/input.yaml" \
+		-v "$(PWD)/internal:/output" \
+		ghcr.io/shogotsuneto/dapr-actor-gen:v0.0.2 \
+		/input.yaml /output
+	@echo "✓ Actor code generation completed successfully!"
+
+# Install code generation tools
+generate-install:
+	@echo "Installing code generation tools..."
+	@echo "Pulling external generator Docker image..."
+	@docker pull ghcr.io/shogotsuneto/dapr-actor-gen:v0.0.2
+	@echo "✓ Installation complete!"
+
+# Clean generated code
+generate-clean:
+	@echo "Cleaning generated actor code..."
+	@rm -rf internal/counter/types.go internal/counter/api.go internal/counter/factory.go
+	@rm -rf internal/bankaccount/types.go internal/bankaccount/api.go internal/bankaccount/factory.go
+	@echo "✓ Generated code cleaned (implementation files preserved)"
 
 # Run all tests
 test: test-unit test-integration
@@ -59,6 +85,9 @@ help:
 	@echo "Available targets:"
 	@echo "  build                   - Build server and client binaries"
 	@echo "  clean                   - Remove build artifacts"
+	@echo "  generate                - Generate actor code from OpenAPI schema"
+	@echo "  generate-install        - Install code generation tools (Docker-based)"
+	@echo "  generate-clean          - Clean generated actor code (preserves implementations)"
 	@echo "  test                    - Run all tests (unit + integration)"
 	@echo "  test-unit               - Run unit tests only"
 	@echo "  test-integration        - Run integration tests (starts/stops Docker services)"

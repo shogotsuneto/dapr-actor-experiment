@@ -76,6 +76,15 @@ The project includes a Makefile for common tasks:
 # Build all binaries
 make build
 
+# Generate actor code from OpenAPI schema
+make generate
+
+# Install code generation tools (Docker-based)
+make generate-install
+
+# Clean generated code (preserves implementations)  
+make generate-clean
+
 # Run all tests (unit + integration)
 make test
 
@@ -114,13 +123,13 @@ See [Integration Tests README](test/integration/README.md) for detailed document
 ## Project Structure
 
 ```
-├── api-generation/             # Schema-First Development Framework
 ├── cmd/                       # Main applications
 │   ├── server/               # Actor service application
 │   └── client/               # Demo client application
 ├── internal/                  # Private application code
-│   ├── actor/                # Actor implementations
-│   └── generated/            # Generated code from API schemas
+│   ├── counter/              # Counter actor implementation and generated code
+│   └── bankaccount/          # Bank account actor implementation and generated code
+├── schemas/openapi/          # OpenAPI schemas for code generation
 ├── configs/dapr/             # Dapr components and configuration
 ├── scripts/                  # Build and deployment scripts
 ├── docs/                     # Additional documentation
@@ -259,15 +268,16 @@ curl http://localhost:8080/status
 
 ### API Schema Generation (Advanced)
 
-For schema-first development with code generation:
+For schema-first development with code generation using the external Docker-based generator:
 
 ```bash
-# Generate types and interfaces from OpenAPI schema
-cd api-generation && ./tools/scripts/install.sh
-./tools/scripts/generate.sh openapi schemas/openapi/multi-actors.yaml
+# Use Makefile targets
+make generate                    # Generate actor code
+make generate-install           # Install generation tools
+make generate-clean             # Clean generated code
 ```
 
-See **[API Generation README](api-generation/README.md)** for comprehensive documentation.
+The generation now uses the external Docker image `ghcr.io/shogotsuneto/dapr-actor-gen:v0.0.2` for consistent, reproducible code generation.
 
 ### For Local Development
 
