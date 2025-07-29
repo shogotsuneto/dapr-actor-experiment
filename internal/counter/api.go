@@ -23,4 +23,9 @@ type CounterAPI interface {
 	Increment(ctx context.Context) (*CounterState, error)
 	// Set counter to specific value
 	Set(ctx context.Context, request SetValueRequest) (*CounterState, error)
+	
+	// JWT-aware methods for demonstrating user access
+	// These methods accept userID to show how JWT subject can be passed to actors
+	GetWithUser(ctx context.Context, userID string) (*CounterState, error)
+	IncrementWithUser(ctx context.Context, userID string) (*CounterState, error)
 }
