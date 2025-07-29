@@ -1,0 +1,12 @@
+apiVersion: dapr.io/v1alpha1
+kind: Configuration
+metadata:
+  name: dapr-config-bearer
+spec:
+  httpPipeline:
+    handlers:
+    - name: bearer-middleware
+      type: middleware.http.bearer
+  accessControl:
+    defaultAction: allow
+    trustDomain: "public"
