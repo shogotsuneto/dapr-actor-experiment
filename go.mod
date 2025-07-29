@@ -3,9 +3,7 @@ module github.com/shogotsuneto/dapr-actor-experiment
 go 1.24.4
 
 require (
-	github.com/MicahParks/keyfunc/v2 v2.1.0
 	github.com/dapr/go-sdk v1.12.0
-	github.com/golang-jwt/jwt/v5 v5.2.3
 	github.com/google/uuid v1.6.0
 	github.com/stretchr/testify v1.10.0
 )

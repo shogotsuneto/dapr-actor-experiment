@@ -1,11 +1,10 @@
-# Docker Compose configuration for Dapr Actor Demo with Bearer Middleware
+# Docker Compose configuration for Dapr Actor Demo
 #
-# This file uses Dapr's built-in Bearer middleware for JWT validation instead of a custom gateway.
-# JWT validation is handled natively by Dapr using the Bearer middleware component.
-#
-# Usage:
-# - Default mode: docker compose up -d
-# - Client mode: docker compose --profile client up -d
+# This file provides two modes of operation:
+# 1. Default mode: Runs only the actor service with Redis and Dapr sidecar
+#    Usage: docker compose up -d
+# 2. Client mode: Additionally runs the client application with its own Dapr sidecar
+#    Usage: docker compose --profile client up -d
 #
 # The actor service builds from source code, so no pre-compilation is needed.
 # All services use health checks to ensure proper startup ordering.
@@ -69,7 +68,7 @@ services:
       timeout: 10s
       retries: 3
 
-  # Dapr sidecar with Bearer middleware for JWT validation
+  # Dapr sidecar for actor service  
   actor-service-dapr:
     image: daprio/daprd:1.14.4
     command: [
@@ -88,7 +87,7 @@ services:
       - "./components:/components"
       - "./configs:/config"
     ports:
-      - "3500:3500" # HTTP API with Bearer middleware
+      - "3500:3500"
       - "50001:50001"
     depends_on:
       actor-service:

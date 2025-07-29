@@ -94,6 +94,3 @@ help:
 	@echo "  test-integration-quick  - Run integration tests (assumes services running)"
 	@echo "  test-integration-docker - Run integration tests inside Docker container"
 	@echo "  help                    - Show this help message"
-	@echo ""
-	@echo "JWT Validation:"
-	@echo "  ./scripts/test-jwt-validation.sh - Test JWT authentication functionality"
