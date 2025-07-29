@@ -127,23 +127,14 @@ case "$SCHEMA_TYPE" in
         SCHEMA_PATH=$(realpath "$SCHEMA_PATH")
         BASE_OUTPUT_DIR=$(realpath "$BASE_OUTPUT_DIR")
         
-        # Find templates directory
-        TEMPLATES_DIR="$API_GEN_DIR/tools/generator/templates"
-        if [ ! -d "$TEMPLATES_DIR" ]; then
-            log_error "Templates directory not found at $TEMPLATES_DIR"
-            exit 1
-        fi
-        TEMPLATES_DIR=$(realpath "$TEMPLATES_DIR")
-        
         # Create output directory if it doesn't exist
         mkdir -p "$BASE_OUTPUT_DIR"
         
-        # Run the Docker generator directly
+        # Run the Docker generator directly (v0.0.2 has embedded templates)
         docker run --rm -u root \
             -v "$SCHEMA_PATH:/input.yaml" \
             -v "$BASE_OUTPUT_DIR:/output" \
-            -v "$TEMPLATES_DIR:/root/templates" \
-            ghcr.io/shogotsuneto/dapr-actor-gen:v0.0.1 \
+            ghcr.io/shogotsuneto/dapr-actor-gen:v0.0.2 \
             /input.yaml /output
         
         log_info "✓ OpenAPI code generated successfully"

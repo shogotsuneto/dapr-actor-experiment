@@ -29,7 +29,7 @@ fi
 
 # Pull the external generator Docker image
 log_info "Pulling external generator Docker image..."
-docker pull ghcr.io/shogotsuneto/dapr-actor-gen:v0.0.1
+docker pull ghcr.io/shogotsuneto/dapr-actor-gen:v0.0.2
 
 log_info "✓ External Docker-based generator configured"
 log_info "✓ Installation complete!"

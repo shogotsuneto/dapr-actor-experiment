@@ -135,7 +135,7 @@ case "$COMMAND" in
         fi
         
         # Ensure Docker image is available
-        if ! docker image inspect ghcr.io/shogotsuneto/dapr-actor-gen:v0.0.1 >/dev/null 2>&1; then
+        if ! docker image inspect ghcr.io/shogotsuneto/dapr-actor-gen:v0.0.2 >/dev/null 2>&1; then
             log_warn "Docker generator image not found. Installing now..."
             cd "$SCRIPT_DIR/api-generation"
             ./tools/scripts/install.sh
