@@ -12,15 +12,7 @@
 services:
   # JWKS Mock Server for JWT validation
   jwks-server:
-    image: golang:1.24-alpine
-    working_dir: /app
-    command: |
-      sh -c "
-        apk add --no-cache curl &&
-        curl -L -o jwks-mock-api https://github.com/shogotsuneto/jwks-mock-api/releases/download/v0.0.3/jwks-mock-api-v0.0.3-linux-amd64 &&
-        chmod +x jwks-mock-api &&
-        ./jwks-mock-api
-      "
+    image: ghcr.io/shogotsuneto/jwks-mock-api:latest
     ports:
       - "3001:3000"
     healthcheck:
