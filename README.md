@@ -123,13 +123,13 @@ See [Integration Tests README](test/integration/README.md) for detailed document
 ## Project Structure
 
 ```
-├── api-generation/             # Schema-First Development Framework
 ├── cmd/                       # Main applications
 │   ├── server/               # Actor service application
 │   └── client/               # Demo client application
 ├── internal/                  # Private application code
-│   ├── actor/                # Actor implementations
-│   └── generated/            # Generated code from API schemas
+│   ├── counter/              # Counter actor implementation and generated code
+│   └── bankaccount/          # Bank account actor implementation and generated code
+├── schemas/openapi/          # OpenAPI schemas for code generation
 ├── configs/dapr/             # Dapr components and configuration
 ├── scripts/                  # Build and deployment scripts
 ├── docs/                     # Additional documentation
@@ -271,24 +271,13 @@ curl http://localhost:8080/status
 For schema-first development with code generation using the external Docker-based generator:
 
 ```bash
-# Easy way: Use the standalone script
-./generate.sh                    # Generate with defaults
-./generate.sh install            # Install Docker-based tools
-./generate.sh clean              # Clean generated files
-
-# Or use Makefile targets
+# Use Makefile targets
 make generate                    # Generate actor code
 make generate-install           # Install generation tools
 make generate-clean             # Clean generated code
-
-# Or use the generation scripts directly
-cd api-generation && ./tools/scripts/install.sh
-./tools/scripts/generate.sh openapi schemas/openapi/multi-actors.yaml
 ```
 
-The generation now uses the external Docker image `ghcr.io/shogotsuneto/dapr-actor-gen:v0.0.1` for consistent, reproducible code generation.
-
-See **[API Generation README](api-generation/README.md)** for comprehensive documentation.
+The generation now uses the external Docker image `ghcr.io/shogotsuneto/dapr-actor-gen:v0.0.2` for consistent, reproducible code generation.
 
 ### For Local Development
 
