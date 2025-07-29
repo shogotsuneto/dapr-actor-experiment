@@ -85,7 +85,7 @@ test-integration-docker:
 # Display help
 help:
 	@echo "Available targets:"
-	@echo "  build                   - Build server and client binaries"
+	@echo "  build                   - Build server, client, and JWT gateway binaries"
 	@echo "  clean                   - Remove build artifacts"
 	@echo "  generate                - Generate actor code from OpenAPI schema"
 	@echo "  generate-install        - Install code generation tools (Docker-based)"
@@ -96,3 +96,6 @@ help:
 	@echo "  test-integration-quick  - Run integration tests (assumes services running)"
 	@echo "  test-integration-docker - Run integration tests inside Docker container"
 	@echo "  help                    - Show this help message"
+	@echo ""
+	@echo "JWT Validation:"
+	@echo "  ./scripts/test-jwt-validation.sh - Test JWT authentication functionality"

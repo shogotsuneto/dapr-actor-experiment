@@ -12,6 +12,7 @@ This project showcases:
 - **Multiple Actor Types**: Support for different actor patterns in a single application
 - **Counter Actor**: Simple state-based counter with increment, decrement, get, and set operations
 - **Bank Account Actor**: Event-sourced bank account demonstrating transaction history and audit trails
+- **JWT Authentication**: End-user JWT validation with JWKS for secure actor access
 - **Docker-Only Setup**: Simple deployment using Docker Compose, no Dapr CLI required
 
 ## Quick Start
@@ -59,6 +60,9 @@ docker compose up -d
 
 # Test the service  
 ./scripts/test-multi-actors.sh
+
+# Test JWT validation
+./scripts/test-jwt-validation.sh
 
 # Or test individual actor types:
 # ./scripts/test-counter-actor.sh  
@@ -138,21 +142,34 @@ See [Integration Tests README](test/integration/README.md) for detailed document
 
 ## Architecture
 
+### JWT-Protected Architecture (Default)
+
 ```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│                 │    │                 │    │                 │
-│     Client      │───▶│  Dapr Sidecar   │───▶│  Actor Service  │
-│                 │    │   (HTTP API)    │    │   (CounterActor)│
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-                                │                        │
-                                │                        │
-                                ▼                        ▼
-                       ┌─────────────────┐    ┌─────────────────┐
-                       │                 │    │                 │
-                       │      Redis      │◀───│  State Manager  │
-                       │  (State Store)  │    │                 │
-                       └─────────────────┘    └─────────────────┘
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│                 │    │                 │    │                 │    │                 │
+│     Client      │───▶│   JWT Gateway   │───▶│  Dapr Sidecar   │───▶│  Actor Service  │
+│ [Bearer Token]  │    │ (Validates JWT) │    │   (HTTP API)    │    │ (Counter/Bank)  │
+└─────────────────┘    └─────────────────┘    └─────────────────┘    └─────────────────┘
+                                │                        │                        │
+                                ▼                        │                        │
+                       ┌─────────────────┐              │                        ▼
+                       │                 │              │             ┌─────────────────┐
+                       │   JWKS Server   │              │             │                 │
+                       │ (Validates Keys)│              │             │  State Manager  │
+                       └─────────────────┘              │             │                 │
+                                                        ▼             └─────────────────┘
+                                               ┌─────────────────┐             │
+                                               │                 │             │
+                                               │      Redis      │◀────────────┘
+                                               │  (State Store)  │
+                                               └─────────────────┘
 ```
+
+**Key Features:**
+- 🔐 **JWT Validation**: Actor endpoints require valid JWT tokens
+- 🔑 **JWKS Integration**: Public keys from JWKS server validate token signatures  
+- ⚡ **Selective Protection**: Non-actor endpoints accessible without JWT
+- 🚫 **Automatic Rejection**: Invalid tokens return HTTP 401
 
 ## Features
 
@@ -172,52 +189,84 @@ See [Integration Tests README](test/integration/README.md) for detailed document
 
 ## Manual Testing
 
-### Using curl
+### Using curl with JWT Authentication
 
-Once the server is running, you can test the actor directly:
+**Important**: Actor endpoints now require JWT authentication. Generate a token first:
+
+```bash
+# Generate JWT token
+TOKEN_RESPONSE=$(curl -X POST http://localhost:3001/generate-token \
+  -H "Content-Type: application/json" \
+  -d '{"claims": {"sub": "user123", "role": "admin"}, "expiresIn": 3600}')
+
+# Extract token
+TOKEN=$(echo "$TOKEN_RESPONSE" | grep -o '"token":"[^"]*"' | cut -d'"' -f4)
+```
+
+Once you have a token, test the actors:
 
 ```bash
 # Get current counter value
-curl http://localhost:3500/v1.0/actors/CounterActor/counter-1/method/get
+curl -H "Authorization: Bearer $TOKEN" \
+     http://localhost:3500/v1.0/actors/CounterActor/counter-1/method/get
 
 # Increment counter
-curl -X POST http://localhost:3500/v1.0/actors/CounterActor/counter-1/method/increment
+curl -X POST -H "Authorization: Bearer $TOKEN" \
+     http://localhost:3500/v1.0/actors/CounterActor/counter-1/method/increment
 
 # Decrement counter  
-curl -X POST http://localhost:3500/v1.0/actors/CounterActor/counter-1/method/decrement
+curl -X POST -H "Authorization: Bearer $TOKEN" \
+     http://localhost:3500/v1.0/actors/CounterActor/counter-1/method/decrement
 
 # Set counter to specific value
-curl -X POST http://localhost:3500/v1.0/actors/CounterActor/counter-1/method/set \
-  -H "Content-Type: application/json" \
-  -d '{"value": 42}'
+curl -X POST -H "Authorization: Bearer $TOKEN" \
+     -H "Content-Type: application/json" \
+     -d '{"value": 42}' \
+     http://localhost:3500/v1.0/actors/CounterActor/counter-1/method/set
 
 # Test different actor instance
-curl http://localhost:3500/v1.0/actors/CounterActor/counter-2/method/get
+curl -H "Authorization: Bearer $TOKEN" \
+     http://localhost:3500/v1.0/actors/CounterActor/counter-2/method/get
+```
+
+### Testing Without JWT (Should Fail)
+
+```bash
+# This will return HTTP 401 Unauthorized
+curl http://localhost:3500/v1.0/actors/CounterActor/counter-1/method/get
+# Response: {"error":"Unauthorized: authorization header not found"}
 ```
 
 ### Testing BankAccountActor (Event-Sourced)
 
+**Note**: All actor endpoints require JWT authentication. Use the `$TOKEN` from above.
+
 ```bash
 # Create bank account
-curl -X POST http://localhost:3500/v1.0/actors/BankAccountActor/account-123/method/createAccount \
+curl -X POST -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"ownerName": "John Doe", "initialDeposit": 1000.0}'
+  -d '{"ownerName": "John Doe", "initialDeposit": 1000.0}' \
+  http://localhost:3500/v1.0/actors/BankAccountActor/account-123/method/createAccount
 
 # Deposit money
-curl -X POST http://localhost:3500/v1.0/actors/BankAccountActor/account-123/method/deposit \
+curl -X POST -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"amount": 250.0, "description": "Salary deposit"}'
+  -d '{"amount": 250.0, "description": "Salary deposit"}' \
+  http://localhost:3500/v1.0/actors/BankAccountActor/account-123/method/deposit
 
 # Withdraw money
-curl -X POST http://localhost:3500/v1.0/actors/BankAccountActor/account-123/method/withdraw \
+curl -X POST -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"amount": 50.0, "description": "ATM withdrawal"}'
+  -d '{"amount": 50.0, "description": "ATM withdrawal"}' \
+  http://localhost:3500/v1.0/actors/BankAccountActor/account-123/method/withdraw
 
 # Get current balance
-curl http://localhost:3500/v1.0/actors/BankAccountActor/account-123/method/getBalance
+curl -H "Authorization: Bearer $TOKEN" \
+     http://localhost:3500/v1.0/actors/BankAccountActor/account-123/method/getBalance
 
 # Get transaction history (shows event sourcing power!)
-curl http://localhost:3500/v1.0/actors/BankAccountActor/account-123/method/getHistory
+curl -H "Authorization: Bearer $TOKEN" \
+     http://localhost:3500/v1.0/actors/BankAccountActor/account-123/method/getHistory
 ```
 
 ### Automated Testing
@@ -378,12 +427,14 @@ docker compose logs -f redis
 This repository includes detailed documentation on various aspects of Dapr actors:
 
 ### Architecture and Concepts
+- **[JWT Validation](docs/jwt-validation.md)** - Complete guide to JWT authentication with JWKS integration
 - **[Multiple Actors](docs/multiple-actors.md)** - Complete guide to multiple actor types, state-based vs event-sourced patterns
 - **[Client vs Curl](docs/client-vs-curl.md)** - Understand the difference between using the Go client (Dapr SDK) vs direct HTTP calls with curl
 - **[Event Sourcing](docs/event-sourcing.md)** - Learn whether this implementation uses event sourcing and understand the state-based approach
 - **[Akka Comparison](docs/akka-comparison.md)** - Compare Dapr actors with Akka actors, including mailbox concepts and architectural differences
 
 ### Key Insights
+- **JWT Authentication**: Actor endpoints are now protected with JWT validation using JWKS. See [JWT Validation documentation](docs/jwt-validation.md) for complete setup and usage.
 - **Multiple Actor Types**: This implementation now supports both state-based (CounterActor) and event-sourced (BankAccountActor) patterns. See [Multiple Actors documentation](docs/multiple-actors.md) for details.
 - **Event Sourcing vs State-Based**: CounterActor uses state-based persistence while BankAccountActor demonstrates full event sourcing with audit trails.
 - **How does it compare to Akka?** Both implement the actor model but serve different use cases. See [Akka Comparison](docs/akka-comparison.md) for a detailed analysis.
