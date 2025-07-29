@@ -19,12 +19,21 @@ clean:
 # Generate actor code from OpenAPI schema
 generate:
 	@echo "Generating actor code from OpenAPI schema..."
-	@cd api-generation && ./tools/scripts/generate.sh openapi schemas/openapi/multi-actors.yaml
+	@echo "Schema file: schemas/openapi/multi-actors.yaml"
+	@echo "Output directory: internal/"
+	@docker run --rm -u root \
+		-v "$(PWD)/schemas/openapi/multi-actors.yaml:/input.yaml" \
+		-v "$(PWD)/internal:/output" \
+		ghcr.io/shogotsuneto/dapr-actor-gen:v0.0.2 \
+		/input.yaml /output
+	@echo "✓ Actor code generation completed successfully!"
 
 # Install code generation tools
 generate-install:
 	@echo "Installing code generation tools..."
-	@cd api-generation && ./tools/scripts/install.sh
+	@echo "Pulling external generator Docker image..."
+	@docker pull ghcr.io/shogotsuneto/dapr-actor-gen:v0.0.2
+	@echo "✓ Installation complete!"
 
 # Clean generated code
 generate-clean:
