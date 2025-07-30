@@ -42,8 +42,3 @@ func NewDefaultTestGenerator() *TokenGenerator {
 	return NewTokenGenerator(generateURL)
 }
 
-// Legacy constants for backward compatibility (no longer used)
-const (
-	DefaultTestSecret = "deprecated-use-jwks-api"
-	DefaultTestIssuer = "deprecated-use-jwks-api"
-)

@@ -243,9 +243,6 @@ func TestJWTMiddlewareConfig(t *testing.T) {
 		RequiredIssuer:   "http://localhost:3000",
 		RequiredAudience: "test-audience",
 		SkipPaths:        []string{"/health", "/status"},
-		// Deprecated fields should be ignored
-		SecretKey:     []byte("deprecated"),
-		AllowInsecure: true,
 	}
 
 	if config.IntrospectURL != "http://localhost:3000/introspect" {

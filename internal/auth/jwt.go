@@ -49,11 +49,6 @@ type JWTMiddlewareConfig struct {
 	
 	// SkipPaths are paths that should skip JWT validation
 	SkipPaths []string
-	
-	// Deprecated fields (kept for backward compatibility but ignored)
-	SecretKey     []byte      `json:"-"`
-	PublicKey     interface{} `json:"-"`
-	AllowInsecure bool        `json:"-"`
 }
 
 // JWTMiddleware creates HTTP middleware that validates JWT tokens using OAuth 2.0 introspection
