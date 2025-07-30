@@ -3,17 +3,27 @@ package main
 import (
 	"fmt"
 	"log"
+	"os"
 	"time"
 
 	"github.com/shogotsuneto/dapr-actor-experiment/internal/auth"
 )
 
 func main() {
-	// Create token generator
-	generator := auth.NewDefaultTestGenerator()
-	
-	fmt.Println("=== JWT Token Generator for Testing ===")
+	fmt.Println("=== JWT Token Generator for Testing (using JWKS Mock API) ===")
 	fmt.Println()
+
+	// Check if JWKS URL is configured
+	generateURL := os.Getenv("JWKS_GENERATE_URL")
+	if generateURL == "" {
+		generateURL = "http://localhost:3000/generate-token"
+	}
+
+	fmt.Printf("Using JWKS Mock API at: %s\n", generateURL)
+	fmt.Println()
+
+	// Create token generator that uses JWKS API
+	generator := auth.NewDefaultTestGenerator()
 	
 	// Generate tokens for different users and scenarios
 	
@@ -26,7 +36,8 @@ func main() {
 		1*time.Hour,
 	)
 	if err != nil {
-		log.Fatalf("Failed to generate admin token: %v", err)
+		log.Printf("Warning: Failed to generate admin token (ensure JWKS Mock API is running): %v", err)
+		adminToken = "PLACEHOLDER_ADMIN_TOKEN"
 	}
 	
 	// 2. Regular user token
@@ -38,7 +49,8 @@ func main() {
 		1*time.Hour,
 	)
 	if err != nil {
-		log.Fatalf("Failed to generate user token: %v", err)
+		log.Printf("Warning: Failed to generate user token (ensure JWKS Mock API is running): %v", err)
+		userToken = "PLACEHOLDER_USER_TOKEN"
 	}
 	
 	// 3. Another user token
@@ -50,13 +62,15 @@ func main() {
 		1*time.Hour,
 	)
 	if err != nil {
-		log.Fatalf("Failed to generate user2 token: %v", err)
+		log.Printf("Warning: Failed to generate user2 token (ensure JWKS Mock API is running): %v", err)
+		user2Token = "PLACEHOLDER_USER2_TOKEN"
 	}
 	
 	// 4. Expired token
 	expiredToken, err := generator.GenerateExpiredToken("expired-user", "expired")
 	if err != nil {
-		log.Fatalf("Failed to generate expired token: %v", err)
+		log.Printf("Warning: Failed to generate expired token (ensure JWKS Mock API is running): %v", err)
+		expiredToken = "PLACEHOLDER_EXPIRED_TOKEN"
 	}
 	
 	// Display tokens
@@ -104,12 +118,37 @@ func main() {
 	fmt.Println("curl http://localhost:8080/health")
 	fmt.Println()
 	
-	// Configuration info
-	fmt.Println("=== Environment Configuration ===")
-	fmt.Println("To run the service with default test configuration:")
-	fmt.Println("JWT_SECRET=test-secret-key-do-not-use-in-production")
-	fmt.Println("JWT_ISSUER=dapr-actor-test")
-	fmt.Println("JWT_INSECURE_MODE=false")
+	// JWKS API information
+	fmt.Println("=== JWKS Mock API Setup ===")
+	fmt.Println("This token generator now uses the JWKS Mock API for token generation.")
 	fmt.Println()
-	fmt.Println("Or start the service and it will use these defaults automatically.")
+	fmt.Println("Prerequisites:")
+	fmt.Println("1. Start the JWKS Mock API service:")
+	fmt.Println("   docker run -p 3000:3000 ghcr.io/shogotsuneto/jwks-mock-api:v0.0.4")
+	fmt.Println()
+	fmt.Println("2. Or use docker-compose (includes JWKS API):")
+	fmt.Println("   docker compose up -d")
+	fmt.Println()
+	fmt.Println("Environment Variables:")
+	fmt.Printf("   JWKS_GENERATE_URL=%s\n", generateURL)
+	fmt.Printf("   JWT_ISSUER=%s\n", os.Getenv("JWT_ISSUER"))
+	fmt.Println()
+	fmt.Println("Manual token generation using curl:")
+	fmt.Printf("curl -X POST %s \\\n", generateURL)
+	fmt.Println("  -H 'Content-Type: application/json' \\")
+	fmt.Println("  -d '{")
+	fmt.Println("    \"claims\": {")
+	fmt.Println("      \"sub\": \"user-123\",")
+	fmt.Println("      \"user_id\": \"user-123\",")
+	fmt.Println("      \"username\": \"john_doe\",")
+	fmt.Println("      \"email\": \"john@example.com\",")
+	fmt.Println("      \"roles\": [\"user\"]")
+	fmt.Println("    },")
+	fmt.Println("    \"expiresIn\": 3600")
+	fmt.Println("  }'")
+	fmt.Println()
+	fmt.Println("Check token validity:")
+	fmt.Printf("curl -X POST %s \\\n", os.Getenv("JWKS_INTROSPECT_URL"))
+	fmt.Println("  -H 'Content-Type: application/x-www-form-urlencoded' \\")
+	fmt.Println("  -d 'token=YOUR_TOKEN_HERE'")
 }

@@ -13,7 +13,14 @@ echo
 
 # Check if services are running
 check_services() {
-    echo "Checking if Dapr services are running..."
+    echo "Checking if services are running..."
+    
+    # Check JWKS Mock API
+    if ! curl -s http://localhost:3000/health > /dev/null; then
+        echo "❌ JWKS Mock API not running at localhost:3000"
+        echo "Please start the services with: docker compose up -d"
+        exit 1
+    fi
     
     # Check Dapr sidecar
     if ! curl -s http://localhost:3500/v1.0/healthz > /dev/null; then
@@ -29,25 +36,87 @@ check_services() {
         exit 1
     fi
     
-    echo "✅ Services are running"
+    echo "✅ All services are running"
     echo
 }
 
-# Generate JWT tokens
+# Generate JWT tokens using JWKS Mock API
 generate_tokens() {
-    echo "Generating JWT tokens..."
-    cd "$PROJECT_DIR"
+    echo "Generating JWT tokens using JWKS Mock API..."
     
-    # Generate tokens and capture output
-    TOKEN_OUTPUT=$(./bin/jwt-generator 2>/dev/null)
+    JWKS_URL="http://localhost:3000/generate-token"
     
-    # Extract tokens using grep and cut
-    ADMIN_TOKEN=$(echo "$TOKEN_OUTPUT" | grep "Admin Token" -A 1 | tail -1 | sed 's/Bearer //')
-    USER_TOKEN=$(echo "$TOKEN_OUTPUT" | grep "User Token (user: user-123" -A 1 | tail -1 | sed 's/Bearer //')
-    USER2_TOKEN=$(echo "$TOKEN_OUTPUT" | grep "User2 Token" -A 1 | tail -1 | sed 's/Bearer //')
-    EXPIRED_TOKEN=$(echo "$TOKEN_OUTPUT" | grep "Expired Token" -A 1 | tail -1 | sed 's/Bearer //')
+    # Generate admin token
+    ADMIN_TOKEN_RESPONSE=$(curl -s -X POST "$JWKS_URL" \
+        -H "Content-Type: application/json" \
+        -d '{
+            "claims": {
+                "sub": "admin-001",
+                "user_id": "admin-001", 
+                "username": "admin",
+                "email": "admin@example.com",
+                "roles": ["admin", "counter_admin", "bank_admin"]
+            },
+            "expiresIn": 3600
+        }')
+    ADMIN_TOKEN=$(echo "$ADMIN_TOKEN_RESPONSE" | grep -o '"token":"[^"]*"' | cut -d'"' -f4)
     
-    echo "✅ Tokens generated"
+    # Generate regular user token
+    USER_TOKEN_RESPONSE=$(curl -s -X POST "$JWKS_URL" \
+        -H "Content-Type: application/json" \
+        -d '{
+            "claims": {
+                "sub": "user-123",
+                "user_id": "user-123",
+                "username": "john_doe", 
+                "email": "john@example.com",
+                "roles": ["user"]
+            },
+            "expiresIn": 3600
+        }')
+    USER_TOKEN=$(echo "$USER_TOKEN_RESPONSE" | grep -o '"token":"[^"]*"' | cut -d'"' -f4)
+    
+    # Generate user2 token (with counter_admin role)
+    USER2_TOKEN_RESPONSE=$(curl -s -X POST "$JWKS_URL" \
+        -H "Content-Type: application/json" \
+        -d '{
+            "claims": {
+                "sub": "user-456",
+                "user_id": "user-456",
+                "username": "jane_smith",
+                "email": "jane@example.com", 
+                "roles": ["user", "counter_admin"]
+            },
+            "expiresIn": 3600
+        }')
+    USER2_TOKEN=$(echo "$USER2_TOKEN_RESPONSE" | grep -o '"token":"[^"]*"' | cut -d'"' -f4)
+    
+    # Generate expired token (1 second expiry)
+    EXPIRED_TOKEN_RESPONSE=$(curl -s -X POST "$JWKS_URL" \
+        -H "Content-Type: application/json" \
+        -d '{
+            "claims": {
+                "sub": "expired-user",
+                "user_id": "expired-user",
+                "username": "expired"
+            },
+            "expiresIn": 1
+        }')
+    EXPIRED_TOKEN=$(echo "$EXPIRED_TOKEN_RESPONSE" | grep -o '"token":"[^"]*"' | cut -d'"' -f4)
+    
+    # Wait a moment for the expired token to actually expire
+    sleep 2
+    
+    if [[ -z "$ADMIN_TOKEN" || -z "$USER_TOKEN" || -z "$USER2_TOKEN" || -z "$EXPIRED_TOKEN" ]]; then
+        echo "❌ Failed to generate tokens from JWKS Mock API"
+        echo "Admin token: ${ADMIN_TOKEN:0:20}..."
+        echo "User token: ${USER_TOKEN:0:20}..."  
+        echo "User2 token: ${USER2_TOKEN:0:20}..."
+        echo "Expired token: ${EXPIRED_TOKEN:0:20}..."
+        exit 1
+    fi
+    
+    echo "✅ Tokens generated successfully"
     echo
 }
 
@@ -157,25 +226,18 @@ main() {
     run_tests
     
     echo "=== Test Summary ==="
-    echo "✅ JWT-aware actor authentication is working!"
+    echo "✅ JWT-aware actor authentication is working with JWKS Mock API!"
     echo
     echo "Key features demonstrated:"
-    echo "• JWT token validation and claims extraction"
+    echo "• JWT token validation using OAuth 2.0 introspection (RFC 7662)" 
+    echo "• External JWKS Mock API for token generation and validation"
     echo "• Role-based access control (admin, counter_admin, bank_admin)"
     echo "• Resource ownership validation (users can only access their own resources)"
     echo "• Admin users can access all resources"
     echo "• Expired tokens are properly rejected"
     echo "• Health endpoints skip authentication"
     echo
-    echo "🎉 JWT-aware actors implementation is complete!"
+    echo "🎉 JWT-aware actors with JWKS integration is complete!"
 }
-
-# Build binaries if needed
-if [[ ! -f "$PROJECT_DIR/bin/jwt-generator" ]]; then
-    echo "Building binaries..."
-    cd "$PROJECT_DIR"
-    make build
-    echo
-fi
 
 main "$@"

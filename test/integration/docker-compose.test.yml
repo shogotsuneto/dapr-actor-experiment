@@ -12,6 +12,23 @@
 #   docker compose -f test/integration/docker-compose.test.yml down
 
 services:
+  # JWKS Mock API for JWT token validation
+  jwks-mock-api:
+    image: ghcr.io/shogotsuneto/jwks-mock-api:v0.0.4
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - JWT_ISSUER=http://jwks-mock-api:3000
+      - JWT_AUDIENCE=dapr-actor-service
+      - KEY_COUNT=2
+      - KEY_IDS=key-1,key-2
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   # Redis for state store
   redis:
     image: redis:7-alpine
@@ -40,7 +57,11 @@ services:
     environment:
       - DAPR_GRPC_PORT=50001
       - DAPR_GRPC_ENDPOINT=actor-service-dapr:50001
+      - JWKS_INTROSPECT_URL=http://jwks-mock-api:3000/introspect
+      - JWT_ISSUER=http://jwks-mock-api:3000
     depends_on:
+      jwks-mock-api:
+        condition: service_healthy
       redis:
         condition: service_healthy
       placement:
@@ -85,8 +106,12 @@ services:
       - CGO_ENABLED=0
       - DAPR_HTTP_ENDPOINT=http://actor-service-dapr:3500
       - ACTOR_SERVICE_ENDPOINT=http://actor-service:8080
+      - JWKS_GENERATE_URL=http://jwks-mock-api:3000/generate-token
+      - JWT_ISSUER=http://jwks-mock-api:3000
     command: ["go", "test", "-v", "./test/integration/...", "-timeout=5m"]
     depends_on:
+      jwks-mock-api:
+        condition: service_healthy
       actor-service-dapr:
         condition: service_started
       redis:
