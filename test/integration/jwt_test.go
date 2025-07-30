@@ -2,7 +2,6 @@ package integration
 
 import (
 	"context"
-	"net/http"
 	"testing"
 	"time"
 
@@ -30,7 +29,7 @@ func TestJWTAwareCounterActor(t *testing.T) {
 		require.NoError(t, err)
 
 		// Test GET operation
-		resp, err := client.InvokeActorMethodWithJWT(context.Background(), ActorMethodRequest{
+		_, err = client.InvokeActorMethodWithJWT(context.Background(), ActorMethodRequest{
 			ActorType: "Counter",
 			ActorID:   "test-counter-admin",
 			Method:    "get",
@@ -39,7 +38,7 @@ func TestJWTAwareCounterActor(t *testing.T) {
 
 		// Test SET operation (requires admin role)
 		setReq := map[string]interface{}{"value": 42}
-		resp, err = client.InvokeActorMethodWithJWT(context.Background(), ActorMethodRequest{
+		_, err = client.InvokeActorMethodWithJWT(context.Background(), ActorMethodRequest{
 			ActorType: "Counter",
 			ActorID:   "test-counter-admin",
 			Method:    "set",
@@ -49,7 +48,7 @@ func TestJWTAwareCounterActor(t *testing.T) {
 
 		// Verify the value was set
 		var result map[string]interface{}
-		err = client.InvokeActorMethodWithJWT(context.Background(), ActorMethodRequest{
+		_, err = client.InvokeActorMethodWithJWT(context.Background(), ActorMethodRequest{
 			ActorType: "Counter",
 			ActorID:   "test-counter-admin",
 			Method:    "get",
@@ -67,7 +66,7 @@ func TestJWTAwareCounterActor(t *testing.T) {
 		require.NoError(t, err)
 
 		// Test that regular user can read
-		resp, err := client.InvokeActorMethodWithJWT(context.Background(), ActorMethodRequest{
+		_, err = client.InvokeActorMethodWithJWT(context.Background(), ActorMethodRequest{
 			ActorType: "Counter",
 			ActorID:   "test-counter-user",
 			Method:    "get",
@@ -76,7 +75,7 @@ func TestJWTAwareCounterActor(t *testing.T) {
 
 		// Test that regular user cannot set value
 		setReq := map[string]interface{}{"value": 99}
-		resp, err = client.InvokeActorMethodWithJWT(context.Background(), ActorMethodRequest{
+		_, err = client.InvokeActorMethodWithJWT(context.Background(), ActorMethodRequest{
 			ActorType: "Counter",
 			ActorID:   "test-counter-user",
 			Method:    "set",
@@ -98,7 +97,7 @@ func TestJWTAwareCounterActor(t *testing.T) {
 
 		// Test that counter admin can set value
 		setReq := map[string]interface{}{"value": 777}
-		resp, err := client.InvokeActorMethodWithJWT(context.Background(), ActorMethodRequest{
+		_, err = client.InvokeActorMethodWithJWT(context.Background(), ActorMethodRequest{
 			ActorType: "Counter",
 			ActorID:   "test-counter-admin-user",
 			Method:    "set",
@@ -108,7 +107,7 @@ func TestJWTAwareCounterActor(t *testing.T) {
 
 		// Verify the value was set
 		var result map[string]interface{}
-		err = client.InvokeActorMethodWithJWT(context.Background(), ActorMethodRequest{
+		_, err = client.InvokeActorMethodWithJWT(context.Background(), ActorMethodRequest{
 			ActorType: "Counter",
 			ActorID:   "test-counter-admin-user",
 			Method:    "get",
@@ -123,7 +122,7 @@ func TestJWTAwareCounterActor(t *testing.T) {
 		require.NoError(t, err)
 
 		// Test that expired token is rejected
-		resp, err := client.InvokeActorMethodWithJWT(context.Background(), ActorMethodRequest{
+		_, err = client.InvokeActorMethodWithJWT(context.Background(), ActorMethodRequest{
 			ActorType: "Counter",
 			ActorID:   "test-counter-expired",
 			Method:    "get",
@@ -135,7 +134,7 @@ func TestJWTAwareCounterActor(t *testing.T) {
 
 	t.Run("MissingTokenIsRejected", func(t *testing.T) {
 		// Test that missing token is rejected
-		resp, err := client.InvokeActorMethod(context.Background(), ActorMethodRequest{
+		_, err := client.InvokeActorMethod(context.Background(), ActorMethodRequest{
 			ActorType: "Counter",
 			ActorID:   "test-counter-no-token",
 			Method:    "get",
@@ -172,7 +171,7 @@ func TestJWTAwareBankAccountActor(t *testing.T) {
 			"initialDeposit": 1000.0,
 		}
 		var createResult map[string]interface{}
-		err = client.InvokeActorMethodWithJWT(context.Background(), ActorMethodRequest{
+		_, err = client.InvokeActorMethodWithJWT(context.Background(), ActorMethodRequest{
 			ActorType: "BankAccount",
 			ActorID:   accountID,
 			Method:    "createAccount",
@@ -188,7 +187,7 @@ func TestJWTAwareBankAccountActor(t *testing.T) {
 			"description": "Salary deposit",
 		}
 		var depositResult map[string]interface{}
-		err = client.InvokeActorMethodWithJWT(context.Background(), ActorMethodRequest{
+		_, err = client.InvokeActorMethodWithJWT(context.Background(), ActorMethodRequest{
 			ActorType: "BankAccount",
 			ActorID:   accountID,
 			Method:    "deposit",
@@ -199,7 +198,7 @@ func TestJWTAwareBankAccountActor(t *testing.T) {
 
 		// Test get balance
 		var balanceResult map[string]interface{}
-		err = client.InvokeActorMethodWithJWT(context.Background(), ActorMethodRequest{
+		_, err = client.InvokeActorMethodWithJWT(context.Background(), ActorMethodRequest{
 			ActorType: "BankAccount",
 			ActorID:   accountID,
 			Method:    "getBalance",
@@ -216,14 +215,8 @@ func TestJWTAwareBankAccountActor(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		user2Token, err := generator.GenerateToken(
-			"user-456", "jane_smith", "jane@example.com",
-			[]string{"user"}, 1*time.Hour,
-		)
-		require.NoError(t, err)
-
 		// User1 tries to access User2's account
-		resp, err := client.InvokeActorMethodWithJWT(context.Background(), ActorMethodRequest{
+		_, err = client.InvokeActorMethodWithJWT(context.Background(), ActorMethodRequest{
 			ActorType: "BankAccount",
 			ActorID:   "user-456", // User2's account
 			Method:    "getBalance",
@@ -243,7 +236,7 @@ func TestJWTAwareBankAccountActor(t *testing.T) {
 
 		// Admin can access any account (using previous test's account)
 		var balanceResult map[string]interface{}
-		err = client.InvokeActorMethodWithJWT(context.Background(), ActorMethodRequest{
+		_, err = client.InvokeActorMethodWithJWT(context.Background(), ActorMethodRequest{
 			ActorType: "BankAccount",
 			ActorID:   "user-123", // Another user's account
 			Method:    "getBalance",
@@ -265,7 +258,7 @@ func TestJWTAwareBankAccountActor(t *testing.T) {
 			"ownerName":      "Someone Else",
 			"initialDeposit": 500.0,
 		}
-		resp, err := client.InvokeActorMethodWithJWT(context.Background(), ActorMethodRequest{
+		_, err = client.InvokeActorMethodWithJWT(context.Background(), ActorMethodRequest{
 			ActorType: "BankAccount",
 			ActorID:   "different-user-id", // Different from user-789
 			Method:    "createAccount",
