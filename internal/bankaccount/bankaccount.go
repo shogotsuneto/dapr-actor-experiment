@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/dapr/go-sdk/actor"
 	"github.com/google/uuid"
+	"github.com/shogotsuneto/dapr-actor-experiment/internal/auth"
 )
 
 // AccountEvent represents a single account event (temporary definition until generator fix)
@@ -120,6 +122,21 @@ func (b *BankAccount) getCachedState() (*BankAccountState, error) {
 }
 
 func (b *BankAccount) CreateAccount(ctx context.Context, request CreateAccountRequest) (*BankAccountState, error) {
+	// Log JWT information
+	b.logJWTInfo(ctx, "CreateAccount")
+	
+	// JWT-aware validation: Check if user can create this account
+	userID := auth.GetUserIdentifier(ctx)
+	if userID == "" {
+		return nil, errors.New("authentication required: cannot identify user")
+	}
+	
+	// For account creation, the actor ID should match the user ID or user should have admin role
+	if !auth.IsResourceOwner(ctx, b.ID()) && !auth.HasRole(ctx, "admin") && !auth.HasRole(ctx, "bank_admin") {
+		log.Printf("BankAccount %s: User %s attempted to create account without ownership or admin role", b.ID(), userID)
+		return nil, errors.New("insufficient permissions: can only create accounts for yourself or with admin role")
+	}
+	
 	// Ensure state is loaded
 	if err := b.ensureStateLoaded(ctx); err != nil {
 		return nil, err
@@ -138,7 +155,7 @@ func (b *BankAccount) CreateAccount(ctx context.Context, request CreateAccountRe
 		return nil, errors.New("initial deposit cannot be negative")
 	}
 	
-	// Create and store event for durability
+	// Create and store event for durability (include creator info)
 	eventData := AccountCreatedEventData{
 		OwnerName:      request.OwnerName,
 		InitialDeposit: request.InitialDeposit,
@@ -159,10 +176,19 @@ func (b *BankAccount) CreateAccount(ctx context.Context, request CreateAccountRe
 	}
 	b.accountExists = true
 	
+	log.Printf("BankAccount %s: Account created by user %s for owner %s", b.ID(), userID, request.OwnerName)
 	return b.cachedState, nil
 }
 
 func (b *BankAccount) Deposit(ctx context.Context, request DepositRequest) (*BankAccountState, error) {
+	// Log JWT information
+	b.logJWTInfo(ctx, "Deposit")
+	
+	// JWT-aware validation: Check if user can access this account
+	if !b.canAccessAccount(ctx) {
+		return nil, errors.New("insufficient permissions: cannot access this account")
+	}
+	
 	// Validate request
 	if request.Amount <= 0 {
 		return nil, errors.New("deposit amount must be positive")
@@ -194,6 +220,14 @@ func (b *BankAccount) Deposit(ctx context.Context, request DepositRequest) (*Ban
 }
 
 func (b *BankAccount) Withdraw(ctx context.Context, request WithdrawRequest) (*BankAccountState, error) {
+	// Log JWT information
+	b.logJWTInfo(ctx, "Withdraw")
+	
+	// JWT-aware validation: Check if user can access this account
+	if !b.canAccessAccount(ctx) {
+		return nil, errors.New("insufficient permissions: cannot access this account")
+	}
+	
 	// Validate request
 	if request.Amount <= 0 {
 		return nil, errors.New("withdrawal amount must be positive")
@@ -231,6 +265,14 @@ func (b *BankAccount) Withdraw(ctx context.Context, request WithdrawRequest) (*B
 }
 
 func (b *BankAccount) GetBalance(ctx context.Context) (*BankAccountState, error) {
+	// Log JWT information
+	b.logJWTInfo(ctx, "GetBalance")
+	
+	// JWT-aware validation: Check if user can access this account
+	if !b.canAccessAccount(ctx) {
+		return nil, errors.New("insufficient permissions: cannot access this account")
+	}
+	
 	// Ensure state is loaded
 	if err := b.ensureStateLoaded(ctx); err != nil {
 		return nil, err
@@ -241,6 +283,14 @@ func (b *BankAccount) GetBalance(ctx context.Context) (*BankAccountState, error)
 }
 
 func (b *BankAccount) GetHistory(ctx context.Context) (*TransactionHistory, error) {
+	// Log JWT information
+	b.logJWTInfo(ctx, "GetHistory")
+	
+	// JWT-aware validation: Check if user can access this account
+	if !b.canAccessAccount(ctx) {
+		return nil, errors.New("insufficient permissions: cannot access this account")
+	}
+	
 	// Ensure state is loaded and account exists
 	if err := b.ensureStateLoaded(ctx); err != nil {
 		return nil, err
@@ -398,4 +448,28 @@ func (b *BankAccount) convertEventDataToMap(data interface{}) map[string]interfa
 	}
 	
 	return result
+}
+
+// canAccessAccount checks if the current user can access this account
+func (b *BankAccount) canAccessAccount(ctx context.Context) bool {
+	// Check if user is the resource owner or has admin privileges
+	return auth.IsResourceOwner(ctx, b.ID()) || 
+		   auth.HasRole(ctx, "admin") || 
+		   auth.HasRole(ctx, "bank_admin")
+}
+
+// logJWTInfo logs JWT information for demonstration purposes
+func (b *BankAccount) logJWTInfo(ctx context.Context, operation string) {
+	claims, ok := auth.GetJWTClaims(ctx)
+	if !ok {
+		log.Printf("BankAccount %s: %s operation - No JWT claims found", b.ID(), operation)
+		return
+	}
+	
+	userID := auth.GetUserIdentifier(ctx)
+	isOwner := auth.IsResourceOwner(ctx, b.ID())
+	hasAdminRole := auth.HasRole(ctx, "admin") || auth.HasRole(ctx, "bank_admin")
+	
+	log.Printf("BankAccount %s: %s operation by user %s (subject: %s, username: %s, roles: %v, is_owner: %t, has_admin: %t)", 
+		b.ID(), operation, userID, claims.Subject, claims.Username, claims.Roles, isOwner, hasAdminRole)
 }

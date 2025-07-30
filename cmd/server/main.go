@@ -5,10 +5,14 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"os"
 
 	"github.com/dapr/go-sdk/service/common"
 	daprd "github.com/dapr/go-sdk/service/http"
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 	
+	"github.com/shogotsuneto/dapr-actor-experiment/internal/auth"
 	"github.com/shogotsuneto/dapr-actor-experiment/internal/bankaccount"
 	"github.com/shogotsuneto/dapr-actor-experiment/internal/counter"
 )
@@ -44,8 +48,31 @@ func statusHandler(ctx context.Context, in *common.InvocationEvent) (out *common
 }
 
 func main() {
-	// Create Dapr service
-	s := daprd.NewService(":8080")
+	// Create Chi router with middleware
+	r := chi.NewRouter()
+	
+	// Add basic middleware
+	r.Use(middleware.Logger)
+	r.Use(middleware.Recoverer)
+	r.Use(middleware.RequestID)
+	
+	// Configure JWT middleware
+	jwtConfig := auth.JWTMiddlewareConfig{
+		SecretKey: []byte(getJWTSecret()),
+		RequiredIssuer: getJWTIssuer(),
+		SkipPaths: []string{
+			"/health",
+			"/status",
+			"/v1.0/healthz", // Dapr health check
+		},
+		AllowInsecure: isInsecureMode(),
+	}
+	
+	// Add JWT middleware for all routes except skip paths
+	r.Use(auth.JWTMiddleware(jwtConfig))
+	
+	// Create Dapr service with custom router
+	s := daprd.NewServiceWithMux(":8080", r)
 	
 	// Register Counter using generated factory with contract enforcement
 	log.Printf("Registering %s with state-based pattern", counter.ActorTypeCounter)
@@ -59,13 +86,47 @@ func main() {
 	s.AddServiceInvocationHandler("/health", healthHandler)
 	s.AddServiceInvocationHandler("/status", statusHandler)
 	
-	log.Println("Starting Multi-Actor Dapr Service on port 8080...")
+	log.Println("Starting JWT-aware Multi-Actor Dapr Service on port 8080...")
+	log.Printf("JWT Configuration:")
+	log.Printf("  - Secret: %s", maskSecret(getJWTSecret()))
+	log.Printf("  - Issuer: %s", getJWTIssuer())
+	log.Printf("  - Insecure mode: %t", isInsecureMode())
 	log.Printf("Actors registered:")
-	log.Printf("  - %s: State-based counter operations", counter.ActorTypeCounter)
-	log.Printf("  - %s: Event-sourced bank account with full audit trail", bankaccount.ActorTypeBankAccount)
+	log.Printf("  - %s: State-based counter operations (JWT-aware)", counter.ActorTypeCounter)
+	log.Printf("  - %s: Event-sourced bank account with full audit trail (JWT-aware)", bankaccount.ActorTypeBankAccount)
 	
 	// Start the service
 	if err := s.Start(); err != nil && err != http.ErrServerClosed {
 		log.Fatalf("Error starting service: %v", err)
 	}
+}
+
+// getJWTSecret returns the JWT secret key from environment or default
+func getJWTSecret() string {
+	if secret := os.Getenv("JWT_SECRET"); secret != "" {
+		return secret
+	}
+	// Use default test secret (never use in production)
+	return auth.DefaultTestSecret
+}
+
+// getJWTIssuer returns the JWT issuer from environment or default
+func getJWTIssuer() string {
+	if issuer := os.Getenv("JWT_ISSUER"); issuer != "" {
+		return issuer
+	}
+	return auth.DefaultTestIssuer
+}
+
+// isInsecureMode returns true if insecure mode is enabled (for testing)
+func isInsecureMode() bool {
+	return os.Getenv("JWT_INSECURE_MODE") == "true"
+}
+
+// maskSecret masks a secret for logging
+func maskSecret(secret string) string {
+	if len(secret) <= 8 {
+		return "****"
+	}
+	return secret[:4] + "****" + secret[len(secret)-4:]
 }

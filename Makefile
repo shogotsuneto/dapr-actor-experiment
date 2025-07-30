@@ -10,6 +10,8 @@ build:
 	@go build -o bin/server ./cmd/server
 	@echo "Building client..."
 	@go build -o bin/client ./cmd/client
+	@echo "Building JWT generator..."
+	@go build -o bin/jwt-generator ./cmd/jwt-generator
 
 # Clean build artifacts
 clean:

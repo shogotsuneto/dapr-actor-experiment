@@ -9,6 +9,7 @@ A minimal demo of Dapr actors application in Go, demonstrating actor state manag
 This project showcases:
 - **Schema-First Development**: Define APIs with OpenAPI specifications, generate type-safe Go code
 - **Dapr Actor Pattern**: Stateful actor implementation with persistent state
+- **JWT-Aware Actors**: Built-in JWT authentication and authorization with resource ownership validation
 - **Multiple Actor Types**: Support for different actor patterns in a single application
 - **Counter Actor**: Simple state-based counter with increment, decrement, get, and set operations
 - **Bank Account Actor**: Event-sourced bank account demonstrating transaction history and audit trails
@@ -32,7 +33,10 @@ cd dapr-actor-experiment
 # Start all services using Docker Compose
 ./scripts/run-docker.sh
 
-# Test the service
+# Test the service with JWT authentication
+./scripts/test-jwt-actors.sh
+
+# Or test without JWT (original functionality)
 ./scripts/test-multi-actors.sh
 
 # Or test individual actor types:
@@ -57,11 +61,11 @@ You can also run Docker Compose commands directly:
 # Start services (builds from source automatically)
 docker compose up -d
 
-# Test the service  
-./scripts/test-multi-actors.sh
+# Test the service with JWT authentication
+./scripts/test-jwt-actors.sh
 
 # Or test individual actor types:
-# ./scripts/test-counter-actor.sh  
+# ./scripts/test-counter-actor.sh
 # ./scripts/test-bank-account-actor.sh
 
 # Stop services
@@ -125,8 +129,10 @@ See [Integration Tests README](test/integration/README.md) for detailed document
 ```
 ├── cmd/                       # Main applications
 │   ├── server/               # Actor service application
-│   └── client/               # Demo client application
+│   ├── client/               # Demo client application
+│   └── jwt-generator/        # JWT token generator for testing
 ├── internal/                  # Private application code
+│   ├── auth/                 # JWT authentication and authorization
 │   ├── counter/              # Counter actor implementation and generated code
 │   └── bankaccount/          # Bank account actor implementation and generated code
 ├── schemas/openapi/          # OpenAPI schemas for code generation
@@ -159,6 +165,9 @@ See [Integration Tests README](test/integration/README.md) for detailed document
 ### Actor Implementation
 - **CounterActor**: State-based actor with persistent counter value using generated OpenAPI types
 - **BankAccountActor**: Event-sourced actor with transaction history and full audit trail
+- **JWT Authentication**: Built-in JWT token validation and claims extraction for secure actor access
+- **Role-Based Access Control**: Support for admin, counter_admin, and bank_admin roles
+- **Resource Ownership**: Automatic validation that users can only access their own resources
 - **Operations**: CounterActor (`get`, `increment`, `decrement`, `set`), BankAccountActor (`createAccount`, `deposit`, `withdraw`, `getBalance`, `getHistory`)
 - **State Persistence**: Automatic state management via Dapr state store
 - **Event Sourcing**: BankAccountActor demonstrates event sourcing with complete transaction history
@@ -169,6 +178,46 @@ See [Integration Tests README](test/integration/README.md) for detailed document
 - Shows state persistence across operations and multiple actor instances
 
 
+
+## JWT Authentication Examples
+
+### Generate Test Tokens
+
+```bash
+# Generate JWT tokens for testing
+./bin/jwt-generator
+
+# This outputs tokens for different users:
+# - Admin token (with admin, counter_admin, bank_admin roles)
+# - Regular user token (with user role)
+# - Counter admin token (with user, counter_admin roles)
+# - Expired token (for testing failure scenarios)
+```
+
+### Testing with JWT
+
+```bash
+# Test with admin token (can access everything)
+ADMIN_TOKEN="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+curl -H "Authorization: Bearer $ADMIN_TOKEN" \
+     http://localhost:3500/v1.0/actors/Counter/counter-1/method/get
+
+# Test user creating their own bank account
+USER_TOKEN="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+curl -X POST \
+     -H "Authorization: Bearer $USER_TOKEN" \
+     -H "Content-Type: application/json" \
+     -d '{"ownerName": "John Doe", "initialDeposit": 1000}' \
+     http://localhost:3500/v1.0/actors/BankAccount/user-123/method/createAccount
+
+# Test authorization failure (user trying to access admin-only operation)
+curl -X POST \
+     -H "Authorization: Bearer $USER_TOKEN" \
+     -H "Content-Type: application/json" \
+     -d '{"value": 42}' \
+     http://localhost:3500/v1.0/actors/Counter/counter-1/method/set
+# Returns: 401 Unauthorized - insufficient permissions
+```
 
 ## Manual Testing
 
@@ -378,12 +427,14 @@ docker compose logs -f redis
 This repository includes detailed documentation on various aspects of Dapr actors:
 
 ### Architecture and Concepts
+- **[JWT-Aware Actors](docs/jwt-aware-actors.md)** - Complete guide to JWT authentication, authorization, and resource ownership validation in Dapr actors
 - **[Multiple Actors](docs/multiple-actors.md)** - Complete guide to multiple actor types, state-based vs event-sourced patterns
 - **[Client vs Curl](docs/client-vs-curl.md)** - Understand the difference between using the Go client (Dapr SDK) vs direct HTTP calls with curl
 - **[Event Sourcing](docs/event-sourcing.md)** - Learn whether this implementation uses event sourcing and understand the state-based approach
 - **[Akka Comparison](docs/akka-comparison.md)** - Compare Dapr actors with Akka actors, including mailbox concepts and architectural differences
 
 ### Key Insights
+- **JWT-Aware Actors**: Actors can now access verified JWT claims for authentication and authorization, enabling resource ownership validation and role-based access control.
 - **Multiple Actor Types**: This implementation now supports both state-based (CounterActor) and event-sourced (BankAccountActor) patterns. See [Multiple Actors documentation](docs/multiple-actors.md) for details.
 - **Event Sourcing vs State-Based**: CounterActor uses state-based persistence while BankAccountActor demonstrates full event sourcing with audit trails.
 - **How does it compare to Akka?** Both implement the actor model but serve different use cases. See [Akka Comparison](docs/akka-comparison.md) for a detailed analysis.
