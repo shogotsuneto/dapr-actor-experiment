@@ -148,7 +148,7 @@ See [Integration Tests README](test/integration/README.md) for detailed document
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
 │                 │    │                 │    │                 │
 │     Client      │───▶│  Dapr Sidecar   │───▶│  Actor Service  │
-│                 │    │   (HTTP API)    │    │   (CounterActor)│
+│  (w/ JWT Token) │    │   (HTTP API)    │    │ (JWT Middleware)│
 └─────────────────┘    └─────────────────┘    └─────────────────┘
                                 │                        │
                                 │                        │
@@ -158,14 +158,29 @@ See [Integration Tests README](test/integration/README.md) for detailed document
                        │      Redis      │◀───│  State Manager  │
                        │  (State Store)  │    │                 │
                        └─────────────────┘    └─────────────────┘
+                                                         │
+                                                         │ Introspect
+                                                         ▼
+                                               ┌─────────────────┐
+                                               │                 │
+                                               │ JWKS Mock API   │
+                                               │ (Token Service) │
+                                               └─────────────────┘
 ```
+
+**JWT Authentication Flow:**
+1. Client generates JWT token via JWKS Mock API (`/generate-token`)
+2. Client sends request with `Authorization: Bearer <token>` header
+3. Actor Service JWT middleware calls JWKS Mock API (`/introspect`) to validate token
+4. If valid, request proceeds to actor with JWT claims in context
+5. Actor methods enforce role-based and ownership-based authorization
 
 ## Features
 
 ### Actor Implementation
 - **CounterActor**: State-based actor with persistent counter value using generated OpenAPI types
 - **BankAccountActor**: Event-sourced actor with transaction history and full audit trail
-- **JWT Authentication**: Built-in JWT token validation and claims extraction for secure actor access
+- **JWT Authentication**: OAuth 2.0 compliant token validation using JWKS Mock API introspection (RFC 7662)
 - **Role-Based Access Control**: Support for admin, counter_admin, and bank_admin roles
 - **Resource Ownership**: Automatic validation that users can only access their own resources
 - **Operations**: CounterActor (`get`, `increment`, `decrement`, `set`), BankAccountActor (`createAccount`, `deposit`, `withdraw`, `getBalance`, `getHistory`)
@@ -181,29 +196,75 @@ See [Integration Tests README](test/integration/README.md) for detailed document
 
 ## JWT Authentication Examples
 
-### Generate Test Tokens
+### Prerequisites
+
+The JWT-aware actors now use the JWKS Mock API for token generation and validation. This provides more realistic OAuth 2.0 compliance and removes the need for shared secrets.
 
 ```bash
-# Generate JWT tokens for testing
+# Services are automatically started with docker compose
+docker compose up -d
+
+# Verify JWKS Mock API is running
+curl http://localhost:3000/health
+```
+
+### Generate Test Tokens
+
+You can generate tokens in two ways:
+
+**Option 1: Using the JWT generator utility**
+```bash
+# Generate JWT tokens for testing (requires JWKS Mock API to be running)
 ./bin/jwt-generator
 
 # This outputs tokens for different users:
 # - Admin token (with admin, counter_admin, bank_admin roles)
-# - Regular user token (with user role)
+# - Regular user token (with user role)  
 # - Counter admin token (with user, counter_admin roles)
 # - Expired token (for testing failure scenarios)
+```
+
+**Option 2: Direct API calls to JWKS Mock API**
+```bash
+# Generate admin token
+curl -X POST http://localhost:3000/generate-token \
+  -H "Content-Type: application/json" \
+  -d '{
+    "claims": {
+      "sub": "admin-001",
+      "user_id": "admin-001",
+      "username": "admin",
+      "email": "admin@example.com",
+      "roles": ["admin", "counter_admin", "bank_admin"]
+    },
+    "expiresIn": 3600
+  }'
+
+# Generate regular user token
+curl -X POST http://localhost:3000/generate-token \
+  -H "Content-Type: application/json" \
+  -d '{
+    "claims": {
+      "sub": "user-123", 
+      "user_id": "user-123",
+      "username": "john_doe",
+      "email": "john@example.com",
+      "roles": ["user"]
+    },
+    "expiresIn": 3600
+  }'
 ```
 
 ### Testing with JWT
 
 ```bash
 # Test with admin token (can access everything)
-ADMIN_TOKEN="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+ADMIN_TOKEN="eyJhbGciOiJSUzI1NiIsImtpZCI6ImtleS0xIiwidHlwIjoiSldUIn0..."
 curl -H "Authorization: Bearer $ADMIN_TOKEN" \
      http://localhost:3500/v1.0/actors/Counter/counter-1/method/get
 
 # Test user creating their own bank account
-USER_TOKEN="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+USER_TOKEN="eyJhbGciOiJSUzI1NiIsImtpZCI6ImtleS0xIiwidHlwIjoiSldUIn0..."
 curl -X POST \
      -H "Authorization: Bearer $USER_TOKEN" \
      -H "Content-Type: application/json" \
@@ -215,6 +276,23 @@ curl -X POST \
      -H "Authorization: Bearer $USER_TOKEN" \
      -H "Content-Type: application/json" \
      -d '{"value": 42}' \
+     http://localhost:3500/v1.0/actors/Counter/counter-1/method/set
+# Returns: 401 Unauthorized - insufficient permissions
+
+# Verify token introspection
+curl -X POST http://localhost:3000/introspect \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "token=$ADMIN_TOKEN"
+```
+
+### JWT Features
+
+- **OAuth 2.0 Compliant**: Uses RFC 7662 token introspection for validation
+- **External JWKS Service**: Delegates token generation and validation to JWKS Mock API
+- **RSA Signatures**: Tokens are signed with RS256 (RSA with SHA-256)
+- **Key Rotation Support**: JWKS service supports multiple keys for rotation
+- **No Shared Secrets**: Eliminates the need for shared HMAC secrets
+- **Production Ready**: Architecture suitable for production deployments with real OAuth providers
      http://localhost:3500/v1.0/actors/Counter/counter-1/method/set
 # Returns: 401 Unauthorized - insufficient permissions
 ```
@@ -434,7 +512,7 @@ This repository includes detailed documentation on various aspects of Dapr actor
 - **[Akka Comparison](docs/akka-comparison.md)** - Compare Dapr actors with Akka actors, including mailbox concepts and architectural differences
 
 ### Key Insights
-- **JWT-Aware Actors**: Actors can now access verified JWT claims for authentication and authorization, enabling resource ownership validation and role-based access control.
+- **JWT-Aware Actors**: Actors now use OAuth 2.0 compliant token introspection via JWKS Mock API for authentication and authorization, enabling production-ready resource ownership validation and role-based access control without shared secrets.
 - **Multiple Actor Types**: This implementation now supports both state-based (CounterActor) and event-sourced (BankAccountActor) patterns. See [Multiple Actors documentation](docs/multiple-actors.md) for details.
 - **Event Sourcing vs State-Based**: CounterActor uses state-based persistence while BankAccountActor demonstrates full event sourcing with audit trails.
 - **How does it compare to Akka?** Both implement the actor model but serve different use cases. See [Akka Comparison](docs/akka-comparison.md) for a detailed analysis.
