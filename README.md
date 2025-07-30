@@ -129,8 +129,7 @@ See [Integration Tests README](test/integration/README.md) for detailed document
 ```
 ├── cmd/                       # Main applications
 │   ├── server/               # Actor service application
-│   ├── client/               # Demo client application
-│   └── jwt-generator/        # JWT token generator for testing
+│   └── client/               # Demo client application
 ├── internal/                  # Private application code
 │   ├── auth/                 # JWT authentication and authorization
 │   ├── counter/              # Counter actor implementation and generated code
@@ -210,21 +209,8 @@ curl http://localhost:3000/health
 
 ### Generate Test Tokens
 
-You can generate tokens in two ways:
+Generate tokens via the JWKS Mock API:
 
-**Option 1: Using the JWT generator utility**
-```bash
-# Generate JWT tokens for testing (requires JWKS Mock API to be running)
-./bin/jwt-generator
-
-# This outputs tokens for different users:
-# - Admin token (with admin, counter_admin, bank_admin roles)
-# - Regular user token (with user role)  
-# - Counter admin token (with user, counter_admin roles)
-# - Expired token (for testing failure scenarios)
-```
-
-**Option 2: Direct API calls to JWKS Mock API**
 ```bash
 # Generate admin token
 curl -X POST http://localhost:3000/generate-token \

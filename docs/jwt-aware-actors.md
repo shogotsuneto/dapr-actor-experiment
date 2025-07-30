@@ -196,11 +196,22 @@ curl -H "Authorization: Bearer $USER_TOKEN" \
 
 ### Manual Testing
 
-Use the JWT token generator to create test tokens:
+Use the JWKS Mock API to create test tokens:
 
 ```bash
 # Generate test tokens
-./bin/jwt-generator
+curl -X POST http://localhost:3000/generate-token \
+  -H "Content-Type: application/json" \
+  -d '{
+    "claims": {
+      "sub": "user-123",
+      "user_id": "user-123", 
+      "username": "john_doe",
+      "email": "john@example.com",
+      "roles": ["user"]
+    },
+    "expiresIn": 3600
+  }'
 
 # Run comprehensive JWT tests
 ./scripts/test-jwt-actors.sh
