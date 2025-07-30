@@ -56,16 +56,15 @@ func main() {
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.RequestID)
 	
-	// Configure JWT middleware
+	// Configure JWT middleware with introspection
 	jwtConfig := auth.JWTMiddlewareConfig{
-		SecretKey: []byte(getJWTSecret()),
+		IntrospectURL: getIntrospectURL(),
 		RequiredIssuer: getJWTIssuer(),
 		SkipPaths: []string{
 			"/health",
 			"/status",
 			"/v1.0/healthz", // Dapr health check
 		},
-		AllowInsecure: isInsecureMode(),
 	}
 	
 	// Add JWT middleware for all routes except skip paths
@@ -88,9 +87,8 @@ func main() {
 	
 	log.Println("Starting JWT-aware Multi-Actor Dapr Service on port 8080...")
 	log.Printf("JWT Configuration:")
-	log.Printf("  - Secret: %s", maskSecret(getJWTSecret()))
-	log.Printf("  - Issuer: %s", getJWTIssuer())
-	log.Printf("  - Insecure mode: %t", isInsecureMode())
+	log.Printf("  - Introspect URL: %s", getIntrospectURL())
+	log.Printf("  - Required Issuer: %s", getJWTIssuer())
 	log.Printf("Actors registered:")
 	log.Printf("  - %s: State-based counter operations (JWT-aware)", counter.ActorTypeCounter)
 	log.Printf("  - %s: Event-sourced bank account with full audit trail (JWT-aware)", bankaccount.ActorTypeBankAccount)
@@ -101,13 +99,12 @@ func main() {
 	}
 }
 
-// getJWTSecret returns the JWT secret key from environment or default
-func getJWTSecret() string {
-	if secret := os.Getenv("JWT_SECRET"); secret != "" {
-		return secret
+// getIntrospectURL returns the JWT introspection URL from environment or default
+func getIntrospectURL() string {
+	if url := os.Getenv("JWKS_INTROSPECT_URL"); url != "" {
+		return url
 	}
-	// Use default test secret (never use in production)
-	return auth.DefaultTestSecret
+	return "http://localhost:3000/introspect"
 }
 
 // getJWTIssuer returns the JWT issuer from environment or default
@@ -115,18 +112,5 @@ func getJWTIssuer() string {
 	if issuer := os.Getenv("JWT_ISSUER"); issuer != "" {
 		return issuer
 	}
-	return auth.DefaultTestIssuer
-}
-
-// isInsecureMode returns true if insecure mode is enabled (for testing)
-func isInsecureMode() bool {
-	return os.Getenv("JWT_INSECURE_MODE") == "true"
-}
-
-// maskSecret masks a secret for logging
-func maskSecret(secret string) string {
-	if len(secret) <= 8 {
-		return "****"
-	}
-	return secret[:4] + "****" + secret[len(secret)-4:]
+	return "http://localhost:3000"
 }

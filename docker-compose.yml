@@ -10,6 +10,23 @@
 # All services use health checks to ensure proper startup ordering.
 
 services:
+  # JWKS Mock API for JWT token validation
+  jwks-mock-api:
+    image: ghcr.io/shogotsuneto/jwks-mock-api:v0.0.4
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - JWT_ISSUER=http://jwks-mock-api:3000
+      - JWT_AUDIENCE=dapr-actor-service
+      - KEY_COUNT=2
+      - KEY_IDS=key-1,key-2
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   # Redis for state store
   redis:
     image: redis:7-alpine
@@ -38,7 +55,11 @@ services:
     environment:
       - DAPR_GRPC_PORT=50001
       - DAPR_GRPC_ENDPOINT=actor-service-dapr:50001
+      - JWKS_INTROSPECT_URL=http://jwks-mock-api:3000/introspect
+      - JWT_ISSUER=http://jwks-mock-api:3000
     depends_on:
+      jwks-mock-api:
+        condition: service_healthy
       redis:
         condition: service_healthy
       placement:
@@ -81,11 +102,16 @@ services:
       - .:/app
     environment:
       - DAPR_HTTP_ENDPOINT=http://client-dapr:3501
+      - JWKS_GENERATE_URL=http://jwks-mock-api:3000/generate-token
+      - JWT_ISSUER=http://jwks-mock-api:3000
     depends_on:
-      - actor-service-dapr
+      jwks-mock-api:
+        condition: service_healthy
+      actor-service-dapr:
+        condition: service_started
     command: |
       sh -c "
-        apk add --no-cache ca-certificates git &&
+        apk add --no-cache ca-certificates git curl &&
         go mod download &&
         go run ./cmd/client
       "

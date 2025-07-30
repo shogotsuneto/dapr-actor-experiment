@@ -6,8 +6,6 @@ import (
 	"net/http"
 	"strings"
 	"time"
-
-	"github.com/golang-jwt/jwt/v5"
 )
 
 // JWTContextKey is the context key for JWT claims
@@ -40,12 +38,8 @@ type JWTClaims struct {
 
 // JWTMiddlewareConfig configures the JWT middleware
 type JWTMiddlewareConfig struct {
-	// SecretKey is the key used to verify JWT signatures (for HS256)
-	SecretKey []byte
-	
-	// PublicKey is the key used to verify JWT signatures (for RS256/ES256)
-	// If both SecretKey and PublicKey are provided, SecretKey takes precedence
-	PublicKey interface{}
+	// IntrospectURL is the URL of the OAuth 2.0 introspection endpoint
+	IntrospectURL string
 	
 	// RequiredIssuer specifies the required issuer claim (optional)
 	RequiredIssuer string
@@ -56,12 +50,17 @@ type JWTMiddlewareConfig struct {
 	// SkipPaths are paths that should skip JWT validation
 	SkipPaths []string
 	
-	// AllowInsecure allows tokens without proper verification (for testing only)
-	AllowInsecure bool
+	// Deprecated fields (kept for backward compatibility but ignored)
+	SecretKey     []byte      `json:"-"`
+	PublicKey     interface{} `json:"-"`
+	AllowInsecure bool        `json:"-"`
 }
 
-// JWTMiddleware creates HTTP middleware that validates JWT tokens and injects claims into context
+// JWTMiddleware creates HTTP middleware that validates JWT tokens using OAuth 2.0 introspection
 func JWTMiddleware(config JWTMiddlewareConfig) func(http.Handler) http.Handler {
+	// Create introspection client
+	introspectClient := NewIntrospectionClient(config.IntrospectURL)
+	
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Check if path should skip validation
@@ -86,8 +85,8 @@ func JWTMiddleware(config JWTMiddlewareConfig) func(http.Handler) http.Handler {
 				return
 			}
 
-			// Parse and validate token
-			claims, err := validateJWT(tokenString, config)
+			// Validate token using introspection
+			claims, err := validateJWTWithIntrospection(r.Context(), tokenString, config, introspectClient)
 			if err != nil {
 				http.Error(w, fmt.Sprintf("Invalid JWT token: %v", err), http.StatusUnauthorized)
 				return
@@ -102,140 +101,40 @@ func JWTMiddleware(config JWTMiddlewareConfig) func(http.Handler) http.Handler {
 	}
 }
 
-// validateJWT validates a JWT token and extracts claims
-func validateJWT(tokenString string, config JWTMiddlewareConfig) (*JWTClaims, error) {
-	// Parse token
-	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-		// Validate signing method
-		switch token.Method.(type) {
-		case *jwt.SigningMethodHMAC:
-			if len(config.SecretKey) == 0 {
-				return nil, fmt.Errorf("HMAC secret key not configured")
-			}
-			return config.SecretKey, nil
-		case *jwt.SigningMethodRSA:
-			if config.PublicKey == nil {
-				return nil, fmt.Errorf("RSA public key not configured")
-			}
-			return config.PublicKey, nil
-		case *jwt.SigningMethodECDSA:
-			if config.PublicKey == nil {
-				return nil, fmt.Errorf("ECDSA public key not configured")
-			}
-			return config.PublicKey, nil
-		default:
-			if config.AllowInsecure {
-				// For testing - accept unsigned tokens
-				return []byte(""), nil
-			}
-			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-		}
-	})
-
+// validateJWTWithIntrospection validates a JWT token using OAuth 2.0 introspection
+func validateJWTWithIntrospection(ctx context.Context, tokenString string, config JWTMiddlewareConfig, client *IntrospectionClient) (*JWTClaims, error) {
+	// Call introspection endpoint
+	resp, err := client.IntrospectToken(ctx, tokenString)
 	if err != nil {
-		return nil, err
-	}
-
-	if !token.Valid && !config.AllowInsecure {
-		return nil, fmt.Errorf("invalid token")
-	}
-
-	// Extract claims
-	mapClaims, ok := token.Claims.(jwt.MapClaims)
-	if !ok {
-		return nil, fmt.Errorf("invalid claims format")
-	}
-
-	claims := &JWTClaims{
-		Raw: mapClaims,
-	}
-
-	// Extract standard claims
-	if sub, ok := mapClaims["sub"].(string); ok {
-		claims.Subject = sub
+		return nil, fmt.Errorf("introspection failed: %w", err)
 	}
 	
-	if iss, ok := mapClaims["iss"].(string); ok {
-		claims.Issuer = iss
+	// Check if token is active
+	if !resp.Active {
+		return nil, fmt.Errorf("token is not active")
 	}
 	
-	if aud, ok := mapClaims["aud"].(string); ok {
-		claims.Audience = aud
+	// Validate required claims if configured
+	if config.RequiredIssuer != "" && resp.Iss != config.RequiredIssuer {
+		return nil, fmt.Errorf("invalid issuer: expected %s, got %s", config.RequiredIssuer, resp.Iss)
 	}
 
-	// Handle exp claim (can be float64 or int64)
-	if exp, ok := mapClaims["exp"]; ok {
-		if expFloat, ok := exp.(float64); ok {
-			claims.ExpiresAt = time.Unix(int64(expFloat), 0)
-		} else if expInt, ok := exp.(int64); ok {
-			claims.ExpiresAt = time.Unix(expInt, 0)
-		}
+	if config.RequiredAudience != "" && resp.Aud != config.RequiredAudience {
+		return nil, fmt.Errorf("invalid audience: expected %s, got %s", config.RequiredAudience, resp.Aud)
 	}
 
-	// Handle iat claim
-	if iat, ok := mapClaims["iat"]; ok {
-		if iatFloat, ok := iat.(float64); ok {
-			claims.IssuedAt = time.Unix(int64(iatFloat), 0)
-		} else if iatInt, ok := iat.(int64); ok {
-			claims.IssuedAt = time.Unix(iatInt, 0)
-		}
-	}
-
-	// Handle nbf claim
-	if nbf, ok := mapClaims["nbf"]; ok {
-		if nbfFloat, ok := nbf.(float64); ok {
-			claims.NotBefore = time.Unix(int64(nbfFloat), 0)
-		} else if nbfInt, ok := nbf.(int64); ok {
-			claims.NotBefore = time.Unix(nbfInt, 0)
-		}
-	}
-
-	// Extract custom claims
-	if userID, ok := mapClaims["user_id"].(string); ok {
-		claims.UserID = userID
-	}
-	
-	if username, ok := mapClaims["username"].(string); ok {
-		claims.Username = username
-	}
-	
-	if email, ok := mapClaims["email"].(string); ok {
-		claims.Email = email
-	}
-
-	// Handle roles (can be string array)
-	if rolesRaw, ok := mapClaims["roles"]; ok {
-		if rolesSlice, ok := rolesRaw.([]interface{}); ok {
-			roles := make([]string, len(rolesSlice))
-			for i, role := range rolesSlice {
-				if roleStr, ok := role.(string); ok {
-					roles[i] = roleStr
-				}
-			}
-			claims.Roles = roles
-		}
-	}
-
-	// Validate required claims
-	if config.RequiredIssuer != "" && claims.Issuer != config.RequiredIssuer {
-		return nil, fmt.Errorf("invalid issuer: expected %s, got %s", config.RequiredIssuer, claims.Issuer)
-	}
-
-	if config.RequiredAudience != "" && claims.Audience != config.RequiredAudience {
-		return nil, fmt.Errorf("invalid audience: expected %s, got %s", config.RequiredAudience, claims.Audience)
-	}
-
-	// Validate expiration
-	if !claims.ExpiresAt.IsZero() && time.Now().After(claims.ExpiresAt) {
+	// Check expiration
+	if resp.Exp != 0 && time.Now().Unix() > resp.Exp {
 		return nil, fmt.Errorf("token has expired")
 	}
 
-	// Validate not before
-	if !claims.NotBefore.IsZero() && time.Now().Before(claims.NotBefore) {
+	// Check not before
+	if resp.Nbf != 0 && time.Now().Unix() < resp.Nbf {
 		return nil, fmt.Errorf("token not valid yet")
 	}
 
-	return claims, nil
+	// Convert to JWTClaims format for compatibility
+	return ConvertIntrospectionToClaims(resp), nil
 }
 
 // GetJWTClaims extracts JWT claims from the given context

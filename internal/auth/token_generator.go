@@ -1,93 +1,49 @@
 package auth
 
 import (
+	"context"
+	"os"
 	"time"
-
-	"github.com/golang-jwt/jwt/v5"
 )
 
-// TokenGenerator helps generate JWT tokens for testing purposes
+// TokenGenerator helps generate JWT tokens using the JWKS mock API
 type TokenGenerator struct {
-	secretKey []byte
-	issuer    string
+	client *TokenGeneratorClient
 }
 
-// NewTokenGenerator creates a new token generator with the given secret key
-func NewTokenGenerator(secretKey []byte, issuer string) *TokenGenerator {
+// NewTokenGenerator creates a new token generator that uses the JWKS mock API
+func NewTokenGenerator(generateURL string) *TokenGenerator {
 	return &TokenGenerator{
-		secretKey: secretKey,
-		issuer:    issuer,
+		client: NewTokenGeneratorClient(generateURL),
 	}
 }
 
-// GenerateToken creates a JWT token with the specified claims
+// GenerateToken creates a JWT token with the specified claims using the JWKS service
 func (tg *TokenGenerator) GenerateToken(userID, username, email string, roles []string, expiresIn time.Duration) (string, error) {
-	now := time.Now()
-	claims := jwt.MapClaims{
-		"sub":      userID,
-		"user_id":  userID,
-		"username": username,
-		"email":    email,
-		"roles":    roles,
-		"iss":      tg.issuer,
-		"aud":      "dapr-actor-service",
-		"iat":      now.Unix(),
-		"exp":      now.Add(expiresIn).Unix(),
-	}
-
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString(tg.secretKey)
+	return tg.client.GenerateToken(context.Background(), userID, username, email, roles, expiresIn)
 }
 
-// GenerateTokenWithCustomClaims creates a JWT token with custom claims
+// GenerateTokenWithCustomClaims creates a JWT token with custom claims using the JWKS service
 func (tg *TokenGenerator) GenerateTokenWithCustomClaims(claims map[string]interface{}, expiresIn time.Duration) (string, error) {
-	now := time.Now()
-	
-	// Add standard claims if not present
-	if _, exists := claims["iss"]; !exists {
-		claims["iss"] = tg.issuer
-	}
-	if _, exists := claims["aud"]; !exists {
-		claims["aud"] = "dapr-actor-service"
-	}
-	if _, exists := claims["iat"]; !exists {
-		claims["iat"] = now.Unix()
-	}
-	if _, exists := claims["exp"]; !exists {
-		claims["exp"] = now.Add(expiresIn).Unix()
-	}
-
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims(claims))
-	return token.SignedString(tg.secretKey)
+	return tg.client.GenerateTokenWithCustomClaims(context.Background(), claims, expiresIn)
 }
 
-// GenerateExpiredToken creates an expired JWT token for testing
+// GenerateExpiredToken creates an expired JWT token for testing using the JWKS service
 func (tg *TokenGenerator) GenerateExpiredToken(userID, username string) (string, error) {
-	pastTime := time.Now().Add(-1 * time.Hour)
-	claims := jwt.MapClaims{
-		"sub":      userID,
-		"user_id":  userID,
-		"username": username,
-		"iss":      tg.issuer,
-		"aud":      "dapr-actor-service",
-		"iat":      pastTime.Unix(),
-		"exp":      pastTime.Add(30 * time.Minute).Unix(), // Expired 30 minutes ago
-	}
-
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString(tg.secretKey)
+	return tg.client.GenerateExpiredToken(context.Background(), userID, username)
 }
 
-// Default values for testing
-const (
-	// DefaultTestSecret is a default secret for testing (never use in production)
-	DefaultTestSecret = "test-secret-key-do-not-use-in-production"
-	
-	// DefaultTestIssuer is a default issuer for testing
-	DefaultTestIssuer = "dapr-actor-test"
-)
-
-// NewDefaultTestGenerator creates a token generator with default test values
+// NewDefaultTestGenerator creates a token generator with default test values from environment
 func NewDefaultTestGenerator() *TokenGenerator {
-	return NewTokenGenerator([]byte(DefaultTestSecret), DefaultTestIssuer)
+	generateURL := os.Getenv("JWKS_GENERATE_URL")
+	if generateURL == "" {
+		generateURL = "http://localhost:3000/generate-token"
+	}
+	return NewTokenGenerator(generateURL)
 }
+
+// Legacy constants for backward compatibility (no longer used)
+const (
+	DefaultTestSecret = "deprecated-use-jwks-api"
+	DefaultTestIssuer = "deprecated-use-jwks-api"
+)
