@@ -98,12 +98,3 @@ func GetUserID(ctx context.Context) (string, bool) {
 	return userID, ok
 }
 
-// IsResourceOwner checks if the JWT subject matches the given owner ID
-func IsResourceOwner(ctx context.Context, ownerID string) bool {
-	userID, ok := GetUserID(ctx)
-	if !ok {
-		return false
-	}
-	
-	return userID == ownerID
-}

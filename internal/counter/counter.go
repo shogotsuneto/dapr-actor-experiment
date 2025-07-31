@@ -25,9 +25,6 @@ func (c *Counter) Type() string {
 }
 
 func (c *Counter) Increment(ctx context.Context) (*CounterState, error) {
-	// Log JWT information for demonstration
-	c.logJWTInfo(ctx, "Increment")
-	
 	state, err := c.getState(ctx)
 	if err != nil {
 		return nil, err
@@ -43,9 +40,6 @@ func (c *Counter) Increment(ctx context.Context) (*CounterState, error) {
 }
 
 func (c *Counter) Decrement(ctx context.Context) (*CounterState, error) {
-	// Log JWT information for demonstration
-	c.logJWTInfo(ctx, "Decrement")
-	
 	state, err := c.getState(ctx)
 	if err != nil {
 		return nil, err
@@ -61,9 +55,6 @@ func (c *Counter) Decrement(ctx context.Context) (*CounterState, error) {
 }
 
 func (c *Counter) Get(ctx context.Context) (*CounterState, error) {
-	// Log JWT information for demonstration
-	c.logJWTInfo(ctx, "Get")
-	
 	state, err := c.getState(ctx)
 	if err != nil {
 		return nil, err
@@ -73,9 +64,6 @@ func (c *Counter) Get(ctx context.Context) (*CounterState, error) {
 }
 
 func (c *Counter) Set(ctx context.Context, request SetValueRequest) (*CounterState, error) {
-	// Log JWT information for demonstration
-	c.logJWTInfo(ctx, "Set")
-	
 	// Example: Simple check - only authenticated users can set values
 	userID, ok := auth.GetUserID(ctx)
 	if !ok {
@@ -136,13 +124,3 @@ func (c *Counter) validateSetRequest(request SetValueRequest) error {
 	return nil
 }
 
-// logJWTInfo logs JWT information for demonstration purposes
-func (c *Counter) logJWTInfo(ctx context.Context, operation string) {
-	userID, ok := auth.GetUserID(ctx)
-	if !ok {
-		log.Printf("Counter %s: %s operation - No user ID found", c.ID(), operation)
-		return
-	}
-	
-	log.Printf("Counter %s: %s operation by user %s", c.ID(), operation, userID)
-}

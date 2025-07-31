@@ -491,7 +491,7 @@ docker compose logs -f redis
 This repository includes detailed documentation on various aspects of Dapr actors:
 
 ### Architecture and Concepts
-- **[JWT-Aware Actors](docs/jwt-aware-actors.md)** - Complete guide to JWT authentication, authorization, and resource ownership validation in Dapr actors
+- **[Authentication Middleware](docs/authentication-middleware.md)** - Guide to adding authentication middleware and accessing userID in actor methods
 - **[Multiple Actors](docs/multiple-actors.md)** - Complete guide to multiple actor types, state-based vs event-sourced patterns
 - **[Client vs Curl](docs/client-vs-curl.md)** - Understand the difference between using the Go client (Dapr SDK) vs direct HTTP calls with curl
 - **[Event Sourcing](docs/event-sourcing.md)** - Learn whether this implementation uses event sourcing and understand the state-based approach

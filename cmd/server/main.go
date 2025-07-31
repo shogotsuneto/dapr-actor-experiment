@@ -84,12 +84,12 @@ func main() {
 	s.AddServiceInvocationHandler("/health", healthHandler)
 	s.AddServiceInvocationHandler("/status", statusHandler)
 	
-	log.Println("Starting JWT-aware Multi-Actor Dapr Service on port 8080...")
-	log.Printf("JWT Configuration:")
+	log.Println("Starting Multi-Actor Dapr Service with authentication middleware on port 8080...")
+	log.Printf("Authentication Configuration:")
 	log.Printf("  - Introspect URL: %s", getIntrospectURL())
 	log.Printf("Actors registered:")
-	log.Printf("  - %s: State-based counter operations (JWT-aware)", counter.ActorTypeCounter)
-	log.Printf("  - %s: Event-sourced bank account with full audit trail (JWT-aware)", bankaccount.ActorTypeBankAccount)
+	log.Printf("  - %s: State-based counter operations", counter.ActorTypeCounter)
+	log.Printf("  - %s: Event-sourced bank account with full audit trail", bankaccount.ActorTypeBankAccount)
 	
 	// Start the service
 	if err := s.Start(); err != nil && err != http.ErrServerClosed {

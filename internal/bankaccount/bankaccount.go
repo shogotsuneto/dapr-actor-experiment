@@ -122,17 +122,14 @@ func (b *BankAccount) getCachedState() (*BankAccountState, error) {
 }
 
 func (b *BankAccount) CreateAccount(ctx context.Context, request CreateAccountRequest) (*BankAccountState, error) {
-	// Log JWT information
-	b.logJWTInfo(ctx, "CreateAccount")
-	
-	// JWT-aware validation: Check if user can create this account
+	// Get user ID from JWT context
 	userID, ok := auth.GetUserID(ctx)
 	if !ok {
 		return nil, errors.New("authentication required: cannot identify user")
 	}
 	
 	// For account creation, the actor ID should match the user ID (simplified ownership check)
-	if !auth.IsResourceOwner(ctx, b.ID()) {
+	if userID != b.ID() {
 		log.Printf("BankAccount %s: User %s attempted to create account without ownership", b.ID(), userID)
 		return nil, errors.New("insufficient permissions: can only create accounts for yourself")
 	}
@@ -181,11 +178,9 @@ func (b *BankAccount) CreateAccount(ctx context.Context, request CreateAccountRe
 }
 
 func (b *BankAccount) Deposit(ctx context.Context, request DepositRequest) (*BankAccountState, error) {
-	// Log JWT information
-	b.logJWTInfo(ctx, "Deposit")
-	
-	// JWT-aware validation: Check if user can access this account
-	if !b.canAccessAccount(ctx) {
+	// Check if user can access this account (simple userID check)
+	userID, ok := auth.GetUserID(ctx)
+	if !ok || userID != b.ID() {
 		return nil, errors.New("insufficient permissions: cannot access this account")
 	}
 	
@@ -220,11 +215,9 @@ func (b *BankAccount) Deposit(ctx context.Context, request DepositRequest) (*Ban
 }
 
 func (b *BankAccount) Withdraw(ctx context.Context, request WithdrawRequest) (*BankAccountState, error) {
-	// Log JWT information
-	b.logJWTInfo(ctx, "Withdraw")
-	
-	// JWT-aware validation: Check if user can access this account
-	if !b.canAccessAccount(ctx) {
+	// Check if user can access this account (simple userID check)
+	userID, ok := auth.GetUserID(ctx)
+	if !ok || userID != b.ID() {
 		return nil, errors.New("insufficient permissions: cannot access this account")
 	}
 	
@@ -265,11 +258,9 @@ func (b *BankAccount) Withdraw(ctx context.Context, request WithdrawRequest) (*B
 }
 
 func (b *BankAccount) GetBalance(ctx context.Context) (*BankAccountState, error) {
-	// Log JWT information
-	b.logJWTInfo(ctx, "GetBalance")
-	
-	// JWT-aware validation: Check if user can access this account
-	if !b.canAccessAccount(ctx) {
+	// Check if user can access this account (simple userID check)
+	userID, ok := auth.GetUserID(ctx)
+	if !ok || userID != b.ID() {
 		return nil, errors.New("insufficient permissions: cannot access this account")
 	}
 	
@@ -283,11 +274,9 @@ func (b *BankAccount) GetBalance(ctx context.Context) (*BankAccountState, error)
 }
 
 func (b *BankAccount) GetHistory(ctx context.Context) (*TransactionHistory, error) {
-	// Log JWT information
-	b.logJWTInfo(ctx, "GetHistory")
-	
-	// JWT-aware validation: Check if user can access this account
-	if !b.canAccessAccount(ctx) {
+	// Check if user can access this account (simple userID check)
+	userID, ok := auth.GetUserID(ctx)
+	if !ok || userID != b.ID() {
 		return nil, errors.New("insufficient permissions: cannot access this account")
 	}
 	
@@ -450,22 +439,3 @@ func (b *BankAccount) convertEventDataToMap(data interface{}) map[string]interfa
 	return result
 }
 
-// canAccessAccount checks if the current user can access this account
-func (b *BankAccount) canAccessAccount(ctx context.Context) bool {
-	// Check if user is the resource owner (simplified check)
-	return auth.IsResourceOwner(ctx, b.ID())
-}
-
-// logJWTInfo logs JWT information for demonstration purposes
-func (b *BankAccount) logJWTInfo(ctx context.Context, operation string) {
-	userID, ok := auth.GetUserID(ctx)
-	if !ok {
-		log.Printf("BankAccount %s: %s operation - No user ID found", b.ID(), operation)
-		return
-	}
-	
-	isOwner := auth.IsResourceOwner(ctx, b.ID())
-	
-	log.Printf("BankAccount %s: %s operation by user %s (is_owner: %t)", 
-		b.ID(), operation, userID, isOwner)
-}
