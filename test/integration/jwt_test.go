@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/shogotsuneto/dapr-actor-experiment/internal/auth"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -18,11 +17,9 @@ func TestJWTAwareCounterActor(t *testing.T) {
 	client := NewDaprClient(GetDaprEndpoint())
 	require.NoError(t, client.CheckHealth(), "Dapr services must be running for this test")
 
-	generator := auth.NewDefaultTestGenerator()
-
 	t.Run("AdminCanAccessAllCounterOperations", func(t *testing.T) {
 		// Generate admin token
-		adminToken, err := generator.GenerateToken(
+		adminToken, err := generateTestToken(
 			"admin-001", "admin", "admin@example.com",
 			[]string{"admin", "counter_admin"}, 1*time.Hour,
 		)
@@ -59,7 +56,7 @@ func TestJWTAwareCounterActor(t *testing.T) {
 
 	t.Run("RegularUserCannotSetCounterValue", func(t *testing.T) {
 		// Generate regular user token (without admin roles)
-		userToken, err := generator.GenerateToken(
+		userToken, err := generateTestToken(
 			"user-123", "john_doe", "john@example.com",
 			[]string{"user"}, 1*time.Hour,
 		)
@@ -89,7 +86,7 @@ func TestJWTAwareCounterActor(t *testing.T) {
 
 	t.Run("CounterAdminCanSetValue", func(t *testing.T) {
 		// Generate user token with counter_admin role
-		adminUserToken, err := generator.GenerateToken(
+		adminUserToken, err := generateTestToken(
 			"user-456", "jane_smith", "jane@example.com",
 			[]string{"user", "counter_admin"}, 1*time.Hour,
 		)
@@ -118,7 +115,7 @@ func TestJWTAwareCounterActor(t *testing.T) {
 
 	t.Run("ExpiredTokenIsRejected", func(t *testing.T) {
 		// Generate expired token
-		expiredToken, err := generator.GenerateExpiredToken("expired-user", "expired")
+		expiredToken, err := generateExpiredTestToken("expired-user", "expired")
 		require.NoError(t, err)
 
 		// Test that expired token is rejected
@@ -153,11 +150,9 @@ func TestJWTAwareBankAccountActor(t *testing.T) {
 	client := NewDaprClient(GetDaprEndpoint())
 	require.NoError(t, client.CheckHealth(), "Dapr services must be running for this test")
 
-	generator := auth.NewDefaultTestGenerator()
-
 	t.Run("UserCanCreateAndAccessOwnAccount", func(t *testing.T) {
 		// Generate user token
-		userToken, err := generator.GenerateToken(
+		userToken, err := generateTestToken(
 			"user-123", "john_doe", "john@example.com",
 			[]string{"user"}, 1*time.Hour,
 		)
@@ -209,7 +204,7 @@ func TestJWTAwareBankAccountActor(t *testing.T) {
 
 	t.Run("UserCannotAccessOthersAccount", func(t *testing.T) {
 		// Generate tokens for two different users
-		user1Token, err := generator.GenerateToken(
+		user1Token, err := generateTestToken(
 			"user-123", "john_doe", "john@example.com",
 			[]string{"user"}, 1*time.Hour,
 		)
@@ -228,7 +223,7 @@ func TestJWTAwareBankAccountActor(t *testing.T) {
 
 	t.Run("AdminCanAccessAnyAccount", func(t *testing.T) {
 		// Generate admin token
-		adminToken, err := generator.GenerateToken(
+		adminToken, err := generateTestToken(
 			"admin-001", "admin", "admin@example.com",
 			[]string{"admin", "bank_admin"}, 1*time.Hour,
 		)
@@ -247,7 +242,7 @@ func TestJWTAwareBankAccountActor(t *testing.T) {
 
 	t.Run("UserCannotCreateAccountForOthers", func(t *testing.T) {
 		// Generate user token
-		userToken, err := generator.GenerateToken(
+		userToken, err := generateTestToken(
 			"user-789", "bob_wilson", "bob@example.com",
 			[]string{"user"}, 1*time.Hour,
 		)
