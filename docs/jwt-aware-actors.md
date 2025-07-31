@@ -4,13 +4,14 @@ This document explains the JWT authentication and authorization features added t
 
 ## Overview
 
-The JWT-aware actors feature allows actors to access verified JWT token information and enforce resource ownership and role-based access control. The authentication happens at the HTTP middleware layer within the same runtime container, without requiring external gateways.
+The JWT-aware actors feature allows actors to access verified JWT token information and enforce resource ownership and role-based access control. The authentication uses OAuth 2.0 token introspection (RFC 7662) via an external JWKS Mock API service, providing production-ready token validation with proper separation of concerns.
 
 ## Features
 
-### JWT Token Validation
+### OAuth 2.0 Token Introspection
 - **Automatic token extraction** from `Authorization: Bearer <token>` headers
-- **Signature validation** using HMAC (HS256), RSA, or ECDSA algorithms
+- **Token introspection** using OAuth 2.0 compliant `/introspect` endpoint
+- **RSA signature validation** via JWKS (JSON Web Key Set)
 - **Standard claims validation** (issuer, audience, expiration, etc.)
 - **Custom claims support** for application-specific data
 
@@ -32,19 +33,20 @@ The JWT-aware actors feature allows actors to access verified JWT token informat
 ## Architecture
 
 ```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│                 │    │                 │    │                 │
-│     Client      │───▶│  JWT Middleware │───▶│  Actor Method   │
-│  (with JWT)     │    │   (validates &  │    │ (accesses JWT   │
-│                 │    │  injects claims)│    │    claims)      │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-                                │                        │
-                                ▼                        ▼
-                       ┌─────────────────┐    ┌─────────────────┐
-                       │                 │    │                 │
-                       │  Context with   │    │  Authorization  │
-                       │  JWT Claims     │    │     Logic       │
-                       └─────────────────┘    └─────────────────┘
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│                 │    │                 │    │                 │    │                 │
+│     Client      │───▶│  JWT Middleware │───▶│   JWKS Mock     │───▶│  Actor Method   │
+│  (with JWT)     │    │  (introspects   │    │   API Service   │    │ (accesses JWT   │
+│                 │    │   via HTTP)     │    │ (/introspect)   │    │    claims)      │
+└─────────────────┘    └─────────────────┘    └─────────────────┘    └─────────────────┘
+                                │                        │                        │
+                                ▼                        ▼                        ▼
+                       ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+                       │                 │    │                 │    │                 │
+                       │ OAuth 2.0 Token │    │  RSA Signature  │    │  Authorization  │
+                       │  Introspection  │    │   Validation    │    │     Logic       │
+                       │    (RFC 7662)   │    │   via JWKS      │    │                 │
+                       └─────────────────┘    └─────────────────┘    └─────────────────┘
 ```
 
 ## Configuration
@@ -52,24 +54,31 @@ The JWT-aware actors feature allows actors to access verified JWT token informat
 ### Environment Variables
 
 ```bash
-# JWT secret key for HMAC signature validation
-JWT_SECRET=your-secret-key-here
+# JWKS Mock API introspection endpoint URL
+JWKS_INTROSPECT_URL=http://jwks-mock-api:3000/introspect
 
 # Required issuer claim (optional)
-JWT_ISSUER=your-issuer
+JWT_ISSUER=http://jwks-mock-api:3000
 
-# Allow insecure mode for testing (optional)
-JWT_INSECURE_MODE=false
+# Required audience claim (optional)  
+JWT_AUDIENCE=dapr-actor-service
 ```
 
-### Default Test Configuration
+### JWKS Mock API Configuration
 
-For development and testing, the system uses these defaults if no environment variables are set:
+The JWKS Mock API service is configured in docker-compose.yml:
 
-```bash
-JWT_SECRET=test-secret-key-do-not-use-in-production
-JWT_ISSUER=dapr-actor-test
-JWT_INSECURE_MODE=false
+```yaml
+jwks-mock-api:
+  image: ghcr.io/shogotsuneto/jwks-mock-api:v0.0.4
+  ports:
+    - "3000:3000"
+  environment:
+    - PORT=3000
+    - JWT_ISSUER=http://jwks-mock-api:3000
+    - JWT_AUDIENCE=dapr-actor-service
+    - KEY_COUNT=2
+    - KEY_IDS=key-1,key-2
 ```
 
 ## JWT Claims Structure
@@ -156,17 +165,59 @@ func (a *Actor) SomeMethod(ctx context.Context) error {
 
 ## API Usage Examples
 
+### Token Generation
+
+Generate tokens using the JWKS Mock API:
+
+```bash
+# Generate admin token
+curl -X POST http://localhost:3000/generate-token \
+  -H "Content-Type: application/json" \
+  -d '{
+    "claims": {
+      "sub": "admin-user",
+      "user_id": "admin-user",
+      "username": "admin",
+      "email": "admin@example.com",
+      "roles": ["admin", "counter_admin", "bank_admin"]
+    },
+    "expiresIn": 3600
+  }'
+
+# Generate regular user token
+curl -X POST http://localhost:3000/generate-token \
+  -H "Content-Type: application/json" \
+  -d '{
+    "claims": {
+      "sub": "user-123",
+      "user_id": "user-123",
+      "username": "john_doe", 
+      "email": "john@example.com",
+      "roles": ["user"]
+    },
+    "expiresIn": 3600
+  }'
+```
+
 ### Successful Operations
 
 ```bash
-# Generate a valid token
-ADMIN_TOKEN="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+# Extract token from generation response
+ADMIN_TOKEN=$(curl -s -X POST http://localhost:3000/generate-token \
+  -H "Content-Type: application/json" \
+  -d '{"claims": {"sub": "admin", "roles": ["admin"]}, "expiresIn": 3600}' | \
+  jq -r '.token')
 
 # Access counter with admin token
 curl -H "Authorization: Bearer $ADMIN_TOKEN" \
      http://localhost:3500/v1.0/actors/Counter/counter-1/method/get
 
 # Create user's own bank account
+USER_TOKEN=$(curl -s -X POST http://localhost:3000/generate-token \
+  -H "Content-Type: application/json" \
+  -d '{"claims": {"sub": "user-123", "roles": ["user"]}, "expiresIn": 3600}' | \
+  jq -r '.token')
+
 curl -X POST \
      -H "Authorization: Bearer $USER_TOKEN" \
      -H "Content-Type: application/json" \
@@ -181,6 +232,11 @@ curl -X POST \
 curl http://localhost:3500/v1.0/actors/Counter/counter-1/method/get
 
 # Regular user trying to set counter (403 Forbidden)
+USER_TOKEN=$(curl -s -X POST http://localhost:3000/generate-token \
+  -H "Content-Type: application/json" \
+  -d '{"claims": {"sub": "user", "roles": ["user"]}, "expiresIn": 3600}' | \
+  jq -r '.token')
+
 curl -X POST \
      -H "Authorization: Bearer $USER_TOKEN" \
      -H "Content-Type: application/json" \
@@ -236,36 +292,35 @@ docker compose -f test/integration/docker-compose.test.yml down
 
 ### Production Deployment
 
-1. **Use strong secret keys**: Generate cryptographically secure keys
-2. **Use RSA/ECDSA**: Consider asymmetric keys for better security
+1. **Use dedicated OAuth provider**: Replace JWKS Mock API with production OAuth 2.0 provider
+2. **RSA/ECDSA signatures**: Tokens are signed using asymmetric cryptography via JWKS
 3. **Set proper issuer/audience**: Validate token source and destination
 4. **Enable HTTPS**: Always use TLS in production
-5. **Token rotation**: Implement regular key rotation
+5. **Key rotation support**: JWKS service supports multiple keys for seamless rotation
 
 ### Development vs Production
 
 ```bash
-# Development (using defaults)
-JWT_SECRET=test-secret-key-do-not-use-in-production
-JWT_INSECURE_MODE=false
+# Development (using JWKS Mock API)
+JWKS_INTROSPECT_URL=http://jwks-mock-api:3000/introspect
+JWT_ISSUER=http://jwks-mock-api:3000
 
-# Production (secure configuration)
-JWT_SECRET=$(openssl rand -base64 32)
-JWT_ISSUER=your-auth-service
+# Production (using real OAuth provider)
+JWKS_INTROSPECT_URL=https://auth.yourcompany.com/oauth2/introspect
+JWT_ISSUER=https://auth.yourcompany.com
 JWT_AUDIENCE=dapr-actor-service
 ```
 
 ## Middleware Configuration
 
-The JWT middleware supports flexible configuration:
+The JWT middleware supports OAuth 2.0 introspection configuration:
 
 ```go
 jwtConfig := auth.JWTMiddlewareConfig{
-    SecretKey: []byte("your-secret-key"),
-    RequiredIssuer: "your-issuer",
-    RequiredAudience: "your-audience",
+    IntrospectURL: "http://jwks-mock-api:3000/introspect",
+    RequiredIssuer: "http://jwks-mock-api:3000",
+    RequiredAudience: "dapr-actor-service",
     SkipPaths: []string{"/health", "/status"},
-    AllowInsecure: false, // Never true in production
 }
 ```
 
@@ -294,15 +349,15 @@ jwtConfig := auth.JWTMiddlewareConfig{
 
 ## Limitations
 
-1. **Single Secret**: Currently supports one HMAC secret per service
-2. **Synchronous Validation**: No support for async token validation
-3. **No Token Revocation**: No built-in token blacklist support
+1. **External Service Dependency**: Requires JWKS Mock API or OAuth provider for token validation
+2. **Network Latency**: Token validation involves HTTP calls to introspection endpoint
+3. **Service Availability**: Authentication depends on external service uptime
 4. **Memory Storage**: Claims are stored in request context only
 
 ## Future Enhancements
 
-- **Multiple Keys**: Support for key rotation with multiple valid keys
-- **JWK Support**: JSON Web Key (JWK) integration
-- **Token Revocation**: Redis-based token blacklist
-- **RBAC Extensions**: More sophisticated role hierarchies
+- **OAuth Provider Integration**: Support for popular OAuth 2.0 providers (Auth0, Okta, etc.)
+- **Token Caching**: Cache introspection responses to reduce network calls
+- **Fallback Mechanisms**: Local validation fallback when introspection service is unavailable
+- **RBAC Extensions**: More sophisticated role hierarchies and permissions
 - **Audit Logging**: Structured audit trail for security events
