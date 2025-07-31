@@ -59,7 +59,6 @@ func main() {
 	// Configure JWT middleware with introspection
 	jwtConfig := auth.JWTMiddlewareConfig{
 		IntrospectURL: getIntrospectURL(),
-		RequiredIssuer: getJWTIssuer(),
 		SkipPaths: []string{
 			"/health",
 			"/status",
@@ -88,7 +87,6 @@ func main() {
 	log.Println("Starting JWT-aware Multi-Actor Dapr Service on port 8080...")
 	log.Printf("JWT Configuration:")
 	log.Printf("  - Introspect URL: %s", getIntrospectURL())
-	log.Printf("  - Required Issuer: %s", getJWTIssuer())
 	log.Printf("Actors registered:")
 	log.Printf("  - %s: State-based counter operations (JWT-aware)", counter.ActorTypeCounter)
 	log.Printf("  - %s: Event-sourced bank account with full audit trail (JWT-aware)", bankaccount.ActorTypeBankAccount)
@@ -107,10 +105,3 @@ func getIntrospectURL() string {
 	return "http://localhost:3000/introspect"
 }
 
-// getJWTIssuer returns the JWT issuer from environment or default
-func getJWTIssuer() string {
-	if issuer := os.Getenv("JWT_ISSUER"); issuer != "" {
-		return issuer
-	}
-	return "http://localhost:3000"
-}

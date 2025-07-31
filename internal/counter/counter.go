@@ -76,11 +76,11 @@ func (c *Counter) Set(ctx context.Context, request SetValueRequest) (*CounterSta
 	// Log JWT information for demonstration
 	c.logJWTInfo(ctx, "Set")
 	
-	// Example: Check if user has admin role for set operations
-	if !auth.HasRole(ctx, "admin") && !auth.HasRole(ctx, "counter_admin") {
-		userID := auth.GetUserIdentifier(ctx)
-		log.Printf("Counter %s: User %s attempted Set operation without admin role", c.ID(), userID)
-		return nil, errors.New("insufficient permissions: admin role required for set operations")
+	// Example: Simple check - only authenticated users can set values
+	userID, ok := auth.GetUserID(ctx)
+	if !ok {
+		log.Printf("Counter %s: Unauthenticated user attempted Set operation", c.ID())
+		return nil, errors.New("authentication required for set operations")
 	}
 	
 	if err := c.validateSetRequest(request); err != nil {
@@ -93,6 +93,7 @@ func (c *Counter) Set(ctx context.Context, request SetValueRequest) (*CounterSta
 		return nil, err
 	}
 	
+	log.Printf("Counter %s: Set operation completed by user %s", c.ID(), userID)
 	return state, nil
 }
 
@@ -137,13 +138,11 @@ func (c *Counter) validateSetRequest(request SetValueRequest) error {
 
 // logJWTInfo logs JWT information for demonstration purposes
 func (c *Counter) logJWTInfo(ctx context.Context, operation string) {
-	claims, ok := auth.GetJWTClaims(ctx)
+	userID, ok := auth.GetUserID(ctx)
 	if !ok {
-		log.Printf("Counter %s: %s operation - No JWT claims found", c.ID(), operation)
+		log.Printf("Counter %s: %s operation - No user ID found", c.ID(), operation)
 		return
 	}
 	
-	userID := auth.GetUserIdentifier(ctx)
-	log.Printf("Counter %s: %s operation by user %s (subject: %s, username: %s, roles: %v)", 
-		c.ID(), operation, userID, claims.Subject, claims.Username, claims.Roles)
+	log.Printf("Counter %s: %s operation by user %s", c.ID(), operation, userID)
 }

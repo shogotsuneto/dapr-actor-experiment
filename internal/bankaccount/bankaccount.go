@@ -126,15 +126,15 @@ func (b *BankAccount) CreateAccount(ctx context.Context, request CreateAccountRe
 	b.logJWTInfo(ctx, "CreateAccount")
 	
 	// JWT-aware validation: Check if user can create this account
-	userID := auth.GetUserIdentifier(ctx)
-	if userID == "" {
+	userID, ok := auth.GetUserID(ctx)
+	if !ok {
 		return nil, errors.New("authentication required: cannot identify user")
 	}
 	
-	// For account creation, the actor ID should match the user ID or user should have admin role
-	if !auth.IsResourceOwner(ctx, b.ID()) && !auth.HasRole(ctx, "admin") && !auth.HasRole(ctx, "bank_admin") {
-		log.Printf("BankAccount %s: User %s attempted to create account without ownership or admin role", b.ID(), userID)
-		return nil, errors.New("insufficient permissions: can only create accounts for yourself or with admin role")
+	// For account creation, the actor ID should match the user ID (simplified ownership check)
+	if !auth.IsResourceOwner(ctx, b.ID()) {
+		log.Printf("BankAccount %s: User %s attempted to create account without ownership", b.ID(), userID)
+		return nil, errors.New("insufficient permissions: can only create accounts for yourself")
 	}
 	
 	// Ensure state is loaded
@@ -452,24 +452,20 @@ func (b *BankAccount) convertEventDataToMap(data interface{}) map[string]interfa
 
 // canAccessAccount checks if the current user can access this account
 func (b *BankAccount) canAccessAccount(ctx context.Context) bool {
-	// Check if user is the resource owner or has admin privileges
-	return auth.IsResourceOwner(ctx, b.ID()) || 
-		   auth.HasRole(ctx, "admin") || 
-		   auth.HasRole(ctx, "bank_admin")
+	// Check if user is the resource owner (simplified check)
+	return auth.IsResourceOwner(ctx, b.ID())
 }
 
 // logJWTInfo logs JWT information for demonstration purposes
 func (b *BankAccount) logJWTInfo(ctx context.Context, operation string) {
-	claims, ok := auth.GetJWTClaims(ctx)
+	userID, ok := auth.GetUserID(ctx)
 	if !ok {
-		log.Printf("BankAccount %s: %s operation - No JWT claims found", b.ID(), operation)
+		log.Printf("BankAccount %s: %s operation - No user ID found", b.ID(), operation)
 		return
 	}
 	
-	userID := auth.GetUserIdentifier(ctx)
 	isOwner := auth.IsResourceOwner(ctx, b.ID())
-	hasAdminRole := auth.HasRole(ctx, "admin") || auth.HasRole(ctx, "bank_admin")
 	
-	log.Printf("BankAccount %s: %s operation by user %s (subject: %s, username: %s, roles: %v, is_owner: %t, has_admin: %t)", 
-		b.ID(), operation, userID, claims.Subject, claims.Username, claims.Roles, isOwner, hasAdminRole)
+	log.Printf("BankAccount %s: %s operation by user %s (is_owner: %t)", 
+		b.ID(), operation, userID, isOwner)
 }
