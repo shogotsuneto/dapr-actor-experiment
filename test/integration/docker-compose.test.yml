@@ -79,12 +79,12 @@ services:
       "-dapr-grpc-port", "50001",
       "-placement-host-address", "placement:50006",
       "-resources-path", "/components",
-      "-config", "/config/config.yaml",
+      "-config", "/config/dapr-config-bearer.yaml",
       "-log-level", "info"
     ]
     volumes:
-      - "../../configs/dapr:/components"
-      - "../../configs/dapr:/config"
+      - "../../components:/components"
+      - "../../configs:/config"
     ports:
       - "3500:3500"
       - "50001:50001"
