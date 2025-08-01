@@ -18,10 +18,6 @@ const (
 
 // JWTMiddlewareConfig configures the JWT middleware
 type JWTMiddlewareConfig struct {
-	// IntrospectURL when set, enables JWT authentication (Bearer middleware should be configured)
-	// When empty, authentication is disabled for development
-	IntrospectURL string
-	
 	// SkipPaths are paths that should skip JWT validation
 	SkipPaths []string
 }
@@ -43,15 +39,18 @@ func JWTMiddleware(config JWTMiddlewareConfig) func(http.Handler) http.Handler {
 			
 			// Extract userID from the forwarded JWT payload
 			// Dapr Bearer middleware forwards JWT claims as headers with "X-" prefix
+			// Available headers from Dapr Bearer middleware:
+			// - X-Sub: Subject (user ID)
+			// - X-Iss: Issuer
+			// - X-Aud: Audience  
+			// - X-Exp: Expiration (Unix timestamp)
+			// - X-Iat: Issued At (Unix timestamp)
+			// - X-Nbf: Not Before (Unix timestamp)
+			// - X-Jti: JWT ID
+			// - X-{claim}: Any custom claims from the JWT
 			userID := r.Header.Get("X-Sub")
 			if userID == "" {
-				// If authentication is not configured, skip validation
-				if config.IntrospectURL == "" {
-					next.ServeHTTP(w, r)
-					return
-				}
-				// If authentication is configured but no user ID forwarded, 
-				// it means JWT validation failed at Dapr level
+				// If no user ID forwarded, JWT validation failed at Dapr level
 				http.Error(w, "Authentication required", http.StatusUnauthorized)
 				return
 			}

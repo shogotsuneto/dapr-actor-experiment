@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
-	"os"
 
 	"github.com/dapr/go-sdk/service/common"
 	daprd "github.com/dapr/go-sdk/service/http"
@@ -56,9 +55,8 @@ func main() {
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.RequestID)
 	
-	// Configure JWT middleware with introspection
+	// Configure JWT middleware 
 	jwtConfig := auth.JWTMiddlewareConfig{
-		IntrospectURL: getIntrospectURL(),
 		SkipPaths: []string{
 			"/health",
 			"/status",
@@ -86,12 +84,7 @@ func main() {
 	
 	log.Println("Starting Multi-Actor Dapr Service with authentication middleware on port 8080...")
 	log.Printf("Authentication Configuration:")
-	log.Printf("  - Authentication: %s", func() string {
-		if getIntrospectURL() != "" {
-			return "Enabled (Dapr Bearer middleware)"
-		}
-		return "Disabled (development mode)"
-	}())
+	log.Printf("  - Authentication: Enabled via Dapr Bearer middleware")
 	log.Printf("Actors registered:")
 	log.Printf("  - %s: State-based counter operations", counter.ActorTypeCounter)
 	log.Printf("  - %s: Event-sourced bank account with full audit trail", bankaccount.ActorTypeBankAccount)
@@ -100,14 +93,5 @@ func main() {
 	if err := s.Start(); err != nil && err != http.ErrServerClosed {
 		log.Fatalf("Error starting service: %v", err)
 	}
-}
-
-// getIntrospectURL returns the JWT introspection URL from environment
-// When set, enables JWT authentication via Dapr Bearer middleware
-func getIntrospectURL() string {
-	if url := os.Getenv("JWKS_INTROSPECT_URL"); url != "" {
-		return url
-	}
-	return ""
 }
 

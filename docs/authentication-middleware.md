@@ -9,15 +9,29 @@ The authentication middleware demonstrates how to:
 - Extract user information from tokens and make it accessible in actor methods
 - Implement simple resource ownership validation using userID
 
-The middleware uses OAuth 2.0 token introspection via an external JWKS Mock API service for token validation.
+The middleware works with Dapr's Bearer middleware component which handles JWT validation at the sidecar level.
 
 ## Configuration
 
-### Environment Variables
+### Dapr Bearer Middleware Component
 
-```bash
-# JWKS Mock API introspection endpoint URL
-JWKS_INTROSPECT_URL=http://jwks-mock-api:3000/introspect
+The Bearer middleware component is configured to validate JWT tokens using JWKS:
+
+```yaml
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: bearer-token
+spec:
+  type: middleware.http.bearer
+  version: v1
+  metadata:
+  - name: clientId
+    value: "your-client-id"
+  - name: issuer
+    value: "http://jwks-mock-api:3000"
+  - name: audience
+    value: "your-audience"
 ```
 
 ### JWKS Mock API Setup
@@ -35,18 +49,25 @@ jwks-mock-api:
 
 ## Middleware Implementation
 
-The middleware extracts the `sub` claim from introspected tokens and stores it as userID in the request context:
+The middleware extracts the `sub` claim from JWT tokens validated by Dapr Bearer middleware and stores it as userID in the request context:
 
 ```go
 // Middleware configuration
 jwtConfig := auth.JWTMiddlewareConfig{
-    IntrospectURL: "http://jwks-mock-api:3000/introspect",
     SkipPaths: []string{"/health", "/status"},
 }
 
 // Apply middleware
 router.Use(auth.JWTMiddleware(jwtConfig))
 ```
+
+When Dapr Bearer middleware validates a JWT token, it forwards the claims as HTTP headers with "X-" prefix:
+- `X-Sub`: Subject (user ID)
+- `X-Iss`: Issuer
+- `X-Aud`: Audience
+- `X-Exp`: Expiration timestamp
+- `X-Iat`: Issued At timestamp
+- Any custom claims as `X-{claim-name}`
 
 ## Actor Context Access
 
@@ -151,9 +172,9 @@ docker compose -f test/integration/docker-compose.test.yml down
 
 This approach provides:
 - **Simple middleware integration** - demonstrates how to add authentication to any HTTP service
-- **Clean context access** - userID available in all actor methods through standard Go context
+- **Clean context access** - userID available in all actor methods through standard Go context  
 - **Minimal complexity** - focuses on core middleware concepts rather than complex authorization
-- **External token validation** - delegates token complexity to external service
+- **Dapr-native authentication** - uses Dapr Bearer middleware for token validation
 - **Clear separation of concerns** - authentication logic separate from business logic
 
 The example shows how middleware can provide user context to actors while keeping the implementation straightforward and focused on demonstrating core patterns.
