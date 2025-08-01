@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/dapr/go-sdk/actor"
 	"github.com/google/uuid"
+	"github.com/shogotsuneto/dapr-actor-experiment/internal/auth"
 )
 
 // AccountEvent represents a single account event (temporary definition until generator fix)
@@ -52,6 +54,7 @@ const (
 // Internal event structures (not exposed in API)
 type AccountCreatedEventData struct {
 	OwnerName      string    `json:"ownerName"`
+	OwnerId        string    `json:"ownerId"`
 	InitialDeposit float64   `json:"initialDeposit"`
 	CreatedAt      time.Time `json:"createdAt"`
 }
@@ -119,7 +122,38 @@ func (b *BankAccount) getCachedState() (*BankAccountState, error) {
 	return b.cachedState, nil
 }
 
+// checkOwnership verifies that the user can access this account
+func (b *BankAccount) checkOwnership(ctx context.Context) (string, error) {
+	userID, ok := auth.GetUserID(ctx)
+	if !ok {
+		return "", errors.New("authentication required")
+	}
+	
+	// For account creation, the actor ID should match the user ID (simplified ownership check)
+	// This means users can only create accounts that match their user ID
+	if !b.accountExists {
+		if userID != b.ID() {
+			return "", errors.New("insufficient permissions: can only create accounts for yourself")
+		}
+		return userID, nil
+	}
+	
+	// For existing accounts, check against the stored owner ID
+	if b.cachedState != nil && b.cachedState.OwnerId != userID {
+		return "", errors.New("insufficient permissions: cannot access this account")
+	}
+	
+	return userID, nil
+}
+
 func (b *BankAccount) CreateAccount(ctx context.Context, request CreateAccountRequest) (*BankAccountState, error) {
+	// Check ownership and get user ID
+	userID, err := b.checkOwnership(ctx)
+	if err != nil {
+		log.Printf("BankAccount %s: User access denied - %v", b.ID(), err)
+		return nil, err
+	}
+	
 	// Ensure state is loaded
 	if err := b.ensureStateLoaded(ctx); err != nil {
 		return nil, err
@@ -138,9 +172,10 @@ func (b *BankAccount) CreateAccount(ctx context.Context, request CreateAccountRe
 		return nil, errors.New("initial deposit cannot be negative")
 	}
 	
-	// Create and store event for durability
+	// Create and store event for durability (include creator info)
 	eventData := AccountCreatedEventData{
 		OwnerName:      request.OwnerName,
+		OwnerId:        userID,
 		InitialDeposit: request.InitialDeposit,
 		CreatedAt:      time.Now(),
 	}
@@ -153,25 +188,35 @@ func (b *BankAccount) CreateAccount(ctx context.Context, request CreateAccountRe
 	b.cachedState = &BankAccountState{
 		AccountId: b.ID(),
 		OwnerName: request.OwnerName,
+		OwnerId:   userID,
 		Balance:   request.InitialDeposit,
 		IsActive:  true,
 		CreatedAt: eventData.CreatedAt.Format(time.RFC3339),
 	}
 	b.accountExists = true
 	
+	log.Printf("BankAccount %s: Account created by user %s for owner %s", b.ID(), userID, request.OwnerName)
 	return b.cachedState, nil
 }
 
 func (b *BankAccount) Deposit(ctx context.Context, request DepositRequest) (*BankAccountState, error) {
+	// Ensure state is loaded first so checkOwnership can validate
+	if err := b.ensureStateLoaded(ctx); err != nil {
+		return nil, err
+	}
+	
+	// Check ownership
+	_, err := b.checkOwnership(ctx)
+	if err != nil {
+		return nil, err
+	}
+	
 	// Validate request
 	if request.Amount <= 0 {
 		return nil, errors.New("deposit amount must be positive")
 	}
 	
-	// Ensure state is loaded and account exists
-	if err := b.ensureStateLoaded(ctx); err != nil {
-		return nil, err
-	}
+	// Ensure account exists
 	if _, err := b.getCachedState(); err != nil {
 		return nil, err
 	}
@@ -194,15 +239,23 @@ func (b *BankAccount) Deposit(ctx context.Context, request DepositRequest) (*Ban
 }
 
 func (b *BankAccount) Withdraw(ctx context.Context, request WithdrawRequest) (*BankAccountState, error) {
+	// Ensure state is loaded first so checkOwnership can validate
+	if err := b.ensureStateLoaded(ctx); err != nil {
+		return nil, err
+	}
+	
+	// Check ownership
+	_, err := b.checkOwnership(ctx)
+	if err != nil {
+		return nil, err
+	}
+	
 	// Validate request
 	if request.Amount <= 0 {
 		return nil, errors.New("withdrawal amount must be positive")
 	}
 	
-	// Ensure state is loaded and account exists
-	if err := b.ensureStateLoaded(ctx); err != nil {
-		return nil, err
-	}
+	// Ensure account exists and get current state
 	currentState, err := b.getCachedState()
 	if err != nil {
 		return nil, err
@@ -231,8 +284,14 @@ func (b *BankAccount) Withdraw(ctx context.Context, request WithdrawRequest) (*B
 }
 
 func (b *BankAccount) GetBalance(ctx context.Context) (*BankAccountState, error) {
-	// Ensure state is loaded
+	// Ensure state is loaded first so checkOwnership can validate
 	if err := b.ensureStateLoaded(ctx); err != nil {
+		return nil, err
+	}
+	
+	// Check ownership
+	_, err := b.checkOwnership(ctx)
+	if err != nil {
 		return nil, err
 	}
 	
@@ -241,10 +300,17 @@ func (b *BankAccount) GetBalance(ctx context.Context) (*BankAccountState, error)
 }
 
 func (b *BankAccount) GetHistory(ctx context.Context) (*TransactionHistory, error) {
-	// Ensure state is loaded and account exists
+	// Ensure state is loaded first so checkOwnership can validate
 	if err := b.ensureStateLoaded(ctx); err != nil {
 		return nil, err
 	}
+	
+	// Check ownership
+	_, err := b.checkOwnership(ctx)
+	if err != nil {
+		return nil, err
+	}
+	
 	if !b.accountExists {
 		return nil, errors.New("account does not exist - create account first")
 	}
@@ -345,6 +411,7 @@ func (b *BankAccount) computeStateFromEvents(ctx context.Context) (*BankAccountS
 			}
 			createdData := data.(*AccountCreatedEventData)
 			state.OwnerName = createdData.OwnerName
+			state.OwnerId = createdData.OwnerId
 			state.Balance = createdData.InitialDeposit
 			state.CreatedAt = createdData.CreatedAt.Format(time.RFC3339)
 			
@@ -399,3 +466,4 @@ func (b *BankAccount) convertEventDataToMap(data interface{}) map[string]interfa
 	
 	return result
 }
+

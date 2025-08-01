@@ -120,7 +120,65 @@ func (c *DaprClient) InvokeActorMethodWithResponse(ctx context.Context, req Acto
 	return nil
 }
 
-// CheckHealth verifies that Dapr services are available
+// InvokeActorMethodWithJWT invokes an actor method with JWT authentication
+func (c *DaprClient) InvokeActorMethodWithJWT(ctx context.Context, req ActorMethodRequest, jwtToken string, responseObj interface{}) (*ActorMethodResponse, error) {
+	url := fmt.Sprintf("%s/v1.0/actors/%s/%s/method/%s", c.baseURL, req.ActorType, req.ActorID, req.Method)
+
+	var httpReq *http.Request
+	var err error
+
+	if req.Data != nil {
+		// POST request with data
+		jsonData, err := json.Marshal(req.Data)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal request data: %w", err)
+		}
+
+		httpReq, err = http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(jsonData))
+		if err != nil {
+			return nil, fmt.Errorf("failed to create HTTP request: %w", err)
+		}
+		httpReq.Header.Set("Content-Type", "application/json")
+	} else {
+		// GET request
+		httpReq, err = http.NewRequestWithContext(ctx, "GET", url, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create HTTP request: %w", err)
+		}
+	}
+
+	// Add JWT authorization header
+	httpReq.Header.Set("Authorization", "Bearer "+jwtToken)
+
+	resp, err := c.httpClient.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute HTTP request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	actorResp := &ActorMethodResponse{
+		StatusCode: resp.StatusCode,
+		Body:       body,
+		Headers:    resp.Header,
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return actorResp, fmt.Errorf("actor method returned status %d: %s", resp.StatusCode, string(body))
+	}
+
+	if responseObj != nil {
+		if err := json.Unmarshal(body, responseObj); err != nil {
+			return actorResp, fmt.Errorf("failed to unmarshal response: %w", err)
+		}
+	}
+
+	return actorResp, nil
+}
 func (c *DaprClient) CheckHealth() error {
 	// Check Dapr sidecar health
 	resp, err := c.httpClient.Get(c.baseURL + "/v1.0/healthz")
@@ -129,7 +187,7 @@ func (c *DaprClient) CheckHealth() error {
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusUnauthorized {
 		return fmt.Errorf("Dapr sidecar health check failed with status %d", resp.StatusCode)
 	}
 

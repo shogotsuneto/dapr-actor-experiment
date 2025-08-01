@@ -2,7 +2,9 @@ package integration
 
 import (
 	"context"
+	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -42,25 +44,33 @@ func testMultipleActorTypes(t *testing.T, client *DaprClient) {
 	// This replicates the test-multi-actors.sh functionality
 
 	// Counter operations
-	counterActorID := "multi-test-counter"
+	counterActorID := fmt.Sprintf("multi-test-counter-%d", time.Now().UnixNano()%10000)
 	var counterState counter.CounterState
 
+	// Generate JWT token for Counter operations (use generic test user)
+	counterToken, err := generateTestToken("test-user", "test-user", "test@example.com", []string{"user"}, 1*time.Hour)
+	require.NoError(t, err, "Failed to generate JWT token for Counter operations")
+
 	// Initialize counter
-	err := client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
+	_, err = client.InvokeActorMethodWithJWT(ctx, ActorMethodRequest{
 		ActorType: "Counter",
 		ActorID:   counterActorID,
 		Method:    "Set",
 		Data:      counter.SetValueRequest{Value: int32(5)},
-	}, &counterState)
+	}, counterToken, &counterState)
 	require.NoError(t, err)
 	assert.Equal(t, int32(5), counterState.Value)
 
 	// BankAccount operations
-	bankActorID := "multi-test-account"
+	bankActorID := fmt.Sprintf("multi-test-account-%d", time.Now().UnixNano()%10000)
+	
+	// Generate JWT token for BankAccount operations (use actorID as userID for ownership)
+	bankToken, err := generateTestToken(bankActorID, "Multi Test User", "multitest@example.com", []string{"user"}, 1*time.Hour)
+	require.NoError(t, err, "Failed to generate JWT token for BankAccount operations")
 	
 	// Create account
 	var createResult interface{}
-	err = client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
+	_, err = client.InvokeActorMethodWithJWT(ctx, ActorMethodRequest{
 		ActorType: "BankAccount",
 		ActorID:   bankActorID,
 		Method:    "CreateAccount",
@@ -68,22 +78,22 @@ func testMultipleActorTypes(t *testing.T, client *DaprClient) {
 			OwnerName:      "Multi Test User",
 			InitialDeposit: 2000.0,
 		},
-	}, &createResult)
+	}, bankToken, &createResult)
 	require.NoError(t, err)
 
 	// Perform operations on both actors interleaved
 	// Increment counter
-	err = client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
+	_, err = client.InvokeActorMethodWithJWT(ctx, ActorMethodRequest{
 		ActorType: "Counter",
 		ActorID:   counterActorID,
 		Method:    "Increment",
-	}, &counterState)
+	}, counterToken, &counterState)
 	require.NoError(t, err)
 	assert.Equal(t, int32(6), counterState.Value)
 
 	// Deposit to bank account
 	var depositResult interface{}
-	err = client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
+	_, err = client.InvokeActorMethodWithJWT(ctx, ActorMethodRequest{
 		ActorType: "BankAccount",
 		ActorID:   bankActorID,
 		Method:    "Deposit",
@@ -91,21 +101,21 @@ func testMultipleActorTypes(t *testing.T, client *DaprClient) {
 			Amount:      500.0,
 			Description: "Multi-actor test deposit",
 		},
-	}, &depositResult)
+	}, bankToken, &depositResult)
 	require.NoError(t, err)
 
 	// Decrement counter
-	err = client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
+	_, err = client.InvokeActorMethodWithJWT(ctx, ActorMethodRequest{
 		ActorType: "Counter",
 		ActorID:   counterActorID,
 		Method:    "Decrement",
-	}, &counterState)
+	}, counterToken, &counterState)
 	require.NoError(t, err)
 	assert.Equal(t, int32(5), counterState.Value)
 
 	// Withdraw from bank account
 	var withdrawResult interface{}
-	err = client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
+	_, err = client.InvokeActorMethodWithJWT(ctx, ActorMethodRequest{
 		ActorType: "BankAccount",
 		ActorID:   bankActorID,
 		Method:    "Withdraw",
@@ -113,26 +123,26 @@ func testMultipleActorTypes(t *testing.T, client *DaprClient) {
 			Amount:      300.0,
 			Description: "Multi-actor test withdrawal",
 		},
-	}, &withdrawResult)
+	}, bankToken, &withdrawResult)
 	require.NoError(t, err)
 
 	// Verify final states
 	// Counter should be 5
-	err = client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
+	_, err = client.InvokeActorMethodWithJWT(ctx, ActorMethodRequest{
 		ActorType: "Counter",
 		ActorID:   counterActorID,
 		Method:    "Get",
-	}, &counterState)
+	}, counterToken, &counterState)
 	require.NoError(t, err)
 	assert.Equal(t, int32(5), counterState.Value, "Counter should maintain its state")
 
 	// Bank account should be 2200.0 (2000 + 500 - 300)
 	var balance bankaccount.BankAccountState
-	err = client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
+	_, err = client.InvokeActorMethodWithJWT(ctx, ActorMethodRequest{
 		ActorType: "BankAccount",
 		ActorID:   bankActorID,
 		Method:    "GetBalance",
-	}, &balance)
+	}, bankToken, &balance)
 	require.NoError(t, err)
 	assert.Equal(t, 2200.0, balance.Balance, "Bank account should maintain its state")
 }
@@ -141,22 +151,29 @@ func testActorTypesIsolation(t *testing.T, client *DaprClient) {
 	ctx := context.Background()
 
 	// Test that different actor types with same ID don't interfere
-	actorID := "isolation-test"
+	actorID := fmt.Sprintf("isolation-test-%d", time.Now().UnixNano()%10000)
+
+	// Generate JWT tokens
+	counterToken, err := generateTestToken("test-user", "test-user", "test@example.com", []string{"user"}, 1*time.Hour)
+	require.NoError(t, err, "Failed to generate JWT token for Counter operations")
+
+	bankToken, err := generateTestToken(actorID, "Isolation Test User", "isolation@example.com", []string{"user"}, 1*time.Hour)
+	require.NoError(t, err, "Failed to generate JWT token for BankAccount operations")
 
 	// Create Counter with ID "isolation-test"
 	var counterState counter.CounterState
-	err := client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
+	_, err = client.InvokeActorMethodWithJWT(ctx, ActorMethodRequest{
 		ActorType: "Counter",
 		ActorID:   actorID,
 		Method:    "Set",
 		Data:      counter.SetValueRequest{Value: int32(100)},
-	}, &counterState)
+	}, counterToken, &counterState)
 	require.NoError(t, err)
 	assert.Equal(t, int32(100), counterState.Value)
 
 	// Create BankAccount with same ID "isolation-test"
 	var createResult interface{}
-	err = client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
+	_, err = client.InvokeActorMethodWithJWT(ctx, ActorMethodRequest{
 		ActorType: "BankAccount",
 		ActorID:   actorID,
 		Method:    "CreateAccount",
@@ -164,26 +181,26 @@ func testActorTypesIsolation(t *testing.T, client *DaprClient) {
 			OwnerName:      "Isolation Test",
 			InitialDeposit: 1000.0,
 		},
-	}, &createResult)
+	}, bankToken, &createResult)
 	require.NoError(t, err)
 
 	// Verify both actors maintain separate state despite same ID
 	// Check counter
-	err = client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
+	_, err = client.InvokeActorMethodWithJWT(ctx, ActorMethodRequest{
 		ActorType: "Counter",
 		ActorID:   actorID,
 		Method:    "Get",
-	}, &counterState)
+	}, counterToken, &counterState)
 	require.NoError(t, err)
 	assert.Equal(t, int32(100), counterState.Value, "Counter should maintain its state")
 
 	// Check bank account
 	var balance bankaccount.BankAccountState
-	err = client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
+	_, err = client.InvokeActorMethodWithJWT(ctx, ActorMethodRequest{
 		ActorType: "BankAccount",
 		ActorID:   actorID,
 		Method:    "GetBalance",
-	}, &balance)
+	}, bankToken, &balance)
 	require.NoError(t, err)
 	assert.Equal(t, 1000.0, balance.Balance, "BankAccount should maintain its state")
 }
@@ -194,37 +211,50 @@ func testConcurrentActorOperations(t *testing.T, client *DaprClient) {
 	// Test concurrent operations on multiple instances of both actor types
 	// This simulates the comprehensive scenario from test-multi-actors.sh
 
-	// Setup multiple counter actors
-	counterActors := []string{"concurrent-counter-1", "concurrent-counter-2", "concurrent-counter-3"}
+	// Setup multiple counter actors with unique IDs
+	timestamp := time.Now().UnixNano() % 10000
+	counterActors := []string{
+		fmt.Sprintf("concurrent-counter-1-%d", timestamp),
+		fmt.Sprintf("concurrent-counter-2-%d", timestamp),
+		fmt.Sprintf("concurrent-counter-3-%d", timestamp),
+	}
 	counterValues := []int32{10, 20, 30}
 
-	// Setup multiple bank account actors
+	// Setup multiple bank account actors with unique IDs
 	bankActors := []struct {
 		id      string
 		owner   string
 		initial float64
 	}{
-		{"concurrent-account-1", "User One", 1000.0},
-		{"concurrent-account-2", "User Two", 2000.0},
-		{"concurrent-account-3", "User Three", 3000.0},
+		{fmt.Sprintf("concurrent-account-1-%d", timestamp), "User One", 1000.0},
+		{fmt.Sprintf("concurrent-account-2-%d", timestamp), "User Two", 2000.0},
+		{fmt.Sprintf("concurrent-account-3-%d", timestamp), "User Three", 3000.0},
 	}
+
+	// Generate JWT tokens
+	counterToken, err := generateTestToken("test-user", "test-user", "test@example.com", []string{"user"}, 1*time.Hour)
+	require.NoError(t, err, "Failed to generate JWT token for Counter operations")
 
 	// Initialize all actors
 	for i, actorID := range counterActors {
 		var state counter.CounterState
-		err := client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
+		_, err := client.InvokeActorMethodWithJWT(ctx, ActorMethodRequest{
 			ActorType: "Counter",
 			ActorID:   actorID,
 			Method:    "Set",
 			Data:      counter.SetValueRequest{Value: counterValues[i]},
-		}, &state)
+		}, counterToken, &state)
 		require.NoError(t, err)
 		assert.Equal(t, counterValues[i], state.Value)
 	}
 
 	for _, account := range bankActors {
+		// Generate JWT token for each bank account (use actorID as userID for ownership)
+		bankToken, err := generateTestToken(account.id, account.owner, fmt.Sprintf("%s@example.com", account.id), []string{"user"}, 1*time.Hour)
+		require.NoError(t, err, "Failed to generate JWT token for BankAccount %s", account.id)
+
 		var createResult interface{}
-		err := client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
+		_, err = client.InvokeActorMethodWithJWT(ctx, ActorMethodRequest{
 			ActorType: "BankAccount",
 			ActorID:   account.id,
 			Method:    "CreateAccount",
@@ -232,7 +262,7 @@ func testConcurrentActorOperations(t *testing.T, client *DaprClient) {
 				OwnerName:      account.owner,
 				InitialDeposit: account.initial,
 			},
-		}, &createResult)
+		}, bankToken, &createResult)
 		require.NoError(t, err)
 	}
 
@@ -240,11 +270,11 @@ func testConcurrentActorOperations(t *testing.T, client *DaprClient) {
 	// Increment all counters
 	for i, actorID := range counterActors {
 		var state counter.CounterState
-		err := client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
+		_, err := client.InvokeActorMethodWithJWT(ctx, ActorMethodRequest{
 			ActorType: "Counter",
 			ActorID:   actorID,
 			Method:    "Increment",
-		}, &state)
+		}, counterToken, &state)
 		require.NoError(t, err)
 		assert.Equal(t, counterValues[i]+1, state.Value)
 		counterValues[i]++ // Update expected value
@@ -253,8 +283,12 @@ func testConcurrentActorOperations(t *testing.T, client *DaprClient) {
 	// Deposit to all bank accounts
 	depositAmount := 500.0
 	for _, account := range bankActors {
+		// Generate JWT token for this specific account
+		bankToken, err := generateTestToken(account.id, account.owner, fmt.Sprintf("%s@example.com", account.id), []string{"user"}, 1*time.Hour)
+		require.NoError(t, err, "Failed to generate JWT token for BankAccount %s", account.id)
+
 		var depositResult interface{}
-		err := client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
+		_, err = client.InvokeActorMethodWithJWT(ctx, ActorMethodRequest{
 			ActorType: "BankAccount",
 			ActorID:   account.id,
 			Method:    "Deposit",
@@ -262,29 +296,33 @@ func testConcurrentActorOperations(t *testing.T, client *DaprClient) {
 				Amount:      depositAmount,
 				Description: "Concurrent test deposit",
 			},
-		}, &depositResult)
+		}, bankToken, &depositResult)
 		require.NoError(t, err)
 	}
 
 	// Verify all states are maintained correctly
 	for i, actorID := range counterActors {
 		var state counter.CounterState
-		err := client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
+		_, err := client.InvokeActorMethodWithJWT(ctx, ActorMethodRequest{
 			ActorType: "Counter",
 			ActorID:   actorID,
 			Method:    "Get",
-		}, &state)
+		}, counterToken, &state)
 		require.NoError(t, err)
 		assert.Equal(t, counterValues[i], state.Value, "Counter %s should maintain correct state", actorID)
 	}
 
 	for _, account := range bankActors {
+		// Generate JWT token for this specific account
+		bankToken, err := generateTestToken(account.id, account.owner, fmt.Sprintf("%s@example.com", account.id), []string{"user"}, 1*time.Hour)
+		require.NoError(t, err, "Failed to generate JWT token for BankAccount %s", account.id)
+
 		var balance bankaccount.BankAccountState
-		err := client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
+		_, err = client.InvokeActorMethodWithJWT(ctx, ActorMethodRequest{
 			ActorType: "BankAccount",
 			ActorID:   account.id,
 			Method:    "GetBalance",
-		}, &balance)
+		}, bankToken, &balance)
 		require.NoError(t, err)
 		expectedBalance := account.initial + depositAmount
 		assert.Equal(t, expectedBalance, balance.Balance, "Account %s should have correct balance", account.id)
@@ -292,12 +330,16 @@ func testConcurrentActorOperations(t *testing.T, client *DaprClient) {
 	}
 
 	// Test transaction history for one of the bank accounts
+	firstAccount := bankActors[0]
+	bankToken, err := generateTestToken(firstAccount.id, firstAccount.owner, fmt.Sprintf("%s@example.com", firstAccount.id), []string{"user"}, 1*time.Hour)
+	require.NoError(t, err, "Failed to generate JWT token for BankAccount %s", firstAccount.id)
+
 	var history bankaccount.TransactionHistory
-	err := client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
+	_, err = client.InvokeActorMethodWithJWT(ctx, ActorMethodRequest{
 		ActorType: "BankAccount",
-		ActorID:   bankActors[0].id,
+		ActorID:   firstAccount.id,
 		Method:    "GetHistory",
-	}, &history)
+	}, bankToken, &history)
 	require.NoError(t, err)
 	assert.GreaterOrEqual(t, len(history.Events), 2, "Should have at least account creation and deposit events")
 }

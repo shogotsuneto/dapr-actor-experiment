@@ -9,6 +9,7 @@ A minimal demo of Dapr actors application in Go, demonstrating actor state manag
 This project showcases:
 - **Schema-First Development**: Define APIs with OpenAPI specifications, generate type-safe Go code
 - **Dapr Actor Pattern**: Stateful actor implementation with persistent state
+- **Authentication Middleware**: Demonstrating how to add middleware for user context access in actors
 - **Multiple Actor Types**: Support for different actor patterns in a single application
 - **Counter Actor**: Simple state-based counter with increment, decrement, get, and set operations
 - **Bank Account Actor**: Event-sourced bank account demonstrating transaction history and audit trails
@@ -49,6 +50,29 @@ This approach:
 - Uses Redis state store and Dapr sidecar containers
 - Requires only Docker and Docker Compose
 
+## JWT Authentication
+
+The actor service uses Dapr's Bearer middleware for JWT authentication. All endpoints require valid JWT tokens for access.
+
+### JWT Authentication Testing
+
+The test scripts automatically handle JWT authentication when the JWKS Mock API service is available:
+
+```bash
+# Start services with JWT Bearer middleware
+docker compose up -d
+
+# Test with JWT authentication
+./scripts/test-bank-account-actor.sh
+./scripts/test-counter-actor.sh
+./scripts/test-multi-actors.sh
+```
+
+The Bearer middleware configuration:
+- **JWKS Server**: Mock server providing JWT keys at port 3001
+- **Bearer Middleware**: Validates JWT tokens using JWKS
+- **Protected Endpoints**: All actor operations require valid JWT tokens
+
 ### Alternative Commands
 
 You can also run Docker Compose commands directly:
@@ -57,11 +81,11 @@ You can also run Docker Compose commands directly:
 # Start services (builds from source automatically)
 docker compose up -d
 
-# Test the service  
+# Test the service
 ./scripts/test-multi-actors.sh
 
 # Or test individual actor types:
-# ./scripts/test-counter-actor.sh  
+# ./scripts/test-counter-actor.sh
 # ./scripts/test-bank-account-actor.sh
 
 # Stop services
@@ -127,6 +151,7 @@ See [Integration Tests README](test/integration/README.md) for detailed document
 │   ├── server/               # Actor service application
 │   └── client/               # Demo client application
 ├── internal/                  # Private application code
+│   ├── auth/                 # Authentication middleware
 │   ├── counter/              # Counter actor implementation and generated code
 │   └── bankaccount/          # Bank account actor implementation and generated code
 ├── schemas/openapi/          # OpenAPI schemas for code generation
@@ -136,29 +161,19 @@ See [Integration Tests README](test/integration/README.md) for detailed document
 └── Makefile                  # Build automation
 ```
 
-## Architecture
-
-```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│                 │    │                 │    │                 │
-│     Client      │───▶│  Dapr Sidecar   │───▶│  Actor Service  │
-│                 │    │   (HTTP API)    │    │   (CounterActor)│
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-                                │                        │
-                                │                        │
-                                ▼                        ▼
-                       ┌─────────────────┐    ┌─────────────────┐
-                       │                 │    │                 │
-                       │      Redis      │◀───│  State Manager  │
-                       │  (State Store)  │    │                 │
-                       └─────────────────┘    └─────────────────┘
-```
+**JWT Authentication Flow:**
+1. Client generates JWT token via JWKS Mock API (`/generate-token`)
+2. Client sends request with `Authorization: Bearer <token>` header
+3. Actor Service JWT middleware calls JWKS Mock API (`/introspect`) to validate token
+4. If valid, request proceeds to actor with JWT claims in context
+5. Actor methods enforce role-based and ownership-based authorization
 
 ## Features
 
 ### Actor Implementation
 - **CounterActor**: State-based actor with persistent counter value using generated OpenAPI types
 - **BankAccountActor**: Event-sourced actor with transaction history and full audit trail
+- **Authentication Middleware**: Demonstrates user context extraction and ownership validation
 - **Operations**: CounterActor (`get`, `increment`, `decrement`, `set`), BankAccountActor (`createAccount`, `deposit`, `withdraw`, `getBalance`, `getHistory`)
 - **State Persistence**: Automatic state management via Dapr state store
 - **Event Sourcing**: BankAccountActor demonstrates event sourcing with complete transaction history
@@ -167,7 +182,6 @@ See [Integration Tests README](test/integration/README.md) for detailed document
 ### Demo Client
 - Demonstrates all actor operations with comprehensive logging
 - Shows state persistence across operations and multiple actor instances
-
 
 
 ## Manual Testing
@@ -378,13 +392,15 @@ docker compose logs -f redis
 This repository includes detailed documentation on various aspects of Dapr actors:
 
 ### Architecture and Concepts
+- **[Authentication Middleware](docs/authentication-middleware.md)** - Guide to adding authentication middleware and accessing userID in actor methods
 - **[Multiple Actors](docs/multiple-actors.md)** - Complete guide to multiple actor types, state-based vs event-sourced patterns
 - **[Client vs Curl](docs/client-vs-curl.md)** - Understand the difference between using the Go client (Dapr SDK) vs direct HTTP calls with curl
 - **[Event Sourcing](docs/event-sourcing.md)** - Learn whether this implementation uses event sourcing and understand the state-based approach
 - **[Akka Comparison](docs/akka-comparison.md)** - Compare Dapr actors with Akka actors, including mailbox concepts and architectural differences
 
 ### Key Insights
-- **Multiple Actor Types**: This implementation now supports both state-based (CounterActor) and event-sourced (BankAccountActor) patterns. See [Multiple Actors documentation](docs/multiple-actors.md) for details.
+- **Authentication Middleware**: Demonstrates how to add middleware and access user context in actors for ownership validation
+- **Multiple Actor Types**: This implementation supports both state-based (CounterActor) and event-sourced (BankAccountActor) patterns. See [Multiple Actors documentation](docs/multiple-actors.md) for details.
 - **Event Sourcing vs State-Based**: CounterActor uses state-based persistence while BankAccountActor demonstrates full event sourcing with audit trails.
 - **How does it compare to Akka?** Both implement the actor model but serve different use cases. See [Akka Comparison](docs/akka-comparison.md) for a detailed analysis.
 - **Client vs curl difference?** Both send identical HTTP requests to Dapr sidecar, but the Go client provides type safety and better error handling. See [Client vs Curl](docs/client-vs-curl.md) for details.

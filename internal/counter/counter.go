@@ -3,8 +3,10 @@ package counter
 import (
 	"context"
 	"errors"
+	"log"
 	
 	"github.com/dapr/go-sdk/actor"
+	"github.com/shogotsuneto/dapr-actor-experiment/internal/auth"
 )
 
 
@@ -62,6 +64,13 @@ func (c *Counter) Get(ctx context.Context) (*CounterState, error) {
 }
 
 func (c *Counter) Set(ctx context.Context, request SetValueRequest) (*CounterState, error) {
+	// Example: Simple check - only authenticated users can set values
+	userID, ok := auth.GetUserID(ctx)
+	if !ok {
+		log.Printf("Counter %s: Unauthenticated user attempted Set operation", c.ID())
+		return nil, errors.New("authentication required for set operations")
+	}
+	
 	if err := c.validateSetRequest(request); err != nil {
 		return nil, err
 	}
@@ -72,6 +81,7 @@ func (c *Counter) Set(ctx context.Context, request SetValueRequest) (*CounterSta
 		return nil, err
 	}
 	
+	log.Printf("Counter %s: Set operation completed by user %s", c.ID(), userID)
 	return state, nil
 }
 
@@ -113,3 +123,4 @@ func (c *Counter) validateSetRequest(request SetValueRequest) error {
 	
 	return nil
 }
+

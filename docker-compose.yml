@@ -10,6 +10,23 @@
 # All services use health checks to ensure proper startup ordering.
 
 services:
+  # JWKS Mock API for JWT token validation
+  jwks-mock-api:
+    image: ghcr.io/shogotsuneto/jwks-mock-api:v0.0.4
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - JWT_ISSUER=http://jwks-mock-api:3000
+      - JWT_AUDIENCE=dapr-actor-service
+      - KEY_COUNT=2
+      - KEY_IDS=key-1,key-2
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   # Redis for state store
   redis:
     image: redis:7-alpine
@@ -43,6 +60,11 @@ services:
         condition: service_healthy
       placement:
         condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   # Dapr sidecar for actor service  
   actor-service-dapr:
@@ -56,22 +78,24 @@ services:
       "-dapr-grpc-port", "50001",
       "-placement-host-address", "placement:50006",
       "-resources-path", "/components",
-      "-config", "/config/config.yaml",
+      "-config", "/config/dapr-config-bearer.yaml",
       "-log-level", "debug"
     ]
     volumes:
-      - "./configs/dapr:/components"
-      - "./configs/dapr:/config"
+      - "./components:/components"
+      - "./configs:/config"
     ports:
       - "3500:3500"
       - "50001:50001"
     depends_on:
       actor-service:
-        condition: service_started
+        condition: service_healthy
       redis:
         condition: service_healthy
       placement:
         condition: service_started
+      jwks-mock-api:
+        condition: service_healthy
 
   # Client application
   client:
@@ -81,11 +105,16 @@ services:
       - .:/app
     environment:
       - DAPR_HTTP_ENDPOINT=http://client-dapr:3501
+      - JWKS_GENERATE_URL=http://jwks-mock-api:3000/generate-token
+      - JWT_ISSUER=http://jwks-mock-api:3000
     depends_on:
-      - actor-service-dapr
+      jwks-mock-api:
+        condition: service_healthy
+      actor-service-dapr:
+        condition: service_started
     command: |
       sh -c "
-        apk add --no-cache ca-certificates git &&
+        apk add --no-cache ca-certificates git curl &&
         go mod download &&
         go run ./cmd/client
       "

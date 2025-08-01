@@ -1,0 +1,14 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: bearer-middleware
+spec:
+  type: middleware.http.bearer
+  version: v1
+  metadata:
+  - name: jwksURL
+    value: "http://jwks-mock-api:3000/.well-known/jwks.json"
+  - name: issuer
+    value: "http://jwks-mock-api:3000"
+  - name: audience
+    value: "dapr-actor-service"

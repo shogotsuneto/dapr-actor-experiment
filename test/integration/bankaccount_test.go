@@ -2,7 +2,9 @@ package integration
 
 import (
 	"context"
+	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -36,11 +38,15 @@ func TestBankAccount(t *testing.T) {
 
 func testBankAccountBasicOperations(t *testing.T, client *DaprClient) {
 	ctx := context.Background()
-	actorID := "account-test-basic"
+	actorID := "account-test-basic-" + fmt.Sprintf("%d", time.Now().UnixNano()%10000) // Unique ID
+
+	// Generate JWT token for authenticated operations
+	userToken, err := generateTestToken(actorID, "test-user", "test@example.com", []string{"user"}, 1*time.Hour)
+	require.NoError(t, err, "Failed to generate JWT token for testing")
 
 	// Test 1: Create account
 	var createResult interface{}
-	err := client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
+	_, err = client.InvokeActorMethodWithJWT(ctx, ActorMethodRequest{
 		ActorType: "BankAccount",
 		ActorID:   actorID,
 		Method:    "CreateAccount",
@@ -48,23 +54,23 @@ func testBankAccountBasicOperations(t *testing.T, client *DaprClient) {
 			OwnerName:      "Test User",
 			InitialDeposit: 1000.0,
 		},
-	}, &createResult)
+	}, userToken, &createResult)
 	require.NoError(t, err)
 
 	// Test 2: Get initial balance
 	var balance bankaccount.BankAccountState
-	err = client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
+	_, err = client.InvokeActorMethodWithJWT(ctx, ActorMethodRequest{
 		ActorType: "BankAccount",
 		ActorID:   actorID,
 		Method:    "GetBalance",
-	}, &balance)
+	}, userToken, &balance)
 	require.NoError(t, err)
 	assert.Equal(t, 1000.0, balance.Balance, "Initial balance should be 1000.0")
 	assert.Equal(t, "Test User", balance.OwnerName, "Owner name should match")
 
 	// Test 3: Deposit money
 	var depositResult interface{}
-	err = client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
+	_, err = client.InvokeActorMethodWithJWT(ctx, ActorMethodRequest{
 		ActorType: "BankAccount",
 		ActorID:   actorID,
 		Method:    "Deposit",
@@ -72,21 +78,21 @@ func testBankAccountBasicOperations(t *testing.T, client *DaprClient) {
 			Amount:      500.0,
 			Description: "Test deposit",
 		},
-	}, &depositResult)
+	}, userToken, &depositResult)
 	require.NoError(t, err)
 
 	// Test 4: Check balance after deposit
-	err = client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
+	_, err = client.InvokeActorMethodWithJWT(ctx, ActorMethodRequest{
 		ActorType: "BankAccount",
 		ActorID:   actorID,
 		Method:    "GetBalance",
-	}, &balance)
+	}, userToken, &balance)
 	require.NoError(t, err)
 	assert.Equal(t, 1500.0, balance.Balance, "Balance should be 1500.0 after deposit")
 
 	// Test 5: Withdraw money
 	var withdrawResult interface{}
-	err = client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
+	_, err = client.InvokeActorMethodWithJWT(ctx, ActorMethodRequest{
 		ActorType: "BankAccount",
 		ActorID:   actorID,
 		Method:    "Withdraw",
@@ -94,15 +100,15 @@ func testBankAccountBasicOperations(t *testing.T, client *DaprClient) {
 			Amount:      200.0,
 			Description: "Test withdrawal",
 		},
-	}, &withdrawResult)
+	}, userToken, &withdrawResult)
 	require.NoError(t, err)
 
 	// Test 6: Check final balance
-	err = client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
+	_, err = client.InvokeActorMethodWithJWT(ctx, ActorMethodRequest{
 		ActorType: "BankAccount",
 		ActorID:   actorID,
 		Method:    "GetBalance",
-	}, &balance)
+	}, userToken, &balance)
 	require.NoError(t, err)
 	assert.Equal(t, 1300.0, balance.Balance, "Final balance should be 1300.0")
 }
@@ -119,7 +125,7 @@ func testBankAccountStateIsolation(t *testing.T, client *DaprClient) {
 		expectedBalance float64
 	}{
 		{
-			actorID:        "account-alice",
+			actorID:        fmt.Sprintf("account-alice-%d", time.Now().UnixNano()%10000),
 			ownerName:      "Alice Johnson",
 			initialDeposit: 1500.0,
 			operations: []Operation{
@@ -130,7 +136,7 @@ func testBankAccountStateIsolation(t *testing.T, client *DaprClient) {
 			expectedBalance: 3150.0, // 1500 + 3000 - 1200 - 150
 		},
 		{
-			actorID:        "account-bob",
+			actorID:        fmt.Sprintf("account-bob-%d", time.Now().UnixNano()%10000),
 			ownerName:      "Bob Smith",
 			initialDeposit: 500.0,
 			operations: []Operation{
@@ -141,7 +147,7 @@ func testBankAccountStateIsolation(t *testing.T, client *DaprClient) {
 			expectedBalance: 1150.0, // 500 + 800 + 200 - 350
 		},
 		{
-			actorID:        "account-charlie",
+			actorID:        fmt.Sprintf("account-charlie-%d", time.Now().UnixNano()%10000),
 			ownerName:      "Charlie Brown",
 			initialDeposit: 2000.0,
 			operations: []Operation{
@@ -156,9 +162,13 @@ func testBankAccountStateIsolation(t *testing.T, client *DaprClient) {
 
 	for _, account := range testAccounts {
 		t.Run("Account_"+account.actorID, func(t *testing.T) {
+			// Generate JWT token for this account
+			userToken, err := generateTestToken(account.actorID, account.ownerName, account.ownerName+"@example.com", []string{"user"}, 1*time.Hour)
+			require.NoError(t, err, "Failed to generate JWT token for testing")
+
 			// Create account
 			var createResult interface{}
-			err := client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
+			_, err = client.InvokeActorMethodWithJWT(ctx, ActorMethodRequest{
 				ActorType: "BankAccount",
 				ActorID:   account.actorID,
 				Method:    "CreateAccount",
@@ -166,14 +176,14 @@ func testBankAccountStateIsolation(t *testing.T, client *DaprClient) {
 					OwnerName:      account.ownerName,
 					InitialDeposit: account.initialDeposit,
 				},
-			}, &createResult)
+			}, userToken, &createResult)
 			require.NoError(t, err)
 
 			// Execute operations
 			for _, op := range account.operations {
 				var result interface{}
 				if op.Type == "deposit" {
-					err = client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
+					_, err = client.InvokeActorMethodWithJWT(ctx, ActorMethodRequest{
 						ActorType: "BankAccount",
 						ActorID:   account.actorID,
 						Method:    "Deposit",
@@ -181,9 +191,9 @@ func testBankAccountStateIsolation(t *testing.T, client *DaprClient) {
 							Amount:      op.Amount,
 							Description: op.Description,
 						},
-					}, &result)
+					}, userToken, &result)
 				} else if op.Type == "withdraw" {
-					err = client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
+					_, err = client.InvokeActorMethodWithJWT(ctx, ActorMethodRequest{
 						ActorType: "BankAccount",
 						ActorID:   account.actorID,
 						Method:    "Withdraw",
@@ -191,18 +201,18 @@ func testBankAccountStateIsolation(t *testing.T, client *DaprClient) {
 							Amount:      op.Amount,
 							Description: op.Description,
 						},
-					}, &result)
+					}, userToken, &result)
 				}
 				require.NoError(t, err)
 			}
 
 			// Verify final balance
 			var balance bankaccount.BankAccountState
-			err = client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
+			_, err = client.InvokeActorMethodWithJWT(ctx, ActorMethodRequest{
 				ActorType: "BankAccount",
 				ActorID:   account.actorID,
 				Method:    "GetBalance",
-			}, &balance)
+			}, userToken, &balance)
 			require.NoError(t, err)
 			assert.Equal(t, account.expectedBalance, balance.Balance, "Final balance for %s should be %.2f", account.actorID, account.expectedBalance)
 			assert.Equal(t, account.ownerName, balance.OwnerName, "Owner name should match for %s", account.actorID)
@@ -212,11 +222,15 @@ func testBankAccountStateIsolation(t *testing.T, client *DaprClient) {
 
 func testBankAccountEventSourcing(t *testing.T, client *DaprClient) {
 	ctx := context.Background()
-	actorID := "account-event-sourcing-test"
+	actorID := fmt.Sprintf("account-event-sourcing-test-%d", time.Now().UnixNano()%10000)
+
+	// Generate JWT token for authenticated operations
+	userToken, err := generateTestToken(actorID, "event-sourcing-user", "events@example.com", []string{"user"}, 1*time.Hour)
+	require.NoError(t, err, "Failed to generate JWT token for testing")
 
 	// Create account
 	var createResult interface{}
-	err := client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
+	_, err = client.InvokeActorMethodWithJWT(ctx, ActorMethodRequest{
 		ActorType: "BankAccount",
 		ActorID:   actorID,
 		Method:    "CreateAccount",
@@ -224,7 +238,7 @@ func testBankAccountEventSourcing(t *testing.T, client *DaprClient) {
 			OwnerName:      "Event Sourcing Test",
 			InitialDeposit: 1000.0,
 		},
-	}, &createResult)
+	}, userToken, &createResult)
 	require.NoError(t, err)
 
 	// Perform multiple operations
@@ -238,7 +252,7 @@ func testBankAccountEventSourcing(t *testing.T, client *DaprClient) {
 	for _, op := range operations {
 		var result interface{}
 		if op.Type == "deposit" {
-			err = client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
+			_, err = client.InvokeActorMethodWithJWT(ctx, ActorMethodRequest{
 				ActorType: "BankAccount",
 				ActorID:   actorID,
 				Method:    "Deposit",
@@ -246,9 +260,9 @@ func testBankAccountEventSourcing(t *testing.T, client *DaprClient) {
 					Amount:      op.Amount,
 					Description: op.Description,
 				},
-			}, &result)
+			}, userToken, &result)
 		} else if op.Type == "withdraw" {
-			err = client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
+			_, err = client.InvokeActorMethodWithJWT(ctx, ActorMethodRequest{
 				ActorType: "BankAccount",
 				ActorID:   actorID,
 				Method:    "Withdraw",
@@ -256,18 +270,18 @@ func testBankAccountEventSourcing(t *testing.T, client *DaprClient) {
 					Amount:      op.Amount,
 					Description: op.Description,
 				},
-			}, &result)
+			}, userToken, &result)
 		}
 		require.NoError(t, err)
 	}
 
 	// Get transaction history to verify event sourcing
 	var history bankaccount.TransactionHistory
-	err = client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
+	_, err = client.InvokeActorMethodWithJWT(ctx, ActorMethodRequest{
 		ActorType: "BankAccount",
 		ActorID:   actorID,
 		Method:    "GetHistory",
-	}, &history)
+	}, userToken, &history)
 	require.NoError(t, err)
 
 	// Verify transaction history contains all operations (including account creation)
@@ -303,11 +317,11 @@ func testBankAccountEventSourcing(t *testing.T, client *DaprClient) {
 
 	// Verify final balance matches expected calculation
 	var balance bankaccount.BankAccountState
-	err = client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
+	_, err = client.InvokeActorMethodWithJWT(ctx, ActorMethodRequest{
 		ActorType: "BankAccount",
 		ActorID:   actorID,
 		Method:    "GetBalance",
-	}, &balance)
+	}, userToken, &balance)
 	require.NoError(t, err)
 	expectedBalance := 1000.0 + 500.0 - 200.0 + 300.0 - 100.0 // 1500.0
 	assert.Equal(t, expectedBalance, balance.Balance, "Final balance should match event sourcing calculation")
