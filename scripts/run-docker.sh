@@ -29,19 +29,23 @@ sleep 15
 
 # Check service health
 echo "Checking service health..."
-if curl -f http://localhost:3500/v1.0/healthz &>/dev/null; then
-    echo "✓ Dapr sidecar is ready"
-else
-    echo "❌ Dapr sidecar not ready, checking logs..."
-    docker compose logs actor-service-dapr
-    exit 1
-fi
 
+# Check if actor service health endpoint responds (no JWT required)
 if curl -f http://localhost:8080/health &>/dev/null; then
     echo "✓ Actor service is ready"
 else
     echo "❌ Actor service not ready, checking logs..."
     docker compose logs actor-service
+    exit 1
+fi
+
+# Check if Dapr sidecar is responding (will return 401 due to JWT requirement, but means it's running)
+HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3500/v1.0/healthz)
+if [ "$HTTP_CODE" = "401" ] || [ "$HTTP_CODE" = "200" ]; then
+    echo "✓ Dapr sidecar is ready (JWT authentication active)"
+else
+    echo "❌ Dapr sidecar not ready (HTTP $HTTP_CODE), checking logs..."
+    docker compose logs actor-service-dapr
     exit 1
 fi
 

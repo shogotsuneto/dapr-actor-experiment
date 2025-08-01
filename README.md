@@ -54,14 +54,18 @@ This approach:
 
 The actor service uses Dapr's Bearer middleware for JWT authentication. All endpoints require valid JWT tokens for access.
 
-### Testing JWT Authentication
+### JWT Authentication Testing
+
+The test scripts automatically handle JWT authentication when the JWKS Mock API service is available:
 
 ```bash
 # Start services with JWT Bearer middleware
 docker compose up -d
 
-# Test JWT validation (requires valid tokens)
-./scripts/test-jwt-validation.sh
+# Test with JWT authentication
+./scripts/test-bank-account-actor.sh
+./scripts/test-counter-actor.sh
+./scripts/test-multi-actors.sh
 ```
 
 The Bearer middleware configuration:
