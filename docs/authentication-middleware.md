@@ -61,13 +61,18 @@ jwtConfig := auth.JWTMiddlewareConfig{
 router.Use(auth.JWTMiddleware(jwtConfig))
 ```
 
-When Dapr Bearer middleware validates a JWT token, it forwards the claims as HTTP headers with "X-" prefix:
-- `X-Sub`: Subject (user ID)
-- `X-Iss`: Issuer
-- `X-Aud`: Audience
-- `X-Exp`: Expiration timestamp
-- `X-Iat`: Issued At timestamp
-- Any custom claims as `X-{claim-name}`
+When Dapr Bearer middleware validates a JWT token, it forwards the entire Authorization header to the application service. The application middleware then parses the JWT token to extract user information:
+
+```go
+// Extract the JWT token from Authorization header
+authHeader := r.Header.Get("Authorization")
+jwtToken := strings.TrimPrefix(authHeader, "Bearer ")
+
+// Parse JWT token to extract user ID from 'sub' claim
+userID, err := extractSubFromJWT(jwtToken)
+```
+
+The middleware extracts the `sub` (subject) claim from the JWT token payload and makes it available through the context.
 
 ## Actor Context Access
 
