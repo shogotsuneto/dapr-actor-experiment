@@ -9,9 +9,9 @@ spec:
   - name: jwksURL
     value: "http://jwks-mock-api:3000/.well-known/jwks.json"
   - name: issuer
-    value: "http://localhost:3000"
+    value: "http://jwks-mock-api:3000"
   - name: audience
-    value: "dev-api"
+    value: "dapr-actor-service"
   - name: forwardPayload
     value: "true"
   - name: authHeaderName
