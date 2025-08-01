@@ -5,7 +5,7 @@ echo "=========================================="
 
 # Check if server is running
 if ! curl -s http://localhost:3500/v1.0/healthz > /dev/null; then
-    echo "Error: Dapr sidecar not running. Please run './scripts/run-docker.sh' first."
+    echo "Error: Dapr sidecar not running. Please run 'docker compose up -d' first."
     exit 1
 fi
 
