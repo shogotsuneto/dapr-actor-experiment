@@ -12,7 +12,3 @@ spec:
     value: "http://jwks-mock-api:3000"
   - name: audience
     value: "dapr-actor-service"
-  - name: forwardPayload
-    value: "true"
-  - name: authHeaderName
-    value: "authorization"

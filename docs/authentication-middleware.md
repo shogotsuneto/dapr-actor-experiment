@@ -21,17 +21,17 @@ The Bearer middleware component is configured to validate JWT tokens using JWKS:
 apiVersion: dapr.io/v1alpha1
 kind: Component
 metadata:
-  name: bearer-token
+  name: bearer-middleware
 spec:
   type: middleware.http.bearer
   version: v1
   metadata:
-  - name: clientId
-    value: "your-client-id"
+  - name: jwksURL
+    value: "http://jwks-mock-api:3000/.well-known/jwks.json"
   - name: issuer
     value: "http://jwks-mock-api:3000"
   - name: audience
-    value: "your-audience"
+    value: "dapr-actor-service"
 ```
 
 ### JWKS Mock API Setup
