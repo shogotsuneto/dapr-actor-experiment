@@ -14,6 +14,8 @@ type BankAccountState struct {
 	CreatedAt string `json:"createdAt,omitempty"`
 	// Whether account is active
 	IsActive bool `json:"isActive"`
+	// Account owner ID (for authorization)
+	OwnerId string `json:"ownerId"`
 	// Account owner name
 	OwnerName string `json:"ownerName"`
 }

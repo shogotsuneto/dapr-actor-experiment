@@ -251,6 +251,7 @@ components:
       required:
         - accountId
         - ownerName
+        - ownerId
         - balance
         - isActive
       properties:
@@ -262,6 +263,10 @@ components:
           type: string
           description: Account owner name
           example: "John Doe"
+        ownerId:
+          type: string
+          description: Account owner ID (for authorization)
+          example: "user-123"
         balance:
           type: number
           format: double
