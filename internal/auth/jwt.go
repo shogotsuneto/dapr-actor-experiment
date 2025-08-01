@@ -39,30 +39,27 @@ func JWTMiddleware(config JWTMiddlewareConfig) func(http.Handler) http.Handler {
 				}
 			}
 
-			// Check if JWKS service is available first
-			if config.IntrospectURL != "" {
-				client := &http.Client{Timeout: 1 * time.Second}
-				if _, err := client.Get(strings.Replace(config.IntrospectURL, "/introspect", "/health", 1)); err != nil {
-					// JWKS service not available, skip authentication entirely
-					next.ServeHTTP(w, r)
-					return
-				}
-			}
-
 			// Extract token from Authorization header
 			authHeader := r.Header.Get("Authorization")
 			if authHeader == "" {
-				// No token provided but JWKS service is available - this might be intentional
-				// for testing without authentication, so allow it
-				next.ServeHTTP(w, r)
+				// If no introspection URL is configured, skip authentication
+				if config.IntrospectURL == "" || strings.Contains(config.IntrospectURL, "localhost:3000") {
+					// Check if JWKS service is reachable
+					client := &http.Client{Timeout: 1 * time.Second}
+					if _, err := client.Get(config.IntrospectURL); err != nil {
+						// JWKS service not available, skip authentication for this request
+						next.ServeHTTP(w, r)
+						return
+					}
+				}
+				http.Error(w, "Missing Authorization header", http.StatusUnauthorized)
 				return
 			}
 
 			// Check Bearer token format
 			tokenString := strings.TrimPrefix(authHeader, "Bearer ")
 			if tokenString == authHeader {
-				// Invalid format but service might work without auth, so just continue without context
-				next.ServeHTTP(w, r)
+				http.Error(w, "Invalid Authorization header format", http.StatusUnauthorized)
 				return
 			}
 
@@ -72,9 +69,7 @@ func JWTMiddleware(config JWTMiddlewareConfig) func(http.Handler) http.Handler {
 			// Validate token using introspection
 			userID, err := validateJWTWithIntrospection(r.Context(), tokenString, config, introspectClient)
 			if err != nil {
-				// Token validation failed, but let the request continue without user context
-				// This makes authentication optional
-				next.ServeHTTP(w, r)
+				http.Error(w, fmt.Sprintf("Invalid JWT token: %v", err), http.StatusUnauthorized)
 				return
 			}
 

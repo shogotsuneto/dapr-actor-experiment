@@ -123,27 +123,23 @@ func (b *BankAccount) getCachedState() (*BankAccountState, error) {
 }
 
 // checkOwnership verifies that the user can access this account
-// Returns the userID for ownership tracking, or the actor ID if no authentication is available
 func (b *BankAccount) checkOwnership(ctx context.Context) (string, error) {
 	userID, ok := auth.GetUserID(ctx)
 	if !ok {
-		// No authentication available - use actor ID as fallback for demo purposes
-		// In production, you would likely require authentication
-		userID = b.ID()
-		log.Printf("BankAccount %s: No authentication context, using actor ID as userID", b.ID())
+		return "", errors.New("authentication required")
 	}
 	
 	// For account creation, the actor ID should match the user ID (simplified ownership check)
 	// This means users can only create accounts that match their user ID
 	if !b.accountExists {
-		if ok && userID != b.ID() {
+		if userID != b.ID() {
 			return "", errors.New("insufficient permissions: can only create accounts for yourself")
 		}
 		return userID, nil
 	}
 	
-	// For existing accounts, check against the stored owner ID (only if we have authentication)
-	if ok && b.cachedState != nil && b.cachedState.OwnerId != userID {
+	// For existing accounts, check against the stored owner ID
+	if b.cachedState != nil && b.cachedState.OwnerId != userID {
 		return "", errors.New("insufficient permissions: cannot access this account")
 	}
 	

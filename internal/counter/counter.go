@@ -64,11 +64,11 @@ func (c *Counter) Get(ctx context.Context) (*CounterState, error) {
 }
 
 func (c *Counter) Set(ctx context.Context, request SetValueRequest) (*CounterState, error) {
-	// Example: Simple check - authentication is preferred but not required for demo purposes
+	// Example: Simple check - only authenticated users can set values
 	userID, ok := auth.GetUserID(ctx)
 	if !ok {
-		userID = "anonymous"
-		log.Printf("Counter %s: Unauthenticated user attempted Set operation, allowing for demo purposes", c.ID())
+		log.Printf("Counter %s: Unauthenticated user attempted Set operation", c.ID())
+		return nil, errors.New("authentication required for set operations")
 	}
 	
 	if err := c.validateSetRequest(request); err != nil {
