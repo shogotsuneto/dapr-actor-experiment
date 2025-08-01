@@ -2,7 +2,9 @@ package integration
 
 import (
 	"context"
+	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -36,65 +38,69 @@ func TestCounter(t *testing.T) {
 
 func testCounterBasicOperations(t *testing.T, client *DaprClient) {
 	ctx := context.Background()
-	actorID := "counter-test-basic"
+	actorID := "counter-test-basic-" + fmt.Sprintf("%d", time.Now().UnixNano()%10000) // Unique ID
 
-	// Test 1: Get initial value (should be 0)
+	// Generate JWT token for authenticated operations
+	userToken, err := generateTestToken("test-user", "test-user", "test@example.com", []string{"user"}, 1*time.Hour)
+	require.NoError(t, err, "Failed to generate JWT token for testing")
+
+	// Test 1: Get initial value (should be 0) 
 	var initialState counter.CounterState
-	err := client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
+	_, err = client.InvokeActorMethodWithJWT(ctx, ActorMethodRequest{
 		ActorType: "Counter",
 		ActorID:   actorID,
 		Method:    "Get",
-	}, &initialState)
+	}, userToken, &initialState)
 	require.NoError(t, err)
 	assert.Equal(t, int32(0), initialState.Value, "Initial counter value should be 0")
 
 	// Test 2: Increment counter
 	var incrementedState counter.CounterState
-	err = client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
+	_, err = client.InvokeActorMethodWithJWT(ctx, ActorMethodRequest{
 		ActorType: "Counter",
 		ActorID:   actorID,
 		Method:    "Increment",
-	}, &incrementedState)
+	}, userToken, &incrementedState)
 	require.NoError(t, err)
 	assert.Equal(t, int32(1), incrementedState.Value, "Counter should be 1 after increment")
 
 	// Test 3: Increment again
-	err = client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
+	_, err = client.InvokeActorMethodWithJWT(ctx, ActorMethodRequest{
 		ActorType: "Counter",
 		ActorID:   actorID,
 		Method:    "Increment",
-	}, &incrementedState)
+	}, userToken, &incrementedState)
 	require.NoError(t, err)
 	assert.Equal(t, int32(2), incrementedState.Value, "Counter should be 2 after second increment")
 
 	// Test 4: Set to specific value
 	var setState counter.CounterState
-	err = client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
+	_, err = client.InvokeActorMethodWithJWT(ctx, ActorMethodRequest{
 		ActorType: "Counter",
 		ActorID:   actorID,
 		Method:    "Set",
 		Data:      counter.SetValueRequest{Value: int32(10)},
-	}, &setState)
+	}, userToken, &setState)
 	require.NoError(t, err)
 	assert.Equal(t, int32(10), setState.Value, "Counter should be 10 after set")
 
 	// Test 5: Decrement
 	var decrementedState counter.CounterState
-	err = client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
+	_, err = client.InvokeActorMethodWithJWT(ctx, ActorMethodRequest{
 		ActorType: "Counter",
 		ActorID:   actorID,
 		Method:    "Decrement",
-	}, &decrementedState)
+	}, userToken, &decrementedState)
 	require.NoError(t, err)
 	assert.Equal(t, int32(9), decrementedState.Value, "Counter should be 9 after decrement")
 
 	// Test 6: Verify final state persistence
 	var finalState counter.CounterState
-	err = client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
+	_, err = client.InvokeActorMethodWithJWT(ctx, ActorMethodRequest{
 		ActorType: "Counter",
 		ActorID:   actorID,
 		Method:    "Get",
-	}, &finalState)
+	}, userToken, &finalState)
 	require.NoError(t, err)
 	assert.Equal(t, int32(9), finalState.Value, "Final counter value should be 9")
 }
@@ -102,19 +108,27 @@ func testCounterBasicOperations(t *testing.T, client *DaprClient) {
 func testCounterStateIsolation(t *testing.T, client *DaprClient) {
 	ctx := context.Background()
 
+	// Generate JWT token for authenticated operations
+	userToken, err := generateTestToken("test-user", "test-user", "test@example.com", []string{"user"}, 1*time.Hour)
+	require.NoError(t, err, "Failed to generate JWT token for testing")
+
 	// Test that different actor instances maintain separate state
-	actors := []string{"counter-isolation-1", "counter-isolation-2", "counter-isolation-3"}
+	actors := []string{
+		fmt.Sprintf("counter-isolation-1-%d", time.Now().UnixNano()%10000),
+		fmt.Sprintf("counter-isolation-2-%d", time.Now().UnixNano()%10000),
+		fmt.Sprintf("counter-isolation-3-%d", time.Now().UnixNano()%10000),
+	}
 	expectedValues := []int32{5, 10, 15}
 
 	// Set different values for each actor
 	for i, actorID := range actors {
 		var state counter.CounterState
-		err := client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
+		_, err := client.InvokeActorMethodWithJWT(ctx, ActorMethodRequest{
 			ActorType: "Counter",
 			ActorID:   actorID,
 			Method:    "Set",
 			Data:      counter.SetValueRequest{Value: expectedValues[i]},
-		}, &state)
+		}, userToken, &state)
 		require.NoError(t, err)
 		assert.Equal(t, expectedValues[i], state.Value, "Counter should be set to expected value")
 	}
@@ -122,11 +136,11 @@ func testCounterStateIsolation(t *testing.T, client *DaprClient) {
 	// Verify that each actor maintained its own state
 	for i, actorID := range actors {
 		var state counter.CounterState
-		err := client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
+		_, err := client.InvokeActorMethodWithJWT(ctx, ActorMethodRequest{
 			ActorType: "Counter",
 			ActorID:   actorID,
 			Method:    "Get",
-		}, &state)
+		}, userToken, &state)
 		require.NoError(t, err)
 		assert.Equal(t, expectedValues[i], state.Value, "Actor %s should maintain its own state", actorID)
 	}
@@ -135,6 +149,10 @@ func testCounterStateIsolation(t *testing.T, client *DaprClient) {
 func testCounterMultipleInstances(t *testing.T, client *DaprClient) {
 	ctx := context.Background()
 
+	// Generate JWT token for authenticated operations
+	userToken, err := generateTestToken("test-user", "test-user", "test@example.com", []string{"user"}, 1*time.Hour)
+	require.NoError(t, err, "Failed to generate JWT token for testing")
+
 	// Test scenario similar to the shell script test-counter-actor.sh
 	testCases := []struct {
 		actorID       string
@@ -142,17 +160,17 @@ func testCounterMultipleInstances(t *testing.T, client *DaprClient) {
 		expectedFinal int32
 	}{
 		{
-			actorID:       "counter-001",
+			actorID:       fmt.Sprintf("counter-001-%d", time.Now().UnixNano()%10000),
 			operations:    []string{"Increment", "Increment", "Set:10"},
 			expectedFinal: 10,
 		},
 		{
-			actorID:       "counter-002", 
+			actorID:       fmt.Sprintf("counter-002-%d", time.Now().UnixNano()%10000), 
 			operations:    []string{"Increment", "Increment", "Increment"},
 			expectedFinal: 3,
 		},
 		{
-			actorID:       "counter-003",
+			actorID:       fmt.Sprintf("counter-003-%d", time.Now().UnixNano()%10000),
 			operations:    []string{"Set:25", "Decrement"},
 			expectedFinal: 24,
 		},
@@ -165,45 +183,45 @@ func testCounterMultipleInstances(t *testing.T, client *DaprClient) {
 				var state counter.CounterState
 				
 				if op == "Increment" {
-					err := client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
+					_, err := client.InvokeActorMethodWithJWT(ctx, ActorMethodRequest{
 						ActorType: "Counter",
 						ActorID:   tc.actorID,
 						Method:    "Increment",
-					}, &state)
+					}, userToken, &state)
 					require.NoError(t, err)
 				} else if op == "Decrement" {
-					err := client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
+					_, err := client.InvokeActorMethodWithJWT(ctx, ActorMethodRequest{
 						ActorType: "Counter",
 						ActorID:   tc.actorID,
 						Method:    "Decrement",
-					}, &state)
+					}, userToken, &state)
 					require.NoError(t, err)
 				} else if op == "Set:10" {
-					err := client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
+					_, err := client.InvokeActorMethodWithJWT(ctx, ActorMethodRequest{
 						ActorType: "Counter",
 						ActorID:   tc.actorID,
 						Method:    "Set",
 						Data:      counter.SetValueRequest{Value: int32(10)},
-					}, &state)
+					}, userToken, &state)
 					require.NoError(t, err)
 				} else if op == "Set:25" {
-					err := client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
+					_, err := client.InvokeActorMethodWithJWT(ctx, ActorMethodRequest{
 						ActorType: "Counter",
 						ActorID:   tc.actorID,
 						Method:    "Set",
 						Data:      counter.SetValueRequest{Value: int32(25)},
-					}, &state)
+					}, userToken, &state)
 					require.NoError(t, err)
 				}
 			}
 
 			// Verify final state
 			var finalState counter.CounterState
-			err := client.InvokeActorMethodWithResponse(ctx, ActorMethodRequest{
+			_, err := client.InvokeActorMethodWithJWT(ctx, ActorMethodRequest{
 				ActorType: "Counter",
 				ActorID:   tc.actorID,
 				Method:    "Get",
-			}, &finalState)
+			}, userToken, &finalState)
 			require.NoError(t, err)
 			assert.Equal(t, tc.expectedFinal, finalState.Value, "Final value for %s should be %d", tc.actorID, tc.expectedFinal)
 		})

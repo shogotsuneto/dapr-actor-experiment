@@ -125,7 +125,7 @@ func testBankAccountStateIsolation(t *testing.T, client *DaprClient) {
 		expectedBalance float64
 	}{
 		{
-			actorID:        "account-alice",
+			actorID:        fmt.Sprintf("account-alice-%d", time.Now().UnixNano()%10000),
 			ownerName:      "Alice Johnson",
 			initialDeposit: 1500.0,
 			operations: []Operation{
@@ -136,7 +136,7 @@ func testBankAccountStateIsolation(t *testing.T, client *DaprClient) {
 			expectedBalance: 3150.0, // 1500 + 3000 - 1200 - 150
 		},
 		{
-			actorID:        "account-bob",
+			actorID:        fmt.Sprintf("account-bob-%d", time.Now().UnixNano()%10000),
 			ownerName:      "Bob Smith",
 			initialDeposit: 500.0,
 			operations: []Operation{
@@ -147,7 +147,7 @@ func testBankAccountStateIsolation(t *testing.T, client *DaprClient) {
 			expectedBalance: 1150.0, // 500 + 800 + 200 - 350
 		},
 		{
-			actorID:        "account-charlie",
+			actorID:        fmt.Sprintf("account-charlie-%d", time.Now().UnixNano()%10000),
 			ownerName:      "Charlie Brown",
 			initialDeposit: 2000.0,
 			operations: []Operation{
@@ -222,7 +222,7 @@ func testBankAccountStateIsolation(t *testing.T, client *DaprClient) {
 
 func testBankAccountEventSourcing(t *testing.T, client *DaprClient) {
 	ctx := context.Background()
-	actorID := "account-event-sourcing-test"
+	actorID := fmt.Sprintf("account-event-sourcing-test-%d", time.Now().UnixNano()%10000)
 
 	// Generate JWT token for authenticated operations
 	userToken, err := generateTestToken(actorID, "event-sourcing-user", "events@example.com", []string{"user"}, 1*time.Hour)
