@@ -11,25 +11,6 @@ The authentication middleware demonstrates how to:
 
 The middleware uses OAuth 2.0 token introspection via an external JWKS Mock API service for token validation.
 
-## Architecture
-
-```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│                 │    │                 │    │                 │    │                 │
-│     Client      │───▶│  Authentication │───▶│   JWKS Mock     │───▶│  Actor Method   │
-│  (with token)   │    │   Middleware    │    │   API Service   │    │ (accesses user  │
-│                 │    │                 │    │ (/introspect)   │    │    context)     │
-└─────────────────┘    └─────────────────┘    └─────────────────┘    └─────────────────┘
-                                │                        │                        │
-                                ▼                        ▼                        ▼
-                       ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-                       │                 │    │                 │    │                 │
-                       │ Token           │    │  Token          │    │  UserID Access  │
-                       │ Introspection   │    │  Validation     │    │  via Context    │
-                       │                 │    │                 │    │                 │
-                       └─────────────────┘    └─────────────────┘    └─────────────────┘
-```
-
 ## Configuration
 
 ### Environment Variables
