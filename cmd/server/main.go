@@ -63,6 +63,7 @@ func main() {
 			"/health",
 			"/status",
 			"/v1.0/healthz", // Dapr health check
+			"/dapr/",        // Dapr internal endpoints
 		},
 	}
 	

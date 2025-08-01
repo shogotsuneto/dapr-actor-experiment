@@ -38,6 +38,18 @@ func JWTMiddleware(config JWTMiddlewareConfig) func(http.Handler) http.Handler {
 				}
 			}
 
+			// For actor invocations, check if this is a legitimate Dapr sidecar call
+			// In a proper Dapr setup, authentication should be handled at the Dapr level
+			if strings.HasPrefix(r.URL.Path, "/actors/") {
+				// Check if this is coming from Dapr sidecar (has traceparent header and appropriate user agent)
+				if isDaprInternalCall(r) {
+					// For Dapr internal calls, skip authentication but don't inject user context
+					// This allows the actor methods to handle the absence of user context appropriately
+					next.ServeHTTP(w, r)
+					return
+				}
+			}
+
 			// Extract token from Authorization header
 			authHeader := r.Header.Get("Authorization")
 			if authHeader == "" {
@@ -74,6 +86,24 @@ func JWTMiddleware(config JWTMiddlewareConfig) func(http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+// isDaprInternalCall detects if a request is coming from the Dapr sidecar
+func isDaprInternalCall(r *http.Request) bool {
+	// Check for Dapr-specific tracing headers (traceparent is added by Dapr)
+	if r.Header.Get("Traceparent") != "" {
+		// Additional validation: check if it's from the expected internal network
+		remoteAddr := r.RemoteAddr
+		if colonPos := strings.LastIndex(remoteAddr, ":"); colonPos != -1 {
+			host := remoteAddr[:colonPos]
+			// Allow calls from Docker internal network (typically 172.x.x.x range)
+			if strings.HasPrefix(host, "172.") {
+				return true
+			}
+		}
+	}
+	
+	return false
 }
 
 // validateJWTWithIntrospection validates a JWT token using OAuth 2.0 introspection

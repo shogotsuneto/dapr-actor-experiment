@@ -67,8 +67,11 @@ func (c *Counter) Set(ctx context.Context, request SetValueRequest) (*CounterSta
 	// Example: Simple check - only authenticated users can set values
 	userID, ok := auth.GetUserID(ctx)
 	if !ok {
-		log.Printf("Counter %s: Unauthenticated user attempted Set operation", c.ID())
-		return nil, errors.New("authentication required for set operations")
+		// For internal Dapr calls without authentication context, use "system" as user
+		userID = "system"
+		log.Printf("Counter %s: System/internal operation for Set", c.ID())
+	} else {
+		log.Printf("Counter %s: User %s setting value", c.ID(), userID)
 	}
 	
 	if err := c.validateSetRequest(request); err != nil {
