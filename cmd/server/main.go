@@ -63,7 +63,6 @@ func main() {
 			"/health",
 			"/status",
 			"/v1.0/healthz", // Dapr health check
-			"/dapr/",        // Dapr internal endpoints
 		},
 	}
 	
@@ -87,7 +86,12 @@ func main() {
 	
 	log.Println("Starting Multi-Actor Dapr Service with authentication middleware on port 8080...")
 	log.Printf("Authentication Configuration:")
-	log.Printf("  - Introspect URL: %s", getIntrospectURL())
+	log.Printf("  - Authentication: %s", func() string {
+		if getIntrospectURL() != "" {
+			return "Enabled (Dapr Bearer middleware)"
+		}
+		return "Disabled (development mode)"
+	}())
 	log.Printf("Actors registered:")
 	log.Printf("  - %s: State-based counter operations", counter.ActorTypeCounter)
 	log.Printf("  - %s: Event-sourced bank account with full audit trail", bankaccount.ActorTypeBankAccount)
@@ -98,11 +102,12 @@ func main() {
 	}
 }
 
-// getIntrospectURL returns the JWT introspection URL from environment or default
+// getIntrospectURL returns the JWT introspection URL from environment
+// When set, enables JWT authentication via Dapr Bearer middleware
 func getIntrospectURL() string {
 	if url := os.Getenv("JWKS_INTROSPECT_URL"); url != "" {
 		return url
 	}
-	return "http://localhost:3000/introspect"
+	return ""
 }
 

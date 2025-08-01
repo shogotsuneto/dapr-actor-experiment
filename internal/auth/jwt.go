@@ -2,7 +2,6 @@ package auth
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"strings"
 )
@@ -19,14 +18,15 @@ const (
 
 // JWTMiddlewareConfig configures the JWT middleware
 type JWTMiddlewareConfig struct {
-	// IntrospectURL is the URL of the OAuth 2.0 introspection endpoint
+	// IntrospectURL when set, enables JWT authentication (Bearer middleware should be configured)
+	// When empty, authentication is disabled for development
 	IntrospectURL string
 	
 	// SkipPaths are paths that should skip JWT validation
 	SkipPaths []string
 }
 
-// JWTMiddleware creates HTTP middleware that validates JWT tokens using OAuth 2.0 introspection
+// JWTMiddleware creates HTTP middleware that extracts user ID from Dapr Bearer middleware headers
 func JWTMiddleware(config JWTMiddlewareConfig) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -38,44 +38,21 @@ func JWTMiddleware(config JWTMiddlewareConfig) func(http.Handler) http.Handler {
 				}
 			}
 
-			// For actor invocations, check if this is a legitimate Dapr sidecar call
-			// In a proper Dapr setup, authentication should be handled at the Dapr level
-			if strings.HasPrefix(r.URL.Path, "/actors/") {
-				// Check if this is coming from Dapr sidecar (has traceparent header and appropriate user agent)
-				if isDaprInternalCall(r) {
-					// For Dapr internal calls, skip authentication but don't inject user context
-					// This allows the actor methods to handle the absence of user context appropriately
-					next.ServeHTTP(w, r)
-					return
-				}
-			}
-
-			// Extract token from Authorization header
-			authHeader := r.Header.Get("Authorization")
-			if authHeader == "" {
-				// If no introspection URL is configured, skip authentication
+			// When using Dapr Bearer middleware, JWT validation is done by Dapr
+			// and the validated claims are forwarded via headers
+			
+			// Extract userID from the forwarded JWT payload
+			// Dapr Bearer middleware forwards JWT claims as headers with "X-" prefix
+			userID := r.Header.Get("X-Sub")
+			if userID == "" {
+				// If authentication is not configured, skip validation
 				if config.IntrospectURL == "" {
 					next.ServeHTTP(w, r)
 					return
 				}
-				http.Error(w, "Missing Authorization header", http.StatusUnauthorized)
-				return
-			}
-
-			// Check Bearer token format
-			tokenString := strings.TrimPrefix(authHeader, "Bearer ")
-			if tokenString == authHeader {
-				http.Error(w, "Invalid Authorization header format", http.StatusUnauthorized)
-				return
-			}
-
-			// Create introspection client
-			introspectClient := NewIntrospectionClient(config.IntrospectURL)
-			
-			// Validate token using introspection
-			userID, err := validateJWTWithIntrospection(r.Context(), tokenString, config, introspectClient)
-			if err != nil {
-				http.Error(w, fmt.Sprintf("Invalid JWT token: %v", err), http.StatusUnauthorized)
+				// If authentication is configured but no user ID forwarded, 
+				// it means JWT validation failed at Dapr level
+				http.Error(w, "Authentication required", http.StatusUnauthorized)
 				return
 			}
 
@@ -86,45 +63,6 @@ func JWTMiddleware(config JWTMiddlewareConfig) func(http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 		})
 	}
-}
-
-// isDaprInternalCall detects if a request is coming from the Dapr sidecar
-func isDaprInternalCall(r *http.Request) bool {
-	// Check for Dapr-specific tracing headers (traceparent is added by Dapr)
-	if r.Header.Get("Traceparent") != "" {
-		// Additional validation: check if it's from the expected internal network
-		remoteAddr := r.RemoteAddr
-		if colonPos := strings.LastIndex(remoteAddr, ":"); colonPos != -1 {
-			host := remoteAddr[:colonPos]
-			// Allow calls from Docker internal network (typically 172.x.x.x range)
-			if strings.HasPrefix(host, "172.") {
-				return true
-			}
-		}
-	}
-	
-	return false
-}
-
-// validateJWTWithIntrospection validates a JWT token using OAuth 2.0 introspection
-func validateJWTWithIntrospection(ctx context.Context, tokenString string, config JWTMiddlewareConfig, client *IntrospectionClient) (string, error) {
-	// Call introspection endpoint
-	resp, err := client.IntrospectToken(ctx, tokenString)
-	if err != nil {
-		return "", fmt.Errorf("introspection failed: %w", err)
-	}
-	
-	// Check if token is active
-	if !resp.Active {
-		return "", fmt.Errorf("token is not active")
-	}
-	
-	// Ensure we have a subject claim
-	if resp.Sub == "" {
-		return "", fmt.Errorf("token missing subject claim")
-	}
-
-	return resp.Sub, nil
 }
 
 // GetUserID extracts user ID from the given context

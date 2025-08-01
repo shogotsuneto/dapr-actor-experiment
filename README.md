@@ -50,6 +50,25 @@ This approach:
 - Uses Redis state store and Dapr sidecar containers
 - Requires only Docker and Docker Compose
 
+## JWT Authentication
+
+The actor service uses Dapr's Bearer middleware for JWT authentication. All endpoints require valid JWT tokens for access.
+
+### Testing JWT Authentication
+
+```bash
+# Start services with JWT Bearer middleware
+docker compose up -d
+
+# Test JWT validation (requires valid tokens)
+./scripts/test-jwt-validation.sh
+```
+
+The Bearer middleware configuration:
+- **JWKS Server**: Mock server providing JWT keys at port 3001
+- **Bearer Middleware**: Validates JWT tokens using JWKS
+- **Protected Endpoints**: All actor operations require valid JWT tokens
+
 ### Alternative Commands
 
 You can also run Docker Compose commands directly:
