@@ -161,32 +161,6 @@ See [Integration Tests README](test/integration/README.md) for detailed document
 └── Makefile                  # Build automation
 ```
 
-## Architecture
-
-```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│                 │    │                 │    │                 │
-│     Client      │───▶│  Dapr Sidecar   │───▶│  Actor Service  │
-│  (w/ JWT Token) │    │   (HTTP API)    │    │ (JWT Middleware)│
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-                                │                        │
-                                │                        │
-                                ▼                        ▼
-                       ┌─────────────────┐    ┌─────────────────┐
-                       │                 │    │                 │
-                       │      Redis      │◀───│  State Manager  │
-                       │  (State Store)  │    │                 │
-                       └─────────────────┘    └─────────────────┘
-                                                         │
-                                                         │ Introspect
-                                                         ▼
-                                               ┌─────────────────┐
-                                               │                 │
-                                               │ JWKS Mock API   │
-                                               │ (Token Service) │
-                                               └─────────────────┘
-```
-
 **JWT Authentication Flow:**
 1. Client generates JWT token via JWKS Mock API (`/generate-token`)
 2. Client sends request with `Authorization: Bearer <token>` header
