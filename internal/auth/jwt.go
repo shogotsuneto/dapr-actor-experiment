@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-	"time"
 )
 
 // UserIDContextKey is the context key for user ID
@@ -43,14 +42,9 @@ func JWTMiddleware(config JWTMiddlewareConfig) func(http.Handler) http.Handler {
 			authHeader := r.Header.Get("Authorization")
 			if authHeader == "" {
 				// If no introspection URL is configured, skip authentication
-				if config.IntrospectURL == "" || strings.Contains(config.IntrospectURL, "localhost:3000") {
-					// Check if JWKS service is reachable
-					client := &http.Client{Timeout: 1 * time.Second}
-					if _, err := client.Get(config.IntrospectURL); err != nil {
-						// JWKS service not available, skip authentication for this request
-						next.ServeHTTP(w, r)
-						return
-					}
+				if config.IntrospectURL == "" {
+					next.ServeHTTP(w, r)
+					return
 				}
 				http.Error(w, "Missing Authorization header", http.StatusUnauthorized)
 				return
