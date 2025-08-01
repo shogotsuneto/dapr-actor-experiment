@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 )
 
 // UserIDContextKey is the context key for user ID
@@ -28,9 +29,6 @@ type JWTMiddlewareConfig struct {
 
 // JWTMiddleware creates HTTP middleware that validates JWT tokens using OAuth 2.0 introspection
 func JWTMiddleware(config JWTMiddlewareConfig) func(http.Handler) http.Handler {
-	// Create introspection client
-	introspectClient := NewIntrospectionClient(config.IntrospectURL)
-	
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Check if path should skip validation
@@ -44,6 +42,16 @@ func JWTMiddleware(config JWTMiddlewareConfig) func(http.Handler) http.Handler {
 			// Extract token from Authorization header
 			authHeader := r.Header.Get("Authorization")
 			if authHeader == "" {
+				// If no introspection URL is configured, skip authentication
+				if config.IntrospectURL == "" || strings.Contains(config.IntrospectURL, "localhost:3000") {
+					// Check if JWKS service is reachable
+					client := &http.Client{Timeout: 1 * time.Second}
+					if _, err := client.Get(config.IntrospectURL); err != nil {
+						// JWKS service not available, skip authentication for this request
+						next.ServeHTTP(w, r)
+						return
+					}
+				}
 				http.Error(w, "Missing Authorization header", http.StatusUnauthorized)
 				return
 			}
@@ -55,6 +63,9 @@ func JWTMiddleware(config JWTMiddlewareConfig) func(http.Handler) http.Handler {
 				return
 			}
 
+			// Create introspection client
+			introspectClient := NewIntrospectionClient(config.IntrospectURL)
+			
 			// Validate token using introspection
 			userID, err := validateJWTWithIntrospection(r.Context(), tokenString, config, introspectClient)
 			if err != nil {

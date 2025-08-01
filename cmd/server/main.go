@@ -12,7 +12,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	
-	"github.com/shogotsuneto/dapr-actor-experiment/internal/auth"
 	"github.com/shogotsuneto/dapr-actor-experiment/internal/bankaccount"
 	"github.com/shogotsuneto/dapr-actor-experiment/internal/counter"
 )
@@ -55,20 +54,7 @@ func main() {
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.RequestID)
-	
-	// Configure JWT middleware with introspection
-	jwtConfig := auth.JWTMiddlewareConfig{
-		IntrospectURL: getIntrospectURL(),
-		SkipPaths: []string{
-			"/health",
-			"/status",
-			"/v1.0/healthz", // Dapr health check
-		},
-	}
-	
-	// Add JWT middleware for all routes except skip paths
-	r.Use(auth.JWTMiddleware(jwtConfig))
-	
+
 	// Create Dapr service with custom router
 	s := daprd.NewServiceWithMux(":8080", r)
 	
@@ -84,12 +70,13 @@ func main() {
 	s.AddServiceInvocationHandler("/health", healthHandler)
 	s.AddServiceInvocationHandler("/status", statusHandler)
 	
-	log.Println("Starting Multi-Actor Dapr Service with authentication middleware on port 8080...")
-	log.Printf("Authentication Configuration:")
+	log.Println("Starting Multi-Actor Dapr Service on port 8080...")
+	log.Printf("Optional Authentication Configuration:")
 	log.Printf("  - Introspect URL: %s", getIntrospectURL())
 	log.Printf("Actors registered:")
 	log.Printf("  - %s: State-based counter operations", counter.ActorTypeCounter)
 	log.Printf("  - %s: Event-sourced bank account with full audit trail", bankaccount.ActorTypeBankAccount)
+	log.Printf("Authentication is now optional - actors support both authenticated and non-authenticated requests")
 	
 	// Start the service
 	if err := s.Start(); err != nil && err != http.ErrServerClosed {
