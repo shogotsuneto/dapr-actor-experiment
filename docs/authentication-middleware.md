@@ -69,22 +69,6 @@ func (c *Counter) Set(ctx context.Context, request SetValueRequest) (*CounterSta
 
 ## Example Usage
 
-### Token Generation
-
-Generate tokens using the JWKS Mock API:
-
-```bash
-# Generate user token
-curl -X POST http://localhost:3000/generate-token \
-  -H "Content-Type: application/json" \
-  -d '{
-    "claims": {
-      "sub": "user-123"
-    },
-    "expiresIn": 3600
-  }'
-```
-
 ### Authenticated Requests
 
 ```bash
