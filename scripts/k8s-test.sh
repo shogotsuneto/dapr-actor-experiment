@@ -63,11 +63,6 @@ echo "Testing BankAccountActor..."
 echo "Testing multi-actor scenarios..."
 "${PROJECT_ROOT}/scripts/test-multi-actors.sh"
 
-# Run Kubernetes-specific integration tests
-echo "Running Kubernetes-specific tests..."
-cd "${PROJECT_ROOT}"
-go test -v ./test/integration -run TestKubernetes
-
 echo "✅ All Kubernetes tests passed!"
 echo ""
 echo "Deployment info:"

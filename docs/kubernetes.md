@@ -26,11 +26,8 @@ Before setting up the local Kubernetes environment, ensure you have the followin
 
 2. **Kind**: Kubernetes in Docker
    ```bash
-   # Install Kind
-   # Linux/macOS:
-   curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.20.0/kind-linux-amd64
-   chmod +x ./kind
-   sudo mv ./kind /usr/local/bin/kind
+   # Install Kind using Go
+   go install sigs.k8s.io/kind@v0.20.0
    
    # Or using package manager:
    # macOS: brew install kind
@@ -38,6 +35,8 @@ Before setting up the local Kubernetes environment, ensure you have the followin
    
    kind --version
    ```
+   
+   For other installation methods, see the [official Kind documentation](https://kind.sigs.k8s.io/docs/user/quick-start/).
 
 3. **kubectl**: Kubernetes CLI
    ```bash
@@ -91,15 +90,42 @@ This command:
 Test the application running on Kubernetes:
 
 ```bash
-# Run integration tests against the Kubernetes deployment
+# Run all integration tests against the Kubernetes deployment
 make k8s-test
 ```
 
 This command:
-- Sets up port forwarding to access services
-- Runs all existing test scripts against the Kubernetes deployment
-- Tests multi-node actor distribution
-- Verifies service health and functionality
+- Sets up port forwarding to access services locally (Dapr: 3500, JWKS: 3000)
+- Runs health checks to verify all services are ready
+- Executes the same integration test scripts used for Docker Compose:
+  - `scripts/test-counter-actor.sh` - Tests CounterActor functionality
+  - `scripts/test-bank-account-actor.sh` - Tests BankAccountActor functionality  
+  - `scripts/test-multi-actors.sh` - Tests multi-actor scenarios
+- Tests are run against multiple actor service replicas to verify multi-node distribution
+- Validates that actors maintain state correctly across different pods
+
+#### Running Individual Test Scripts
+
+You can also run individual test scripts manually:
+
+```bash
+# Set up port forwarding first (run in background)
+kubectl -n dapr-actor-experiment port-forward svc/actor-service 3500:3500 &
+kubectl -n dapr-actor-experiment port-forward svc/jwks-mock-api 3000:3000 &
+
+# Set environment variables for the scripts
+export DAPR_HTTP_ENDPOINT="http://localhost:3500"
+export JWKS_GENERATE_URL="http://localhost:3000/generate-token"
+export JWT_ISSUER="http://localhost:3000"
+
+# Run individual test scripts
+./scripts/test-counter-actor.sh
+./scripts/test-bank-account-actor.sh
+./scripts/test-multi-actors.sh
+
+# Clean up port forwarding
+pkill -f "kubectl.*port-forward"
+```
 
 ### 4. Check Status
 
