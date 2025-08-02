@@ -50,6 +50,32 @@ This approach:
 - Uses Redis state store and Dapr sidecar containers
 - Requires only Docker and Docker Compose
 
+### Kubernetes Alternative (Local Development)
+
+For a more production-like environment, you can also run the demo on local Kubernetes using Kind:
+
+```bash
+# Setup Kind cluster with Dapr
+make k8s-setup
+
+# Deploy application
+make k8s-deploy
+
+# Test the application
+make k8s-test
+
+# Cleanup when done
+make k8s-cleanup
+```
+
+This approach:
+- Uses Kind for local Kubernetes development
+- Deploys multiple application instances for testing distribution
+- Provides isolated project environment with quick destroy & clean start
+- Includes integration tests that validate multi-node deployment
+
+See [Kubernetes Documentation](docs/kubernetes.md) for detailed setup and usage instructions.
+
 ## JWT Authentication
 
 The actor service uses Dapr's Bearer middleware for JWT authentication. All endpoints require valid JWT tokens for access.
@@ -397,6 +423,7 @@ This repository includes detailed documentation on various aspects of Dapr actor
 - **[Client vs Curl](docs/client-vs-curl.md)** - Understand the difference between using the Go client (Dapr SDK) vs direct HTTP calls with curl
 - **[Event Sourcing](docs/event-sourcing.md)** - Learn whether this implementation uses event sourcing and understand the state-based approach
 - **[Akka Comparison](docs/akka-comparison.md)** - Compare Dapr actors with Akka actors, including mailbox concepts and architectural differences
+- **[Kubernetes](docs/kubernetes.md)** - Local Kubernetes development with Kind for isolated project environments and multi-node testing
 
 ### Key Insights
 - **Authentication Middleware**: Demonstrates how to add middleware and access user context in actors for ownership validation

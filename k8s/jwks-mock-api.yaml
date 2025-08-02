@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jwks-mock-api
+  namespace: dapr-actor-experiment
+  labels:
+    app: jwks-mock-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: jwks-mock-api
+  template:
+    metadata:
+      labels:
+        app: jwks-mock-api
+    spec:
+      containers:
+      - name: jwks-mock-api
+        image: ghcr.io/shogotsuneto/jwks-mock-api:v0.0.4
+        ports:
+        - containerPort: 3000
+        env:
+        - name: PORT
+          value: "3000"
+        - name: JWT_ISSUER
+          value: "http://jwks-mock-api:3000"
+        - name: JWT_AUDIENCE
+          value: "dapr-actor-service"
+        - name: KEY_COUNT
+          value: "2"
+        - name: KEY_IDS
+          value: "key-1,key-2"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: jwks-mock-api
+  namespace: dapr-actor-experiment
+  labels:
+    app: jwks-mock-api
+spec:
+  selector:
+    app: jwks-mock-api
+  ports:
+  - port: 3000
+    targetPort: 3000
+  type: ClusterIP
