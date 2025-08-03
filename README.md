@@ -52,7 +52,7 @@ This approach:
 
 ### Kubernetes Alternative (Local Development)
 
-For a more production-like environment, you can also run the demo on local Kubernetes using Kind:
+For a more production-like environment, you can also run the demo on local Kubernetes using Kind. See [docs/kubernetes.md](docs/kubernetes.md) for detailed setup instructions.
 
 ```bash
 # Setup Kind cluster with Dapr
