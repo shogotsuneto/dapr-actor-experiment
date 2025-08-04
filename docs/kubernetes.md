@@ -27,7 +27,7 @@ Before setting up the local Kubernetes environment, ensure you have the followin
 2. **Kind**: Kubernetes in Docker
    ```bash
    # Install Kind using Go
-   go install sigs.k8s.io/kind@v0.20.0
+   go install sigs.k8s.io/kind@v0.29.0
    
    # Or using package manager:
    # macOS: brew install kind
