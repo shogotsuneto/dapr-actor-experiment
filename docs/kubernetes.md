@@ -60,7 +60,7 @@ Create a Kind cluster with Dapr installed:
 
 ```bash
 # Create cluster, install Dapr, and build application image
-make k8s-setup
+make kind-setup
 ```
 
 This command:
@@ -75,7 +75,7 @@ Deploy all services to the cluster:
 
 ```bash
 # Deploy Redis, JWKS Mock API, Dapr components, and Actor service
-make k8s-deploy
+make kind-deploy
 ```
 
 This command:
@@ -91,7 +91,7 @@ Test the application running on Kubernetes:
 
 ```bash
 # Run all integration tests against the Kubernetes deployment
-make k8s-test
+make kind-test
 ```
 
 This command:
@@ -133,7 +133,7 @@ Monitor the deployment status:
 
 ```bash
 # Check pods, services, and overall status
-make k8s-status
+make kind-status
 ```
 
 ### 5. Cleanup
@@ -142,7 +142,7 @@ Remove the cluster and cleanup resources:
 
 ```bash
 # Delete the Kind cluster and associated resources
-make k8s-cleanup
+make kind-cleanup
 ```
 
 ## Architecture
@@ -377,9 +377,9 @@ If you encounter persistent issues:
 
 ```bash
 # Complete cleanup and restart
-make k8s-cleanup
-make k8s-setup
-make k8s-deploy
+make kind-cleanup
+make kind-setup
+make kind-deploy
 ```
 
 ### Debugging

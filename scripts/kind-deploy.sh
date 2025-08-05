@@ -11,7 +11,7 @@ echo "Deploying Dapr Actor Experiment to Kubernetes..."
 
 # Check if cluster exists
 if ! kind get clusters | grep -q "^${CLUSTER_NAME}$"; then
-    echo "ERROR: Kind cluster '${CLUSTER_NAME}' not found. Run 'make k8s-setup' first."
+    echo "ERROR: Kind cluster '${CLUSTER_NAME}' not found. Run 'make kind-setup' first."
     exit 1
 fi
 
@@ -66,4 +66,4 @@ echo "  # Redis (for debugging)"
 echo "  kubectl -n dapr-actor-experiment port-forward svc/redis 6379:6379"
 echo ""
 echo "Run tests:"
-echo "  make k8s-test"
+echo "  make kind-test"

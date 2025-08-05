@@ -1,4 +1,4 @@
-.PHONY: build clean test test-unit test-integration test-integration-quick test-integration-docker generate generate-install generate-clean k8s-setup k8s-deploy k8s-test k8s-cleanup k8s-status help
+.PHONY: build clean test test-unit test-integration test-integration-quick test-integration-docker generate generate-install generate-clean kind-setup kind-deploy kind-test kind-cleanup kind-status help
 
 # Default target
 all: build
@@ -93,31 +93,31 @@ help:
 	@echo "  test-integration        - Run integration tests (starts/stops Docker services)"
 	@echo "  test-integration-quick  - Run integration tests (assumes services running)"
 	@echo "  test-integration-docker - Run integration tests inside Docker container"
-	@echo "  k8s-setup               - Create Kind cluster and install Dapr"
-	@echo "  k8s-deploy              - Deploy application to Kubernetes"
-	@echo "  k8s-test                - Run tests against Kubernetes deployment"
-	@echo "  k8s-cleanup             - Delete Kind cluster and cleanup resources"
-	@echo "  k8s-status              - Show Kubernetes deployment status"
+	@echo "  kind-setup              - Create Kind cluster and install Dapr"
+	@echo "  kind-deploy             - Deploy application to Kubernetes"
+	@echo "  kind-test               - Run tests against Kubernetes deployment"
+	@echo "  kind-cleanup            - Delete Kind cluster and cleanup resources"
+	@echo "  kind-status             - Show Kubernetes deployment status"
 	@echo "  help                    - Show this help message"
 
-# Kubernetes targets for local development with Kind
-k8s-setup:
+# Kind targets for local development with Kind
+kind-setup:
 	@echo "Setting up Kind cluster for local Kubernetes development..."
-	@./scripts/k8s-setup.sh
+	@./scripts/kind-setup.sh
 
-k8s-deploy:
+kind-deploy:
 	@echo "Deploying application to Kubernetes..."
-	@./scripts/k8s-deploy.sh
+	@./scripts/kind-deploy.sh
 
-k8s-test:
+kind-test:
 	@echo "Running tests against Kubernetes deployment..."
-	@./scripts/k8s-test.sh
+	@./scripts/kind-test.sh
 
-k8s-cleanup:
+kind-cleanup:
 	@echo "Cleaning up Kind cluster and resources..."
-	@./scripts/k8s-cleanup.sh
+	@./scripts/kind-cleanup.sh
 
-k8s-status:
+kind-status:
 	@echo "Kubernetes deployment status:"
 	@kubectl config current-context 2>/dev/null || echo "No kubectl context set"
 	@kubectl -n dapr-actor-experiment get pods 2>/dev/null || echo "No pods found (cluster may not be running)"

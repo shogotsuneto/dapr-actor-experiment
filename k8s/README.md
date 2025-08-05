@@ -15,16 +15,16 @@ This directory contains Kubernetes manifests for deploying the Dapr Actor Experi
 
 ```bash
 # Setup cluster
-make k8s-setup
+make kind-setup
 
 # Deploy all components
-make k8s-deploy
+make kind-deploy
 
 # Test deployment
-make k8s-test
+make kind-test
 
 # Cleanup
-make k8s-cleanup
+make kind-cleanup
 ```
 
 ## Manual Deployment

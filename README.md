@@ -56,16 +56,16 @@ For a more production-like environment, you can also run the demo on local Kuber
 
 ```bash
 # Setup Kind cluster with Dapr
-make k8s-setup
+make kind-setup
 
 # Deploy application
-make k8s-deploy
+make kind-deploy
 
 # Test the application
-make k8s-test
+make kind-test
 
 # Cleanup when done
-make k8s-cleanup
+make kind-cleanup
 ```
 
 This approach:

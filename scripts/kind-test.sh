@@ -11,7 +11,7 @@ echo "Testing Dapr Actor Experiment on Kubernetes..."
 
 # Check if cluster exists
 if ! kind get clusters | grep -q "^${CLUSTER_NAME}$"; then
-    echo "ERROR: Kind cluster '${CLUSTER_NAME}' not found. Run 'make k8s-setup' first."
+    echo "ERROR: Kind cluster '${CLUSTER_NAME}' not found. Run 'make kind-setup' first."
     exit 1
 fi
 
