@@ -41,7 +41,16 @@ trap cleanup EXIT
 
 # Test health endpoints
 echo "Testing health endpoints..."
-curl -f http://localhost:3500/v1.0/healthz || { echo "ERROR: Dapr health check failed"; exit 1; }
+# For Dapr health check, accept both 200 (success) and 401 (requires auth but running)
+DAPR_HEALTH_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3500/v1.0/healthz)
+if [[ "$DAPR_HEALTH_CODE" == "200" || "$DAPR_HEALTH_CODE" == "401" ]]; then
+    echo "✓ Dapr sidecar is running (HTTP $DAPR_HEALTH_CODE)"
+else
+    echo "ERROR: Dapr health check failed (HTTP $DAPR_HEALTH_CODE)"
+    exit 1
+fi
+
+# JWKS Mock API should respond with 200
 curl -f http://localhost:3000/health || { echo "ERROR: JWKS Mock API health check failed"; exit 1; }
 
 # Run the existing test scripts (they should work with port forwarding)
