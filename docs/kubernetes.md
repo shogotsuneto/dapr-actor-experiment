@@ -151,7 +151,6 @@ kubectl -n dapr-actor-experiment port-forward svc/jwks-mock-api 3000:3000 &
 
 # 2. Configure environment variables for the integration tests
 export DAPR_HTTP_ENDPOINT="http://localhost:3500"
-export ACTOR_SERVICE_ENDPOINT="http://localhost:8080"  # Not used in K8s, but required by tests
 
 # 3. Run the comprehensive integration test suite
 go test -v ./test/integration/...

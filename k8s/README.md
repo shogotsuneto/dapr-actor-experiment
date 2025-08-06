@@ -15,16 +15,16 @@ This directory contains Kubernetes manifests for deploying the Dapr Actor Experi
 
 ```bash
 # Setup cluster
-make kind-setup
+./scripts/kind-setup.sh
 
 # Deploy all components
-make kind-deploy
+./scripts/kind-deploy.sh
 
 # Test deployment
-make kind-test
+./scripts/kind-test.sh
 
 # Cleanup
-make kind-cleanup
+./scripts/kind-cleanup.sh
 ```
 
 ## Manual Deployment
