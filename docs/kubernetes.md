@@ -90,23 +90,23 @@ This command:
 Test the application running on Kubernetes:
 
 ```bash
-# Run all integration tests against the Kubernetes deployment
+# Run smoke tests against the Kubernetes deployment
 make kind-test
 ```
 
 This command:
 - Sets up port forwarding to access services locally (Dapr: 3500, JWKS: 3000)
 - Runs health checks to verify all services are ready
-- Executes the same integration test scripts used for Docker Compose:
-  - `scripts/test-counter-actor.sh` - Tests CounterActor functionality
-  - `scripts/test-bank-account-actor.sh` - Tests BankAccountActor functionality  
-  - `scripts/test-multi-actors.sh` - Tests multi-actor scenarios
+- Executes simplified smoke test scripts to verify basic functionality:
+  - `scripts/test-counter-actor.sh` - Basic CounterActor API validation
+  - `scripts/test-bank-account-actor.sh` - Basic BankAccountActor API validation  
+  - `scripts/test-multi-actors.sh` - Basic multi-actor scenarios
 - Tests are run against multiple actor service replicas to verify multi-node distribution
 - Validates that actors maintain state correctly across different pods
 
-#### Running Individual Test Scripts
+#### Running Smoke Tests Manually
 
-You can also run individual test scripts manually:
+You can also run individual smoke test scripts manually:
 
 ```bash
 # Set up port forwarding first (run in background)
@@ -118,7 +118,7 @@ export DAPR_HTTP_ENDPOINT="http://localhost:3500"
 export JWKS_GENERATE_URL="http://localhost:3000/generate-token"
 export JWT_ISSUER="http://localhost:3000"
 
-# Run individual test scripts
+# Run individual smoke test scripts
 ./scripts/test-counter-actor.sh
 ./scripts/test-bank-account-actor.sh
 ./scripts/test-multi-actors.sh
@@ -126,6 +126,41 @@ export JWT_ISSUER="http://localhost:3000"
 # Clean up port forwarding
 pkill -f "kubectl.*port-forward"
 ```
+
+#### Running Comprehensive Integration Tests
+
+For thorough testing using the Go-based integration test suite, follow these steps:
+
+```bash
+# 1. Set up port forwarding to access Kubernetes services locally
+kubectl -n dapr-actor-experiment port-forward svc/actor-service 3500:3500 &
+kubectl -n dapr-actor-experiment port-forward svc/jwks-mock-api 3000:3000 &
+
+# 2. Configure environment variables for the integration tests
+export DAPR_HTTP_ENDPOINT="http://localhost:3500"
+export ACTOR_SERVICE_ENDPOINT="http://localhost:8080"  # Not used in K8s, but required by tests
+
+# 3. Run the comprehensive integration test suite
+go test -v ./test/integration/...
+
+# 4. Or run individual test files
+go test -v ./test/integration -run TestCounter
+go test -v ./test/integration -run TestBankAccount 
+go test -v ./test/integration -run TestMultiActor
+
+# 5. Clean up port forwarding when done
+pkill -f "kubectl.*port-forward"
+```
+
+The integration tests provide comprehensive validation including:
+- **State isolation** between actor instances
+- **CRUD operations** with detailed assertions  
+- **Event sourcing** capabilities for BankAccountActor
+- **Multi-actor scenarios** with cross-actor interactions
+- **Error handling** and edge cases
+- **Authentication** using JWT tokens
+
+See [test/integration/README.md](../test/integration/README.md) for detailed information about the integration test suite.
 
 ### 4. Check Status
 
