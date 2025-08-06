@@ -56,16 +56,19 @@ For a more production-like environment, you can also run the demo on local Kuber
 
 ```bash
 # Setup Kind cluster with Dapr
-make kind-setup
+./scripts/kind-setup.sh
 
 # Deploy application
-make kind-deploy
+./scripts/kind-deploy.sh
 
-# Test the application
-make kind-test
+# Test the application (smoke tests)
+./scripts/kind-test.sh
+
+# Run comprehensive integration tests
+make test-integration-kind
 
 # Cleanup when done
-make kind-cleanup
+./scripts/kind-cleanup.sh
 ```
 
 This approach:

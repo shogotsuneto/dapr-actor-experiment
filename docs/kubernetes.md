@@ -60,7 +60,7 @@ Create a Kind cluster with Dapr installed:
 
 ```bash
 # Create cluster, install Dapr, and build application image
-make kind-setup
+./scripts/kind-setup.sh
 ```
 
 This command:
@@ -75,7 +75,7 @@ Deploy all services to the cluster:
 
 ```bash
 # Deploy Redis, JWKS Mock API, Dapr components, and Actor service
-make kind-deploy
+./scripts/kind-deploy.sh
 ```
 
 This command:
@@ -90,8 +90,8 @@ This command:
 Test the application running on Kubernetes:
 
 ```bash
-# Run smoke tests against the Kubernetes deployment
-make kind-test
+# Run smoke tests against the Kubernetes deployment  
+./scripts/kind-test.sh
 ```
 
 This command:
@@ -129,7 +129,20 @@ pkill -f "kubectl.*port-forward"
 
 #### Running Comprehensive Integration Tests
 
-For thorough testing using the Go-based integration test suite, follow these steps:
+For thorough testing using the Go-based integration test suite, you can use the automated Make target:
+
+```bash
+# Automated approach (recommended)
+make test-integration-kind
+```
+
+This command automatically:
+- Sets up port forwarding to access Kubernetes services locally
+- Configures environment variables for the integration tests
+- Runs the comprehensive integration test suite
+- Cleans up port forwarding when complete
+
+**Manual approach:**
 
 ```bash
 # 1. Set up port forwarding to access Kubernetes services locally
@@ -168,7 +181,9 @@ Monitor the deployment status:
 
 ```bash
 # Check pods, services, and overall status
-make kind-status
+kubectl config current-context
+kubectl -n dapr-actor-experiment get pods
+kubectl -n dapr-actor-experiment get services
 ```
 
 ### 5. Cleanup
@@ -177,7 +192,7 @@ Remove the cluster and cleanup resources:
 
 ```bash
 # Delete the Kind cluster and associated resources
-make kind-cleanup
+./scripts/kind-cleanup.sh
 ```
 
 ## Architecture
@@ -412,9 +427,9 @@ If you encounter persistent issues:
 
 ```bash
 # Complete cleanup and restart
-make kind-cleanup
-make kind-setup
-make kind-deploy
+./scripts/kind-cleanup.sh
+./scripts/kind-setup.sh
+./scripts/kind-deploy.sh
 ```
 
 ### Debugging

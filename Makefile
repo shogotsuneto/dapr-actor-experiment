@@ -1,4 +1,4 @@
-.PHONY: build clean test test-unit test-integration test-integration-quick test-integration-docker generate generate-install generate-clean kind-setup kind-deploy kind-test kind-cleanup kind-status help
+.PHONY: build clean test test-unit test-integration test-integration-quick test-integration-docker test-integration-kind generate generate-install generate-clean help
 
 # Default target
 all: build
@@ -80,46 +80,35 @@ test-integration-docker:
 	@echo "Stopping test services..."
 	@docker compose -f test/integration/docker-compose.test.yml down
 
+# Run integration tests against Kind cluster
+test-integration-kind:
+	@echo "Running integration tests against Kind cluster..."
+	@echo "Setting up port forwarding..."
+	@kubectl -n dapr-actor-experiment port-forward svc/actor-service 3500:3500 &
+	@kubectl -n dapr-actor-experiment port-forward svc/jwks-mock-api 3000:3000 &
+	@echo "Waiting for port forwarding to be ready..."
+	@sleep 5
+	@echo "Running integration tests..."
+	@DAPR_HTTP_ENDPOINT="http://localhost:3500" \
+	 ACTOR_SERVICE_ENDPOINT="http://localhost:8080" \
+	 go test -v ./test/integration/... -timeout=5m || (echo "Tests failed, cleaning up port forwarding..." && pkill -f "kubectl.*port-forward" 2>/dev/null || true && exit 1)
+	@echo "Cleaning up port forwarding..."
+	@pkill -f "kubectl.*port-forward" 2>/dev/null || true
+	@echo "Integration tests completed successfully!"
+
 # Display help
 help:
 	@echo "Available targets:"
-	@echo "  build                   - Build server and client binaries"
-	@echo "  clean                   - Remove build artifacts"
-	@echo "  generate                - Generate actor code from OpenAPI schema"
-	@echo "  generate-install        - Install code generation tools (Docker-based)"
-	@echo "  generate-clean          - Clean generated actor code (preserves implementations)"
-	@echo "  test                    - Run all tests (unit + integration)"
-	@echo "  test-unit               - Run unit tests only"
-	@echo "  test-integration        - Run integration tests (starts/stops Docker services)"
-	@echo "  test-integration-quick  - Run integration tests (assumes services running)"
-	@echo "  test-integration-docker - Run integration tests inside Docker container"
-	@echo "  kind-setup              - Create Kind cluster and install Dapr"
-	@echo "  kind-deploy             - Deploy application to Kubernetes"
-	@echo "  kind-test               - Run tests against Kubernetes deployment"
-	@echo "  kind-cleanup            - Delete Kind cluster and cleanup resources"
-	@echo "  kind-status             - Show Kubernetes deployment status"
-	@echo "  help                    - Show this help message"
-
-# Kind targets for local development with Kind
-kind-setup:
-	@echo "Setting up Kind cluster for local Kubernetes development..."
-	@./scripts/kind-setup.sh
-
-kind-deploy:
-	@echo "Deploying application to Kubernetes..."
-	@./scripts/kind-deploy.sh
-
-kind-test:
-	@echo "Running tests against Kubernetes deployment..."
-	@./scripts/kind-test.sh
-
-kind-cleanup:
-	@echo "Cleaning up Kind cluster and resources..."
-	@./scripts/kind-cleanup.sh
-
-kind-status:
-	@echo "Kubernetes deployment status:"
-	@kubectl config current-context 2>/dev/null || echo "No kubectl context set"
-	@kubectl -n dapr-actor-experiment get pods 2>/dev/null || echo "No pods found (cluster may not be running)"
-	@kubectl -n dapr-actor-experiment get services 2>/dev/null || echo "No services found (cluster may not be running)"
+	@echo "  build                     - Build server and client binaries"
+	@echo "  clean                     - Remove build artifacts"
+	@echo "  generate                  - Generate actor code from OpenAPI schema"
+	@echo "  generate-install          - Install code generation tools (Docker-based)"
+	@echo "  generate-clean            - Clean generated actor code (preserves implementations)"
+	@echo "  test                      - Run all tests (unit + integration)"
+	@echo "  test-unit                 - Run unit tests only"
+	@echo "  test-integration          - Run integration tests (starts/stops Docker services)"
+	@echo "  test-integration-quick    - Run integration tests (assumes services running)"
+	@echo "  test-integration-docker   - Run integration tests inside Docker container"
+	@echo "  test-integration-kind     - Run integration tests against Kind cluster"
+	@echo "  help                      - Show this help message"
 
