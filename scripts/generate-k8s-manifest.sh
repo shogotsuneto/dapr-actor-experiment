@@ -18,7 +18,7 @@ cat > "${OUTPUT_FILE}" << 'EOF'
 EOF
 
 # Combine all manifest files
-for file in "${PROJECT_ROOT}"/k8s/*.yaml; do
+for file in "${PROJECT_ROOT}"/k8s/local/*.yaml; do
     # Skip the all-in-one file itself and kind-config
     filename=$(basename "$file")
     if [[ "$filename" != "all-in-one.yaml" && "$filename" != "kind-config.yaml" ]]; then

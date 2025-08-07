@@ -20,19 +20,19 @@ kubectl config use-context "kind-${CLUSTER_NAME}"
 
 # Apply namespace
 echo "Creating namespace..."
-kubectl apply -f "${PROJECT_ROOT}/k8s/namespace.yaml"
+kubectl apply -f "${PROJECT_ROOT}/k8s/local/namespace.yaml"
 
 # Apply Dapr components and configuration
 echo "Applying Dapr components and configuration..."
-kubectl apply -f "${PROJECT_ROOT}/k8s/dapr-components.yaml"
+kubectl apply -f "${PROJECT_ROOT}/k8s/local/dapr-components.yaml"
 
 # Apply Redis
 echo "Deploying Redis..."
-kubectl apply -f "${PROJECT_ROOT}/k8s/redis.yaml"
+kubectl apply -f "${PROJECT_ROOT}/k8s/local/redis.yaml"
 
 # Apply JWKS Mock API
 echo "Deploying JWKS Mock API..."
-kubectl apply -f "${PROJECT_ROOT}/k8s/jwks-mock-api.yaml"
+kubectl apply -f "${PROJECT_ROOT}/k8s/local/jwks-mock-api.yaml"
 
 # Wait for dependencies to be ready
 echo "Waiting for Redis to be ready..."
@@ -43,7 +43,7 @@ kubectl -n dapr-actor-experiment wait --for=condition=available --timeout=300s d
 
 # Apply actor service
 echo "Deploying Actor Service..."
-kubectl apply -f "${PROJECT_ROOT}/k8s/actor-service.yaml"
+kubectl apply -f "${PROJECT_ROOT}/k8s/local/actor-service.yaml"
 
 # Wait for actor service to be ready
 echo "Waiting for Actor Service to be ready..."

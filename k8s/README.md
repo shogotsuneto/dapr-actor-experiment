@@ -5,11 +5,12 @@ This directory contains Kubernetes manifests for deploying the Dapr Actor Experi
 ## Files
 
 - `kind-config.yaml` - Kind cluster configuration with port mappings
-- `namespace.yaml` - Kubernetes namespace for the project
-- `redis.yaml` - Redis state store deployment and service
-- `jwks-mock-api.yaml` - JWKS Mock API for JWT authentication
-- `dapr-components.yaml` - Dapr components and configuration as ConfigMaps
-- `actor-service.yaml` - Actor service deployment with Dapr sidecar injection
+- `local/` - Local development manifests
+  - `namespace.yaml` - Kubernetes namespace for the project
+  - `redis.yaml` - Redis state store deployment and service
+  - `jwks-mock-api.yaml` - JWKS Mock API for JWT authentication
+  - `dapr-components.yaml` - Dapr components and configuration as ConfigMaps
+  - `actor-service.yaml` - Actor service deployment with Dapr sidecar injection
 
 ## Quick Start
 
@@ -33,11 +34,11 @@ If you prefer to apply manifests manually:
 
 ```bash
 # Apply in order
-kubectl apply -f namespace.yaml
-kubectl apply -f dapr-components.yaml
-kubectl apply -f redis.yaml
-kubectl apply -f jwks-mock-api.yaml
-kubectl apply -f actor-service.yaml
+kubectl apply -f local/namespace.yaml
+kubectl apply -f local/dapr-components.yaml
+kubectl apply -f local/redis.yaml
+kubectl apply -f local/jwks-mock-api.yaml
+kubectl apply -f local/actor-service.yaml
 ```
 
 ## Architecture

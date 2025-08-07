@@ -272,11 +272,11 @@ docker build -t dapr-actor-experiment:local .
 kind load docker-image dapr-actor-experiment:local --name=dapr-actor-dev
 
 # Deploy application
-kubectl apply -f k8s/namespace.yaml
-kubectl apply -f k8s/dapr-components.yaml
-kubectl apply -f k8s/redis.yaml
-kubectl apply -f k8s/jwks-mock-api.yaml
-kubectl apply -f k8s/actor-service.yaml
+kubectl apply -f k8s/local/namespace.yaml
+kubectl apply -f k8s/local/dapr-components.yaml
+kubectl apply -f k8s/local/redis.yaml
+kubectl apply -f k8s/local/jwks-mock-api.yaml
+kubectl apply -f k8s/local/actor-service.yaml
 ```
 
 ### Scaling the Deployment
@@ -359,7 +359,7 @@ The Kind cluster is configured in `k8s/kind-config.yaml`:
 
 ### Application Configuration
 
-The actor service deployment (`k8s/actor-service.yaml`) includes:
+The actor service deployment (`k8s/local/actor-service.yaml`) includes:
 - Multiple replicas for testing distribution
 - Dapr sidecar injection with proper annotations
 - Health checks and readiness probes
@@ -367,7 +367,7 @@ The actor service deployment (`k8s/actor-service.yaml`) includes:
 
 ### Dapr Configuration
 
-Dapr components are defined in `k8s/dapr-components.yaml`:
+Dapr components are defined in `k8s/local/dapr-components.yaml`:
 - Redis state store configuration
 - JWT Bearer middleware configuration
 - Access control and security settings
