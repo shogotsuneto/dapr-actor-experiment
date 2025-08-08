@@ -11,7 +11,7 @@ echo "Testing Dapr Actor Experiment on Kubernetes..."
 
 # Check if cluster exists
 if ! kind get clusters | grep -q "^${CLUSTER_NAME}$"; then
-    echo "ERROR: Kind cluster '${CLUSTER_NAME}' not found. Run 'make kind-setup' first."
+    echo "ERROR: Kind cluster '${CLUSTER_NAME}' not found. Run './scripts/kind-setup.sh' first."
     exit 1
 fi
 
@@ -51,7 +51,13 @@ else
 fi
 
 # JWKS Mock API should respond with 200
-curl -f http://localhost:3000/health || { echo "ERROR: JWKS Mock API health check failed"; exit 1; }
+JWKS_HEALTH_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/health)
+if [[ "$JWKS_HEALTH_CODE" == "200" ]]; then
+    echo "✓ JWKS Mock API is running (HTTP $JWKS_HEALTH_CODE)"
+else
+    echo "ERROR: JWKS Mock API health check failed (HTTP $JWKS_HEALTH_CODE)"
+    exit 1
+fi
 
 # Run the existing test scripts (they should work with port forwarding)
 echo "Running integration tests..."
