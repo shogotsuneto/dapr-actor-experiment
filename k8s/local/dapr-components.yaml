@@ -44,8 +44,18 @@ spec:
     defaultAction: allow
     trustDomain: "cluster.local"
   mtls:
-    enabled: true
-    workloadCertTTL: "24h"
-    allowedClockSkew: "15m"
-    controlPlaneTrustDomain: "cluster.local"
-    sentryAddress: "dapr-sentry.dapr-system.svc.cluster.local:80"
+    enabled: false
+    # mTLS disabled for local development to allow direct NodePort access
+    # Production deployments should enable mTLS for security
+    #
+    # For production-like testing with mTLS enabled, consider:
+    # 1. Enable mTLS below and use an ingress controller (nginx, Istio, etc.)
+    # 2. Configure ingress to handle mTLS termination and proxy to Dapr sidecars
+    # 3. Use ClusterIP services and rely on ingress for external access
+    #
+    # Example mTLS configuration for production:
+    # enabled: true
+    # workloadCertTTL: "24h"
+    # allowedClockSkew: "15m"
+    # controlPlaneTrustDomain: "cluster.local"
+    # sentryAddress: "dapr-sentry.dapr-system.svc.cluster.local:80"

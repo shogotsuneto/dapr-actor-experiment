@@ -90,7 +90,7 @@ test-integration-kind:
 	@sleep 5
 	@echo "Running integration tests..."
 	@DAPR_HTTP_ENDPOINT="http://localhost:3500" \
-	 go test -v ./test/integration/... -timeout=5m || (echo "Tests failed, cleaning up port forwarding..." && pkill -f "kubectl.*port-forward" 2>/dev/null || true && exit 1)
+	 go test -count=1 -v ./test/integration/... -timeout=5m || (echo "Tests failed, cleaning up port forwarding..." && pkill -f "kubectl.*port-forward" 2>/dev/null || true && exit 1)
 	@echo "Cleaning up port forwarding..."
 	@pkill -f "kubectl.*port-forward" 2>/dev/null || true
 	@echo "Integration tests completed successfully!"
