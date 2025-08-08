@@ -20,6 +20,7 @@ spec:
         dapr.io/app-port: "8080"
         dapr.io/config: "dapr-config-bearer"
         dapr.io/log-level: "info"
+        dapr.io/sidecar-listen-addresses: "0.0.0.0"
     spec:
       containers:
       - name: actor-service
