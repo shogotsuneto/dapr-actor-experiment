@@ -1,3 +1,4 @@
+---
 apiVersion: dapr.io/v1alpha1
 kind: Component
 metadata:
@@ -7,12 +8,12 @@ spec:
   type: state.redis
   version: v1
   metadata:
-  - name: redisHost
-    value: "redis:6379"
-  - name: redisPassword
-    value: ""
-  - name: actorStateStore
-    value: "true"
+    - name: redisHost
+      value: "redis:6379"
+    - name: redisPassword
+      value: ""
+    - name: actorStateStore
+      value: "true"
 ---
 apiVersion: dapr.io/v1alpha1
 kind: Component
@@ -23,12 +24,12 @@ spec:
   type: middleware.http.bearer
   version: v1
   metadata:
-  - name: jwksURL
-    value: "http://jwks-mock-api:3000/.well-known/jwks.json"
-  - name: issuer
-    value: "http://jwks-mock-api:3000"
-  - name: audience
-    value: "dapr-actor-service"
+    - name: jwksURL
+      value: "http://jwks-mock-api:3000/.well-known/jwks.json"
+    - name: issuer
+      value: "http://jwks-mock-api:3000"
+    - name: audience
+      value: "dapr-actor-service"
 ---
 apiVersion: dapr.io/v1alpha1
 kind: Configuration
@@ -38,18 +39,14 @@ metadata:
 spec:
   httpPipeline:
     handlers:
-    - name: bearer-middleware
-      type: middleware.http.bearer
+      - name: bearer-middleware
+        type: middleware.http.bearer
   accessControl:
     defaultAction: allow
     trustDomain: "cluster.local"
-  # mTLS disabled for local development to allow direct NodePort access
-  # Production deployments should enable mTLS for security
-  #
-  # For production-like testing with mTLS enabled, add mtls configuration:
-  # mtls:
-  #   enabled: true
-  #   workloadCertTTL: "24h"
-  #   allowedClockSkew: "15m"
-  #   controlPlaneTrustDomain: "cluster.local"
-  #   sentryAddress: "dapr-sentry.dapr-system.svc.cluster.local:80"
+  mtls:
+    enabled: true
+    workloadCertTTL: "24h"
+    allowedClockSkew: "15m"
+    controlPlaneTrustDomain: "cluster.local"
+    sentryAddress: "dapr-sentry.dapr-system.svc.cluster.local:80"
