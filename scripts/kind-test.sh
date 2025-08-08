@@ -23,6 +23,10 @@ echo "Checking service status..."
 kubectl -n dapr-actor-experiment get pods
 
 # Start port forwarding in background
+# Note: We use port forwarding instead of the extraPortMapping in kind-config.yaml
+# because our services are ClusterIP type (internal to cluster only).
+# ExtraPortMapping would work with NodePort services, but port forwarding 
+# is more flexible and works with any service type.
 echo "Setting up port forwarding..."
 kubectl -n dapr-actor-experiment port-forward svc/actor-service 3500:3500 &
 PF_PID_DAPR=$!
@@ -45,7 +49,8 @@ wait_for_port() {
     
     echo "Waiting for $service_name port forwarding on :$port to be ready..."
     while [ $attempt -le $max_attempts ]; do
-        if curl -s --connect-timeout 1 --max-time 2 http://localhost:$port >/dev/null 2>&1; then
+        # Check if port is accepting connections
+        if timeout 3 bash -c "</dev/tcp/localhost/$port" 2>/dev/null; then
             echo "✓ Port forwarding to $service_name is ready"
             return 0
         fi
@@ -70,12 +75,18 @@ fi
 # Test health endpoints with proper error handling
 echo "Testing health endpoints..."
 
+# Add a small delay to ensure port forwarding is fully established
+sleep 3
+
 # For Dapr health check, accept both 200 (success) and 401 (requires auth but running)
-DAPR_HEALTH_CODE=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 5 --max-time 10 http://localhost:3500/v1.0/healthz)
+echo "Checking Dapr sidecar health..."
+DAPR_HEALTH_CODE=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 5 --max-time 10 http://localhost:3500/v1.0/healthz 2>/dev/null || echo "000")
 if [[ "$DAPR_HEALTH_CODE" == "200" || "$DAPR_HEALTH_CODE" == "401" ]]; then
     echo "✓ Dapr sidecar is running (HTTP $DAPR_HEALTH_CODE)"
 elif [[ "$DAPR_HEALTH_CODE" == "000" ]]; then
     echo "ERROR: Cannot connect to Dapr sidecar (connection failed)"
+    echo "DEBUG: Checking if port forwarding process is running..."
+    ps aux | grep "port-forward.*3500" | grep -v grep || echo "No port forwarding process found for port 3500"
     exit 1
 else
     echo "ERROR: Dapr health check failed (HTTP $DAPR_HEALTH_CODE)"
@@ -83,11 +94,14 @@ else
 fi
 
 # JWKS Mock API should respond with 200
-JWKS_HEALTH_CODE=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 5 --max-time 10 http://localhost:3000/health)
+echo "Checking JWKS Mock API health..."
+JWKS_HEALTH_CODE=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 5 --max-time 10 http://localhost:3000/health 2>/dev/null || echo "000")
 if [[ "$JWKS_HEALTH_CODE" == "200" ]]; then
     echo "✓ JWKS Mock API is running (HTTP $JWKS_HEALTH_CODE)"
 elif [[ "$JWKS_HEALTH_CODE" == "000" ]]; then
     echo "ERROR: Cannot connect to JWKS Mock API (connection failed)"
+    echo "DEBUG: Checking if port forwarding process is running..."
+    ps aux | grep "port-forward.*3000" | grep -v grep || echo "No port forwarding process found for port 3000"
     exit 1
 else
     echo "ERROR: JWKS Mock API health check failed (HTTP $JWKS_HEALTH_CODE)"

@@ -121,6 +121,26 @@ kubectl -n dapr-actor-experiment rollout restart deployment/actor-service
 
 **Port conflicts**: Check port usage with `lsof -i :3500` and use different local ports if needed
 
+### Debugging with BusyBox
+For network debugging and connectivity testing within the cluster:
+```bash
+# Create a busybox pod for debugging
+kubectl run busybox --image=busybox:1.28 --rm -it --restart=Never -- sh
+
+# Inside the busybox pod, test connectivity:
+# Test Redis connection
+nc -zv redis.dapr-actor-experiment.svc.cluster.local 6379
+
+# Test JWKS Mock API
+wget -qO- http://jwks-mock-api.dapr-actor-experiment.svc.cluster.local:3000/health
+
+# Test Actor service
+wget -qO- http://actor-service.dapr-actor-experiment.svc.cluster.local:8080/health
+
+# Exit busybox
+exit
+```
+
 ### Reset Environment
 ```bash
 ./scripts/kind-cleanup.sh
