@@ -18,15 +18,15 @@ nodes:
   - containerPort: 443
     hostPort: 8443
     protocol: TCP
-  # Dapr sidecar port
-  - containerPort: 3500
+  # Dapr sidecar port (NodePort 30500)
+  - containerPort: 30500
     hostPort: 3500
     protocol: TCP
-  # Redis port
-  - containerPort: 6379
+  # Redis port (NodePort 30379)
+  - containerPort: 30379
     hostPort: 6379
     protocol: TCP
-  # JWKS Mock API port
-  - containerPort: 3000
+  # JWKS Mock API port (NodePort 30000)
+  - containerPort: 30000
     hostPort: 3000
     protocol: TCP

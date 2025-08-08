@@ -48,4 +48,5 @@ spec:
   ports:
   - port: 6379
     targetPort: 6379
-  type: ClusterIP
+    nodePort: 30379
+  type: NodePort

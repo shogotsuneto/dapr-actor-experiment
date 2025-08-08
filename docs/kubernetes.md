@@ -39,12 +39,9 @@ Ensure you have the following tools installed:
 # Automated approach (recommended)
 make test-integration-kind
 
-# Manual approach
-kubectl -n dapr-actor-experiment port-forward svc/actor-service 3500:3500 &
-kubectl -n dapr-actor-experiment port-forward svc/jwks-mock-api 3000:3000 &
+# Manual approach - services are accessible directly via NodePort
 export DAPR_HTTP_ENDPOINT="http://localhost:3500"
 go test -v ./test/integration/...
-pkill -f "kubectl.*port-forward"
 ```
 
 ### 3. Monitor and Cleanup
@@ -67,7 +64,7 @@ The deployment creates a `dapr-actor-experiment` namespace with:
 - **Actor Service**: Multiple replicas (2 by default) with Dapr sidecars
 - **Dapr Components**: State store and JWT middleware configuration
 
-Services communicate through Kubernetes service discovery, with port forwarding enabling local access during testing.
+Services communicate through Kubernetes service discovery, with NodePort services providing direct access from the host machine through Kind's port mapping configuration.
 
 ## Advanced Usage
 
@@ -89,9 +86,10 @@ kubectl apply -f k8s/local/
 
 ### Service Access and Scaling
 ```bash
-# Port forwarding for local access
-kubectl -n dapr-actor-experiment port-forward svc/actor-service 3500:3500
-kubectl -n dapr-actor-experiment port-forward svc/jwks-mock-api 3000:3000
+# Services are directly accessible via NodePort (no port forwarding needed)
+# Dapr sidecar: http://localhost:3500
+# JWKS Mock API: http://localhost:3000
+# Redis: localhost:6379
 
 # Scale actor service
 kubectl -n dapr-actor-experiment scale deployment actor-service --replicas=3

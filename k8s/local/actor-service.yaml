@@ -65,7 +65,9 @@ spec:
   - name: http
     port: 8080
     targetPort: 8080
+    nodePort: 30080
   - name: dapr-http
     port: 3500
     targetPort: 3500
-  type: ClusterIP
+    nodePort: 30500
+  type: NodePort

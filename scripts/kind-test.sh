@@ -22,61 +22,14 @@ kubectl config use-context "kind-${CLUSTER_NAME}"
 echo "Checking service status..."
 kubectl -n dapr-actor-experiment get pods
 
-# Start port forwarding in background
-# Note: We use port forwarding instead of the extraPortMapping in kind-config.yaml
-# because our services are ClusterIP type (internal to cluster only).
-# ExtraPortMapping would work with NodePort services, but port forwarding 
-# is more flexible and works with any service type.
-echo "Setting up port forwarding..."
-kubectl -n dapr-actor-experiment port-forward svc/actor-service 3500:3500 &
-PF_PID_DAPR=$!
-kubectl -n dapr-actor-experiment port-forward svc/jwks-mock-api 3000:3000 &
-PF_PID_JWKS=$!
+# Wait for services to be ready
+echo "Waiting for services to be ready..."
+kubectl -n dapr-actor-experiment wait --for=condition=ready pod -l app=actor-service --timeout=300s
+kubectl -n dapr-actor-experiment wait --for=condition=ready pod -l app=jwks-mock-api --timeout=60s
+kubectl -n dapr-actor-experiment wait --for=condition=ready pod -l app=redis --timeout=60s
 
-# Function to cleanup port forwarding
-cleanup() {
-    echo "Cleaning up port forwarding..."
-    kill $PF_PID_DAPR $PF_PID_JWKS 2>/dev/null || true
-}
-trap cleanup EXIT
-
-# Function to wait for port forwarding to be ready
-wait_for_port() {
-    local port=$1
-    local service_name=$2
-    local max_attempts=30
-    local attempt=1
-    
-    echo "Waiting for $service_name port forwarding on :$port to be ready..."
-    while [ $attempt -le $max_attempts ]; do
-        # Check if port is accepting connections
-        if timeout 3 bash -c "</dev/tcp/localhost/$port" 2>/dev/null; then
-            echo "✓ Port forwarding to $service_name is ready"
-            return 0
-        fi
-        echo "  Attempt $attempt/$max_attempts - waiting for port $port..."
-        sleep 2
-        attempt=$((attempt + 1))
-    done
-    
-    echo "ERROR: Port forwarding to $service_name on :$port failed to become ready after $max_attempts attempts"
-    return 1
-}
-
-# Wait for port forwarding to be ready
-if ! wait_for_port 3500 "Dapr sidecar"; then
-    exit 1
-fi
-
-if ! wait_for_port 3000 "JWKS Mock API"; then
-    exit 1
-fi
-
-# Test health endpoints with proper error handling
+# Test health endpoints using NodePort services (no port forwarding needed)
 echo "Testing health endpoints..."
-
-# Add a small delay to ensure port forwarding is fully established
-sleep 3
 
 # For Dapr health check, accept both 200 (success) and 401 (requires auth but running)
 echo "Checking Dapr sidecar health..."
@@ -85,8 +38,8 @@ if [[ "$DAPR_HEALTH_CODE" == "200" || "$DAPR_HEALTH_CODE" == "401" ]]; then
     echo "✓ Dapr sidecar is running (HTTP $DAPR_HEALTH_CODE)"
 elif [[ "$DAPR_HEALTH_CODE" == "000" ]]; then
     echo "ERROR: Cannot connect to Dapr sidecar (connection failed)"
-    echo "DEBUG: Checking if port forwarding process is running..."
-    ps aux | grep "port-forward.*3500" | grep -v grep || echo "No port forwarding process found for port 3500"
+    echo "DEBUG: Checking NodePort service..."
+    kubectl -n dapr-actor-experiment get svc actor-service
     exit 1
 else
     echo "ERROR: Dapr health check failed (HTTP $DAPR_HEALTH_CODE)"
@@ -100,15 +53,15 @@ if [[ "$JWKS_HEALTH_CODE" == "200" ]]; then
     echo "✓ JWKS Mock API is running (HTTP $JWKS_HEALTH_CODE)"
 elif [[ "$JWKS_HEALTH_CODE" == "000" ]]; then
     echo "ERROR: Cannot connect to JWKS Mock API (connection failed)"
-    echo "DEBUG: Checking if port forwarding process is running..."
-    ps aux | grep "port-forward.*3000" | grep -v grep || echo "No port forwarding process found for port 3000"
+    echo "DEBUG: Checking NodePort service..."
+    kubectl -n dapr-actor-experiment get svc jwks-mock-api
     exit 1
 else
     echo "ERROR: JWKS Mock API health check failed (HTTP $JWKS_HEALTH_CODE)"
     exit 1
 fi
 
-# Run the existing test scripts (they should work with port forwarding)
+# Run the existing test scripts (they should work with direct access)
 echo "Running integration tests..."
 export DAPR_HTTP_ENDPOINT="http://localhost:3500"
 export JWKS_GENERATE_URL="http://localhost:3000/generate-token"
