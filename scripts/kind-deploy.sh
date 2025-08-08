@@ -11,7 +11,7 @@ echo "Deploying Dapr Actor Experiment to Kubernetes..."
 
 # Check if cluster exists
 if ! kind get clusters | grep -q "^${CLUSTER_NAME}$"; then
-    echo "ERROR: Kind cluster '${CLUSTER_NAME}' not found. Run 'make kind-setup' first."
+    echo "ERROR: Kind cluster '${CLUSTER_NAME}' not found. Run './scripts/kind-setup.sh' first."
     exit 1
 fi
 
@@ -55,15 +55,10 @@ echo "Check status:"
 echo "  kubectl -n dapr-actor-experiment get pods"
 echo "  kubectl -n dapr-actor-experiment get services"
 echo ""
-echo "Access services:"
-echo "  # Actor service (Dapr HTTP API)"
-echo "  kubectl -n dapr-actor-experiment port-forward svc/actor-service 3500:3500"
-echo ""
-echo "  # JWKS Mock API"
-echo "  kubectl -n dapr-actor-experiment port-forward svc/jwks-mock-api 3000:3000"
-echo ""
-echo "  # Redis (for debugging)"
-echo "  kubectl -n dapr-actor-experiment port-forward svc/redis 6379:6379"
+echo "Access services via NodePort:"
+echo "  # Actor service (Dapr HTTP API): http://localhost:3500"
+echo "  # JWKS Mock API: http://localhost:3000"
+echo "  # Redis (for debugging): localhost:6379"
 echo ""
 echo "Run tests:"
 echo "  ./scripts/kind-test.sh"

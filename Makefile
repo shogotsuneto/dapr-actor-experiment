@@ -83,16 +83,9 @@ test-integration-docker:
 # Run integration tests against Kind cluster
 test-integration-kind:
 	@echo "Running integration tests against Kind cluster..."
-	@echo "Setting up port forwarding..."
-	@kubectl -n dapr-actor-experiment port-forward svc/actor-service 3500:3500 &
-	@kubectl -n dapr-actor-experiment port-forward svc/jwks-mock-api 3000:3000 &
-	@echo "Waiting for port forwarding to be ready..."
-	@sleep 5
-	@echo "Running integration tests..."
+	@echo "Running integration tests via NodePort services..."
 	@DAPR_HTTP_ENDPOINT="http://localhost:3500" \
-	 go test -count=1 -v ./test/integration/... -timeout=5m || (echo "Tests failed, cleaning up port forwarding..." && pkill -f "kubectl.*port-forward" 2>/dev/null || true && exit 1)
-	@echo "Cleaning up port forwarding..."
-	@pkill -f "kubectl.*port-forward" 2>/dev/null || true
+	 go test -count=1 -v ./test/integration/... -timeout=5m
 	@echo "Integration tests completed successfully!"
 
 # Display help
