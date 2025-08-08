@@ -86,7 +86,7 @@ kubectl apply -f k8s/local/
 
 ### Service Access and Scaling
 
-The local configuration uses **NodePort services** with **mTLS enabled** for secure service communication:
+The local configuration uses **NodePort services** with **mTLS enabled**:
 ```bash
 # Services are directly accessible via NodePort (no port forwarding needed)
 # Dapr sidecar: http://localhost:3500
@@ -99,14 +99,6 @@ kubectl -n dapr-actor-experiment scale deployment actor-service --replicas=3
 # View logs
 kubectl -n dapr-actor-experiment logs -l app=actor-service -c daprd
 ```
-
-**Security Note**: mTLS is enabled in the local configuration for secure service communication. The Dapr sidecar is configured to listen on all interfaces (0.0.0.0) to enable NodePort access while maintaining security through mTLS encryption.
-
-### Security and mTLS Configuration
-
-The local configuration enables mTLS for secure service-to-service communication within the cluster. This provides production-like security while still allowing external access through NodePort services.
-
-The Dapr sidecars use SPIFFE-based identity management with automatic certificate rotation for authentication and encryption of inter-service communication.
 
 ## Troubleshooting
 
