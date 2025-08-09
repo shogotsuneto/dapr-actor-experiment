@@ -1,4 +1,4 @@
-.PHONY: build clean test test-unit test-integration test-integration-quick test-integration-docker generate generate-install generate-clean help
+.PHONY: build clean test test-unit test-integration test-integration-quick test-integration-docker test-integration-kind generate generate-install generate-clean help
 
 # Default target
 all: build
@@ -80,17 +80,27 @@ test-integration-docker:
 	@echo "Stopping test services..."
 	@docker compose -f test/integration/docker-compose.test.yml down
 
+# Run integration tests against Kind cluster
+test-integration-kind:
+	@echo "Running integration tests against Kind cluster..."
+	@echo "Running integration tests via NodePort services..."
+	@DAPR_HTTP_ENDPOINT="http://localhost:3500" \
+	 go test -count=1 -v ./test/integration/... -timeout=5m
+	@echo "Integration tests completed successfully!"
+
 # Display help
 help:
 	@echo "Available targets:"
-	@echo "  build                   - Build server and client binaries"
-	@echo "  clean                   - Remove build artifacts"
-	@echo "  generate                - Generate actor code from OpenAPI schema"
-	@echo "  generate-install        - Install code generation tools (Docker-based)"
-	@echo "  generate-clean          - Clean generated actor code (preserves implementations)"
-	@echo "  test                    - Run all tests (unit + integration)"
-	@echo "  test-unit               - Run unit tests only"
-	@echo "  test-integration        - Run integration tests (starts/stops Docker services)"
-	@echo "  test-integration-quick  - Run integration tests (assumes services running)"
-	@echo "  test-integration-docker - Run integration tests inside Docker container"
-	@echo "  help                    - Show this help message"
+	@echo "  build                     - Build server and client binaries"
+	@echo "  clean                     - Remove build artifacts"
+	@echo "  generate                  - Generate actor code from OpenAPI schema"
+	@echo "  generate-install          - Install code generation tools (Docker-based)"
+	@echo "  generate-clean            - Clean generated actor code (preserves implementations)"
+	@echo "  test                      - Run all tests (unit + integration)"
+	@echo "  test-unit                 - Run unit tests only"
+	@echo "  test-integration          - Run integration tests (starts/stops Docker services)"
+	@echo "  test-integration-quick    - Run integration tests (assumes services running)"
+	@echo "  test-integration-docker   - Run integration tests inside Docker container"
+	@echo "  test-integration-kind     - Run integration tests against Kind cluster"
+	@echo "  help                      - Show this help message"
+

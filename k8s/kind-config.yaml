@@ -1,0 +1,32 @@
+# Kind cluster configuration for local Kubernetes development
+# This creates a single-node cluster suitable for development and testing
+apiVersion: kind.x-k8s.io/v1alpha4
+kind: Cluster
+nodes:
+- role: control-plane
+  kubeadmConfigPatches:
+  - |
+    kind: InitConfiguration
+    nodeRegistration:
+      kubeletExtraArgs:
+        node-labels: "ingress-ready=true"
+  extraPortMappings:
+  # Port mappings for accessing services from the host
+  - containerPort: 80
+    hostPort: 8080
+    protocol: TCP
+  - containerPort: 443
+    hostPort: 8443
+    protocol: TCP
+  # Dapr sidecar port (NodePort 30500)
+  - containerPort: 30500
+    hostPort: 3500
+    protocol: TCP
+  # Redis port (NodePort 30379)
+  - containerPort: 30379
+    hostPort: 6379
+    protocol: TCP
+  # JWKS Mock API port (NodePort 30000)
+  - containerPort: 30000
+    hostPort: 3000
+    protocol: TCP

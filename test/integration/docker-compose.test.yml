@@ -101,7 +101,6 @@ services:
     environment:
       - CGO_ENABLED=0
       - DAPR_HTTP_ENDPOINT=http://actor-service-dapr:3500
-      - ACTOR_SERVICE_ENDPOINT=http://actor-service:8080
       - JWKS_GENERATE_URL=http://jwks-mock-api:3000/generate-token
       - JWT_ISSUER=http://jwks-mock-api:3000
     command: ["go", "test", "-v", "./test/integration/...", "-timeout=5m"]

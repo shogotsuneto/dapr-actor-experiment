@@ -79,7 +79,6 @@ The integration tests support configurable endpoints to accommodate different de
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `DAPR_HTTP_ENDPOINT` | `http://localhost:3500` | Dapr sidecar HTTP endpoint |
-| `ACTOR_SERVICE_ENDPOINT` | `http://localhost:8080` | Actor service endpoint |
 
 ### Usage Examples
 
@@ -91,7 +90,6 @@ make test-integration
 **Custom endpoints:**
 ```bash
 DAPR_HTTP_ENDPOINT=http://dapr-sidecar:3500 \
-ACTOR_SERVICE_ENDPOINT=http://actor-service:8080 \
 make test-integration
 ```
 
@@ -99,14 +97,12 @@ make test-integration
 ```bash
 # Using service names from docker-compose.test.yml
 DAPR_HTTP_ENDPOINT=http://actor-service-dapr:3500 \
-ACTOR_SERVICE_ENDPOINT=http://actor-service:8080 \
 make test-integration-docker
 ```
 
 **For remote testing:**
 ```bash
 DAPR_HTTP_ENDPOINT=https://staging-dapr.example.com \
-ACTOR_SERVICE_ENDPOINT=https://staging-actors.example.com \
 go test -v ./test/integration
 ```
 
@@ -134,7 +130,6 @@ go test -v ./test/integration
 
 For tests to pass, the following services must be healthy:
 - **Dapr sidecar**: `${DAPR_HTTP_ENDPOINT}/v1.0/healthz` (default: `http://localhost:3500/v1.0/healthz`)
-- **Actor service**: `${ACTOR_SERVICE_ENDPOINT}/health` (default: `http://localhost:8080/health`)
 
 Tests automatically verify service availability and provide clear error messages if services are not running.
 
@@ -153,11 +148,9 @@ docker compose -f test/integration/docker-compose.test.yml logs actor-service-da
 ```bash
 # Verify services are healthy (using default endpoints)
 curl http://localhost:3500/v1.0/healthz
-curl http://localhost:8080/health
 
 # Or use custom endpoints if configured
 curl ${DAPR_HTTP_ENDPOINT}/v1.0/healthz
-curl ${ACTOR_SERVICE_ENDPOINT}/health
 
 # Check if ports are available
 netstat -tlnp | grep :3500

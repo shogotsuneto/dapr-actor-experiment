@@ -10,6 +10,7 @@ import (
 	"time"
 )
 
+
 // generateTestToken creates a JWT token for testing using the JWKS Mock API
 // This is a simple helper that makes direct HTTP calls without a complex client
 func generateTestToken(userID, username, email string, roles []string, expiresIn time.Duration) (string, error) {
@@ -68,17 +69,4 @@ func generateTestToken(userID, username, email string, roles []string, expiresIn
 	}
 
 	return response.Token, nil
-}
-
-// generateExpiredTestToken creates an expired JWT token for testing
-func generateExpiredTestToken(userID, username string) (string, error) {
-	// Generate a token that expires in 1 second, then wait for it to expire
-	token, err := generateTestToken(userID, username, "", []string{}, 1*time.Second)
-	if err != nil {
-		return "", err
-	}
-	
-	// Wait for the token to expire
-	time.Sleep(2 * time.Second)
-	return token, nil
 }

@@ -1,0 +1,74 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: actor-service
+  namespace: dapr-actor-experiment
+  labels:
+    app: actor-service
+spec:
+  replicas: 2  # Multiple nodes for testing
+  selector:
+    matchLabels:
+      app: actor-service
+  template:
+    metadata:
+      labels:
+        app: actor-service
+      annotations:
+        dapr.io/enabled: "true"
+        dapr.io/app-id: "actor-service"
+        dapr.io/app-port: "8080"
+        dapr.io/config: "dapr-config-bearer"
+        dapr.io/log-level: "info"
+        dapr.io/sidecar-listen-addresses: "0.0.0.0"
+    spec:
+      containers:
+      - name: actor-service
+        image: dapr-actor-experiment:local
+        ports:
+        - containerPort: 8080
+        env:
+        - name: DAPR_GRPC_PORT
+          value: "50001"
+        - name: DAPR_GRPC_ENDPOINT
+          value: "localhost:50001"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 5
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "250m"
+          limits:
+            memory: "128Mi"
+            cpu: "500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: actor-service
+  namespace: dapr-actor-experiment
+  labels:
+    app: actor-service
+spec:
+  selector:
+    app: actor-service
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+    nodePort: 30080
+  - name: dapr-http
+    port: 3500
+    targetPort: 3500
+    nodePort: 30500
+  type: NodePort
