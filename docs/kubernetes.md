@@ -62,10 +62,20 @@ The Dapr Dashboard provides a web-based UI to monitor your Dapr applications, co
 
 ### Accessing the Dashboard
 
-After deployment, the dashboard is available at:
+After deployment, the dashboard can be accessed in two ways:
+
+**Method 1: Direct access (recommended - requires cluster recreation)**
+If you recreate the Kind cluster after updating to this version:
 ```
 http://localhost:9080
 ```
+
+**Method 2: Port forwarding (immediate access)**
+For existing clusters or immediate access:
+```bash
+kubectl -n dapr-actor-experiment port-forward svc/dapr-dashboard 9080:8080
+```
+Then access: `http://localhost:9080`
 
 ### Dashboard Features
 
@@ -89,6 +99,9 @@ kubectl -n dapr-actor-experiment logs -l app=dapr-dashboard
 
 # Verify service and port mapping
 kubectl -n dapr-actor-experiment get svc dapr-dashboard
+
+# Use port forwarding as alternative access method
+kubectl -n dapr-actor-experiment port-forward svc/dapr-dashboard 9080:8080
 ```
 
 ## Architecture
