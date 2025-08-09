@@ -1,0 +1,19 @@
+---
+# NodePort service to expose the existing Dapr dashboard from dapr-system namespace
+apiVersion: v1
+kind: Service
+metadata:
+  name: dapr-dashboard-nodeport
+  namespace: dapr-system
+  labels:
+    app: dapr-dashboard
+spec:
+  type: NodePort
+  ports:
+  - port: 8080
+    targetPort: 8080
+    nodePort: 30090
+    protocol: TCP
+    name: http
+  selector:
+    app: dapr-dashboard

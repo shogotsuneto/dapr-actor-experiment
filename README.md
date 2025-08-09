@@ -68,6 +68,7 @@ For a more production-like environment, you can also run the demo on local Kuber
 make test-integration-kind
 
 # Access Dapr Dashboard for monitoring (after deployment)
+# Uses the built-in dashboard deployed by 'dapr init -k'
 # http://localhost:9080
 
 # Cleanup when done
@@ -79,7 +80,7 @@ This approach:
 - Deploys multiple application instances for testing distribution
 - Provides isolated project environment with quick destroy & clean start
 - Includes integration tests that validate multi-node deployment
-- **Includes Dapr Dashboard for monitoring and debugging**
+- **Includes Dapr Dashboard for monitoring and debugging (uses built-in dashboard from dapr init)**
 
 See [Kubernetes Documentation](docs/kubernetes.md) for detailed setup and usage instructions.
 
