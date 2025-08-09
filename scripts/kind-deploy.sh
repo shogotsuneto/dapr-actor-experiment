@@ -45,9 +45,17 @@ kubectl -n dapr-actor-experiment wait --for=condition=available --timeout=300s d
 echo "Deploying Actor Service..."
 kubectl apply -f "${PROJECT_ROOT}/k8s/local/actor-service.yaml"
 
+# Apply Dapr dashboard
+echo "Deploying Dapr Dashboard..."
+kubectl apply -f "${PROJECT_ROOT}/k8s/local/dapr-dashboard.yaml"
+
 # Wait for actor service to be ready
 echo "Waiting for Actor Service to be ready..."
 kubectl -n dapr-actor-experiment wait --for=condition=available --timeout=300s deployment/actor-service
+
+# Wait for dashboard to be ready
+echo "Waiting for Dapr Dashboard to be ready..."
+kubectl -n dapr-actor-experiment wait --for=condition=available --timeout=300s deployment/dapr-dashboard
 
 echo "✅ Deployment complete!"
 echo ""
@@ -58,6 +66,7 @@ echo ""
 echo "Access services via NodePort:"
 echo "  # Actor service (Dapr HTTP API): http://localhost:3500"
 echo "  # JWKS Mock API: http://localhost:3000"
+echo "  # Dapr Dashboard: http://localhost:9080"
 echo "  # Redis (for debugging): localhost:6379"
 echo ""
 echo "Run tests:"

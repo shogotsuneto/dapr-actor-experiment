@@ -30,3 +30,7 @@ nodes:
   - containerPort: 30000
     hostPort: 3000
     protocol: TCP
+  # Dapr Dashboard port (NodePort 30080)
+  - containerPort: 30080
+    hostPort: 9080
+    protocol: TCP

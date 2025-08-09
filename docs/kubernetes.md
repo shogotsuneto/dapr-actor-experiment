@@ -56,12 +56,48 @@ kubectl -n dapr-actor-experiment logs -l app=actor-service -c actor-service
 ./scripts/kind-cleanup.sh
 ```
 
+## Dapr Dashboard
+
+The Dapr Dashboard provides a web-based UI to monitor your Dapr applications, components, and system health.
+
+### Accessing the Dashboard
+
+After deployment, the dashboard is available at:
+```
+http://localhost:9080
+```
+
+### Dashboard Features
+
+The dashboard allows you to:
+- **Monitor Applications**: View running Dapr applications and their health
+- **Inspect Components**: See configured Dapr components (state stores, pub/sub, etc.)
+- **View Logs**: Access logs from Dapr sidecars and applications
+- **Control Plane Status**: Monitor Dapr system components
+- **Metrics**: View application and system metrics
+
+### Dashboard Troubleshooting
+
+If the dashboard is not accessible:
+
+```bash
+# Check dashboard pod status
+kubectl -n dapr-actor-experiment get pods -l app=dapr-dashboard
+
+# View dashboard logs
+kubectl -n dapr-actor-experiment logs -l app=dapr-dashboard
+
+# Verify service and port mapping
+kubectl -n dapr-actor-experiment get svc dapr-dashboard
+```
+
 ## Architecture
 
 The deployment creates a `dapr-actor-experiment` namespace with:
 - **Redis**: State storage for Dapr actors
 - **JWKS Mock API**: JWT authentication testing
 - **Actor Service**: Multiple replicas (2 by default) with Dapr sidecars
+- **Dapr Dashboard**: Web UI for monitoring Dapr applications and components
 - **Dapr Components**: State store and JWT middleware configuration
 
 Services communicate through Kubernetes service discovery, with NodePort services providing direct access from the host machine through Kind's port mapping configuration.
@@ -90,6 +126,7 @@ The local configuration uses **NodePort services** with **mTLS enabled**:
 ```bash
 # Services are directly accessible via NodePort (no port forwarding needed)
 # Dapr sidecar: http://localhost:3500
+# Dapr Dashboard: http://localhost:9080
 # JWKS Mock API: http://localhost:3000  
 # Redis: localhost:6379
 
