@@ -3,7 +3,6 @@ package bankaccount
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log"
 	"time"
@@ -117,7 +116,7 @@ func (b *BankAccount) ensureStateLoaded(ctx context.Context) error {
 // This leverages the actor pattern's stateful nature for optimal performance.
 func (b *BankAccount) getCachedState() (*BankAccountState, error) {
 	if !b.accountExists {
-		return nil, errors.New("account does not exist - create account first")
+		return nil, fmt.Errorf("account does not exist - create account first")
 	}
 	return b.cachedState, nil
 }
@@ -126,24 +125,60 @@ func (b *BankAccount) getCachedState() (*BankAccountState, error) {
 func (b *BankAccount) checkOwnership(ctx context.Context) (string, error) {
 	userID, ok := auth.GetUserID(ctx)
 	if !ok {
-		return "", errors.New("authentication required")
+		return "", fmt.Errorf("authentication required")
 	}
 	
 	// For account creation, the actor ID should match the user ID (simplified ownership check)
 	// This means users can only create accounts that match their user ID
 	if !b.accountExists {
 		if userID != b.ID() {
-			return "", errors.New("insufficient permissions: can only create accounts for yourself")
+			return "", fmt.Errorf("insufficient permissions: can only create accounts for yourself")
 		}
 		return userID, nil
 	}
 	
 	// For existing accounts, check against the stored owner ID
 	if b.cachedState != nil && b.cachedState.OwnerId != userID {
-		return "", errors.New("insufficient permissions: cannot access this account")
+		return "", fmt.Errorf("insufficient permissions: cannot access this account")
 	}
 	
 	return userID, nil
+}
+
+// Helper methods for structured responses
+
+func (b *BankAccount) successResponse() *BankAccountState {
+	return &BankAccountState{
+		Success:   true,
+		AccountId: b.cachedState.AccountId,
+		OwnerName: b.cachedState.OwnerName,
+		OwnerId:   b.cachedState.OwnerId,
+		Balance:   b.cachedState.Balance,
+		IsActive:  b.cachedState.IsActive,
+		CreatedAt: b.cachedState.CreatedAt,
+	}
+}
+
+func (b *BankAccount) errorResponse(code, message string, details map[string]interface{}) *BankAccountState {
+	return &BankAccountState{
+		Success: false,
+		Error: Error{
+			Code:    code,
+			Message: message,
+			Details: details,
+		},
+	}
+}
+
+func (b *BankAccount) errorResponseHistory(code, message string, details map[string]interface{}) *TransactionHistory {
+	return &TransactionHistory{
+		Success: false,
+		Error: Error{
+			Code:    code,
+			Message: message,
+			Details: details,
+		},
+	}
 }
 
 func (b *BankAccount) CreateAccount(ctx context.Context, request CreateAccountRequest) (*BankAccountState, error) {
@@ -151,25 +186,31 @@ func (b *BankAccount) CreateAccount(ctx context.Context, request CreateAccountRe
 	userID, err := b.checkOwnership(ctx)
 	if err != nil {
 		log.Printf("BankAccount %s: User access denied - %v", b.ID(), err)
-		return nil, err
+		return b.errorResponse("AUTHORIZATION_ERROR", err.Error(), nil), nil
 	}
 	
 	// Ensure state is loaded
 	if err := b.ensureStateLoaded(ctx); err != nil {
-		return nil, err
+		return b.errorResponse("INTERNAL_ERROR", "Failed to load account state", map[string]interface{}{
+			"error": err.Error(),
+		}), nil
 	}
 	
 	// Check if account already exists (fast in-memory check)
 	if b.accountExists {
-		return nil, errors.New("account already exists")
+		return b.errorResponse("ACCOUNT_ALREADY_EXISTS", "Account already exists", map[string]interface{}{
+			"accountId": b.ID(),
+		}), nil
 	}
 	
 	// Validate request
 	if request.OwnerName == "" {
-		return nil, errors.New("owner name is required")
+		return b.errorResponse("VALIDATION_ERROR", "Owner name is required", nil), nil
 	}
 	if request.InitialDeposit < 0 {
-		return nil, errors.New("initial deposit cannot be negative")
+		return b.errorResponse("VALIDATION_ERROR", "Initial deposit cannot be negative", map[string]interface{}{
+			"providedAmount": request.InitialDeposit,
+		}), nil
 	}
 	
 	// Create and store event for durability (include creator info)
@@ -181,11 +222,14 @@ func (b *BankAccount) CreateAccount(ctx context.Context, request CreateAccountRe
 	}
 	
 	if err := b.appendEvent(ctx, AccountCreatedEvent, eventData); err != nil {
-		return nil, err
+		return b.errorResponse("INTERNAL_ERROR", "Failed to create account", map[string]interface{}{
+			"error": err.Error(),
+		}), nil
 	}
 	
 	// Update in-memory cached state for fast access
 	b.cachedState = &BankAccountState{
+		Success:   true,
 		AccountId: b.ID(),
 		OwnerName: request.OwnerName,
 		OwnerId:   userID,
@@ -202,23 +246,27 @@ func (b *BankAccount) CreateAccount(ctx context.Context, request CreateAccountRe
 func (b *BankAccount) Deposit(ctx context.Context, request DepositRequest) (*BankAccountState, error) {
 	// Ensure state is loaded first so checkOwnership can validate
 	if err := b.ensureStateLoaded(ctx); err != nil {
-		return nil, err
+		return b.errorResponse("INTERNAL_ERROR", "Failed to load account state", map[string]interface{}{
+			"error": err.Error(),
+		}), nil
 	}
 	
 	// Check ownership
 	_, err := b.checkOwnership(ctx)
 	if err != nil {
-		return nil, err
+		return b.errorResponse("AUTHORIZATION_ERROR", err.Error(), nil), nil
 	}
 	
 	// Validate request
 	if request.Amount <= 0 {
-		return nil, errors.New("deposit amount must be positive")
+		return b.errorResponse("VALIDATION_ERROR", "Deposit amount must be positive", map[string]interface{}{
+			"providedAmount": request.Amount,
+		}), nil
 	}
 	
 	// Ensure account exists
-	if _, err := b.getCachedState(); err != nil {
-		return nil, err
+	if !b.accountExists {
+		return b.errorResponse("ACCOUNT_NOT_FOUND", "Account does not exist - create account first", nil), nil
 	}
 	
 	// Create and store event for durability
@@ -229,41 +277,49 @@ func (b *BankAccount) Deposit(ctx context.Context, request DepositRequest) (*Ban
 	}
 	
 	if err := b.appendEvent(ctx, MoneyDepositedEvent, eventData); err != nil {
-		return nil, err
+		return b.errorResponse("INTERNAL_ERROR", "Failed to record deposit", map[string]interface{}{
+			"error": err.Error(),
+		}), nil
 	}
 	
 	// Update in-memory cached state for fast access
 	b.cachedState.Balance += request.Amount
 	
-	return b.cachedState, nil
+	return b.successResponse(), nil
 }
 
 func (b *BankAccount) Withdraw(ctx context.Context, request WithdrawRequest) (*BankAccountState, error) {
 	// Ensure state is loaded first so checkOwnership can validate
 	if err := b.ensureStateLoaded(ctx); err != nil {
-		return nil, err
+		return b.errorResponse("INTERNAL_ERROR", "Failed to load account state", map[string]interface{}{
+			"error": err.Error(),
+		}), nil
 	}
 	
 	// Check ownership
 	_, err := b.checkOwnership(ctx)
 	if err != nil {
-		return nil, err
+		return b.errorResponse("AUTHORIZATION_ERROR", err.Error(), nil), nil
 	}
 	
 	// Validate request
 	if request.Amount <= 0 {
-		return nil, errors.New("withdrawal amount must be positive")
+		return b.errorResponse("VALIDATION_ERROR", "Withdrawal amount must be positive", map[string]interface{}{
+			"providedAmount": request.Amount,
+		}), nil
 	}
 	
-	// Ensure account exists and get current state
-	currentState, err := b.getCachedState()
-	if err != nil {
-		return nil, err
+	// Ensure account exists
+	if !b.accountExists {
+		return b.errorResponse("ACCOUNT_NOT_FOUND", "Account does not exist - create account first", nil), nil
 	}
 	
 	// Check sufficient balance using fast in-memory state
-	if currentState.Balance < request.Amount {
-		return nil, fmt.Errorf("insufficient funds: balance %.2f, requested %.2f", currentState.Balance, request.Amount)
+	if b.cachedState.Balance < request.Amount {
+		return b.errorResponse("INSUFFICIENT_FUNDS", fmt.Sprintf("Insufficient funds: balance %.2f, requested %.2f", b.cachedState.Balance, request.Amount), map[string]interface{}{
+			"currentBalance":   b.cachedState.Balance,
+			"requestedAmount": request.Amount,
+		}), nil
 	}
 	
 	// Create and store event for durability
@@ -274,51 +330,64 @@ func (b *BankAccount) Withdraw(ctx context.Context, request WithdrawRequest) (*B
 	}
 	
 	if err := b.appendEvent(ctx, MoneyWithdrawnEvent, eventData); err != nil {
-		return nil, err
+		return b.errorResponse("INTERNAL_ERROR", "Failed to record withdrawal", map[string]interface{}{
+			"error": err.Error(),
+		}), nil
 	}
 	
 	// Update in-memory cached state for fast access
 	b.cachedState.Balance -= request.Amount
 	
-	return b.cachedState, nil
+	return b.successResponse(), nil
 }
 
 func (b *BankAccount) GetBalance(ctx context.Context) (*BankAccountState, error) {
 	// Ensure state is loaded first so checkOwnership can validate
 	if err := b.ensureStateLoaded(ctx); err != nil {
-		return nil, err
+		return b.errorResponse("INTERNAL_ERROR", "Failed to load account state", map[string]interface{}{
+			"error": err.Error(),
+		}), nil
 	}
 	
 	// Check ownership
 	_, err := b.checkOwnership(ctx)
 	if err != nil {
-		return nil, err
+		return b.errorResponse("AUTHORIZATION_ERROR", err.Error(), nil), nil
+	}
+	
+	// Check if account exists
+	if !b.accountExists {
+		return b.errorResponse("ACCOUNT_NOT_FOUND", "Account does not exist - create account first", nil), nil
 	}
 	
 	// Return fast in-memory cached state
-	return b.getCachedState()
+	return b.successResponse(), nil
 }
 
 func (b *BankAccount) GetHistory(ctx context.Context) (*TransactionHistory, error) {
 	// Ensure state is loaded first so checkOwnership can validate
 	if err := b.ensureStateLoaded(ctx); err != nil {
-		return nil, err
+		return b.errorResponseHistory("INTERNAL_ERROR", "Failed to load account state", map[string]interface{}{
+			"error": err.Error(),
+		}), nil
 	}
 	
 	// Check ownership
 	_, err := b.checkOwnership(ctx)
 	if err != nil {
-		return nil, err
+		return b.errorResponseHistory("AUTHORIZATION_ERROR", err.Error(), nil), nil
 	}
 	
 	if !b.accountExists {
-		return nil, errors.New("account does not exist - create account first")
+		return b.errorResponseHistory("ACCOUNT_NOT_FOUND", "Account does not exist - create account first", nil), nil
 	}
 	
 	// Get events for history (still need to read from storage for complete audit trail)
 	events, err := b.getAllEvents(ctx)
 	if err != nil {
-		return nil, err
+		return b.errorResponseHistory("INTERNAL_ERROR", "Failed to retrieve transaction history", map[string]interface{}{
+			"error": err.Error(),
+		}), nil
 	}
 	
 	// Convert internal events to API events
@@ -334,6 +403,7 @@ func (b *BankAccount) GetHistory(ctx context.Context) (*TransactionHistory, erro
 	}
 	
 	return &TransactionHistory{
+		Success:   true,
 		AccountId: b.ID(),
 		Events:    apiEvents,
 	}, nil

@@ -2,7 +2,7 @@ package counter
 
 import (
 	"context"
-	"errors"
+	"fmt"
 	"log"
 	
 	"github.com/dapr/go-sdk/actor"
@@ -14,8 +14,8 @@ import (
 // Counter demonstrates schema-first development using generated OpenAPI types.
 // It implements the generated CounterAPI interface to ensure compile-time schema compliance.
 //
-// Note: Dapr actors return errors as strings through the HTTP layer, so custom error types
-// with structured data cannot be returned directly. Use standard Go errors for actor methods.
+// Note: With the updated schema, all operations return structured responses within HTTP 200,
+// with error information included in the response body instead of HTTP error codes.
 type Counter struct {
 	actor.ServerImplBaseCtx
 }
@@ -27,40 +27,50 @@ func (c *Counter) Type() string {
 func (c *Counter) Increment(ctx context.Context) (*CounterState, error) {
 	state, err := c.getState(ctx)
 	if err != nil {
-		return nil, err
+		return c.errorResponse("INTERNAL_ERROR", "Failed to get counter state", map[string]interface{}{
+			"error": err.Error(),
+		}), nil
 	}
 	
 	state.Value++
 	
 	if err := c.setState(ctx, state); err != nil {
-		return nil, err
+		return c.errorResponse("INTERNAL_ERROR", "Failed to save counter state", map[string]interface{}{
+			"error": err.Error(),
+		}), nil
 	}
 	
-	return state, nil
+	return c.successResponse(state.Value), nil
 }
 
 func (c *Counter) Decrement(ctx context.Context) (*CounterState, error) {
 	state, err := c.getState(ctx)
 	if err != nil {
-		return nil, err
+		return c.errorResponse("INTERNAL_ERROR", "Failed to get counter state", map[string]interface{}{
+			"error": err.Error(),
+		}), nil
 	}
 	
 	state.Value--
 	
 	if err := c.setState(ctx, state); err != nil {
-		return nil, err
+		return c.errorResponse("INTERNAL_ERROR", "Failed to save counter state", map[string]interface{}{
+			"error": err.Error(),
+		}), nil
 	}
 	
-	return state, nil
+	return c.successResponse(state.Value), nil
 }
 
 func (c *Counter) Get(ctx context.Context) (*CounterState, error) {
 	state, err := c.getState(ctx)
 	if err != nil {
-		return nil, err
+		return c.errorResponse("INTERNAL_ERROR", "Failed to get counter state", map[string]interface{}{
+			"error": err.Error(),
+		}), nil
 	}
 	
-	return state, nil
+	return c.successResponse(state.Value), nil
 }
 
 func (c *Counter) Set(ctx context.Context, request SetValueRequest) (*CounterState, error) {
@@ -68,26 +78,56 @@ func (c *Counter) Set(ctx context.Context, request SetValueRequest) (*CounterSta
 	userID, ok := auth.GetUserID(ctx)
 	if !ok {
 		log.Printf("Counter %s: Unauthenticated user attempted Set operation", c.ID())
-		return nil, errors.New("authentication required for set operations")
+		return c.errorResponse("AUTHENTICATION_ERROR", "Authentication required for set operations", nil), nil
 	}
 	
 	if err := c.validateSetRequest(request); err != nil {
-		return nil, err
+		return c.errorResponse("VALIDATION_ERROR", err.Error(), map[string]interface{}{
+			"requestedValue": request.Value,
+		}), nil
 	}
 	
-	state := &CounterState{Value: request.Value}
+	state := &counterState{Value: request.Value}
 	
 	if err := c.setState(ctx, state); err != nil {
-		return nil, err
+		return c.errorResponse("INTERNAL_ERROR", "Failed to save counter state", map[string]interface{}{
+			"error": err.Error(),
+		}), nil
 	}
 	
 	log.Printf("Counter %s: Set operation completed by user %s", c.ID(), userID)
-	return state, nil
+	return c.successResponse(state.Value), nil
 }
 
-func (c *Counter) getState(ctx context.Context) (*CounterState, error) {
+// Helper methods
+
+// counterState is the internal state representation
+type counterState struct {
+	Value int32 `json:"value"`
+}
+
+func (c *Counter) successResponse(value int32) *CounterState {
+	return &CounterState{
+		Success: true,
+		Value:   value,
+		// Don't include Error field for successful responses
+	}
+}
+
+func (c *Counter) errorResponse(code, message string, details map[string]interface{}) *CounterState {
+	return &CounterState{
+		Success: false,
+		Error: Error{
+			Code:    code,
+			Message: message,
+			Details: details,
+		},
+	}
+}
+
+func (c *Counter) getState(ctx context.Context) (*counterState, error) {
 	stateKey := "counter"
-	var state CounterState
+	var state counterState
 	
 	ok, err := c.GetStateManager().Contains(ctx, stateKey)
 	if err != nil {
@@ -95,7 +135,7 @@ func (c *Counter) getState(ctx context.Context) (*CounterState, error) {
 	}
 	
 	if !ok {
-		return &CounterState{Value: 0}, nil
+		return &counterState{Value: 0}, nil
 	}
 	
 	err = c.GetStateManager().Get(ctx, stateKey, &state)
@@ -106,7 +146,7 @@ func (c *Counter) getState(ctx context.Context) (*CounterState, error) {
 	return &state, nil
 }
 
-func (c *Counter) setState(ctx context.Context, state *CounterState) error {
+func (c *Counter) setState(ctx context.Context, state *counterState) error {
 	stateKey := "counter"
 	return c.GetStateManager().Set(ctx, stateKey, state)
 }
@@ -118,7 +158,7 @@ func (c *Counter) validateSetRequest(request SetValueRequest) error {
 	)
 	
 	if request.Value < minInt32 || request.Value > maxInt32 {
-		return errors.New("value out of range for int32")
+		return fmt.Errorf("value %d out of range for int32 [%d, %d]", request.Value, minInt32, maxInt32)
 	}
 	
 	return nil

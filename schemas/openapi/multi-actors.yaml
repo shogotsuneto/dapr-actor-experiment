@@ -215,18 +215,57 @@ components:
       example: "account-123"
 
   schemas:
+    # Common error structure for all responses
+    Error:
+      type: object
+      description: Error information returned within 200 responses
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+          description: Error code identifying the type of error
+          enum: 
+            - "VALIDATION_ERROR"
+            - "AUTHENTICATION_ERROR"
+            - "AUTHORIZATION_ERROR"
+            - "INSUFFICIENT_FUNDS"
+            - "ACCOUNT_NOT_FOUND"
+            - "ACCOUNT_ALREADY_EXISTS"
+            - "VALUE_OUT_OF_RANGE"
+            - "INTERNAL_ERROR"
+          example: "INSUFFICIENT_FUNDS"
+        message:
+          type: string
+          description: Human-readable error message
+          example: "Insufficient funds: balance 100.00, requested 150.00"
+        details:
+          type: object
+          description: Additional error-specific details
+          additionalProperties: true
+          example:
+            currentBalance: 100.00
+            requestedAmount: 150.00
+      additionalProperties: false
     # CounterActor schemas
     CounterState:
       type: object
       description: Current state of the counter actor (state-based)
       required:
-        - value
+        - success
       properties:
+        success:
+          type: boolean
+          description: Whether the operation was successful
+          example: true
         value:
           type: integer
           format: int32
-          description: The current counter value
+          description: The current counter value (only present if success=true)
           example: 42
+        error:
+          $ref: '#/components/schemas/Error'
       additionalProperties: false
 
     SetValueRequest:
@@ -249,38 +288,40 @@ components:
       type: object
       description: Current state of bank account (computed from events)
       required:
-        - accountId
-        - ownerName
-        - ownerId
-        - balance
-        - isActive
+        - success
       properties:
+        success:
+          type: boolean
+          description: Whether the operation was successful
+          example: true
         accountId:
           type: string
-          description: Unique account identifier
+          description: Unique account identifier (only present if success=true)
           example: "account-123"
         ownerName:
           type: string
-          description: Account owner name
+          description: Account owner name (only present if success=true)
           example: "John Doe"
         ownerId:
           type: string
-          description: Account owner ID (for authorization)
+          description: Account owner ID (for authorization, only present if success=true)
           example: "user-123"
         balance:
           type: number
           format: double
-          description: Current account balance (computed from events)
+          description: Current account balance (computed from events, only present if success=true)
           example: 1250.50
         isActive:
           type: boolean
-          description: Whether account is active
+          description: Whether account is active (only present if success=true)
           example: true
         createdAt:
           type: string
           format: date-time
-          description: Account creation timestamp
+          description: Account creation timestamp (only present if success=true)
           example: "2024-01-15T10:30:00Z"
+        error:
+          $ref: '#/components/schemas/Error'
       additionalProperties: false
 
     CreateAccountRequest:
@@ -348,18 +389,23 @@ components:
       type: object
       description: Complete transaction history (event sourcing benefit)
       required:
-        - accountId
-        - events
+        - success
       properties:
+        success:
+          type: boolean
+          description: Whether the operation was successful
+          example: true
         accountId:
           type: string
-          description: Account identifier
+          description: Account identifier (only present if success=true)
           example: "account-123"
         events:
           type: array
-          description: List of all events in chronological order
+          description: List of all events in chronological order (only present if success=true)
           items:
             $ref: '#/components/schemas/AccountEvent'
+        error:
+          $ref: '#/components/schemas/Error'
       additionalProperties: false
 
     AccountEvent:
