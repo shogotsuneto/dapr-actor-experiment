@@ -148,7 +148,8 @@ func (b *BankAccount) checkOwnership(ctx context.Context) (string, error) {
 // Helper methods for structured responses
 
 func (b *BankAccount) successResponse() *BankAccountState {
-	return &BankAccountState{
+	// Return successful response without Error field (omitempty will exclude it)
+	response := &BankAccountState{
 		Success:   true,
 		AccountId: b.cachedState.AccountId,
 		OwnerName: b.cachedState.OwnerName,
@@ -157,6 +158,8 @@ func (b *BankAccount) successResponse() *BankAccountState {
 		IsActive:  b.cachedState.IsActive,
 		CreatedAt: b.cachedState.CreatedAt,
 	}
+	// Don't set Error field - omitempty will exclude it from JSON
+	return response
 }
 
 func (b *BankAccount) errorResponse(code, message string, details map[string]interface{}) *BankAccountState {

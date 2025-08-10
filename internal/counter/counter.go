@@ -107,10 +107,11 @@ type counterState struct {
 }
 
 func (c *Counter) successResponse(value int32) *CounterState {
+	// Return successful response without Error field (omitempty will exclude it)
 	return &CounterState{
 		Success: true,
 		Value:   value,
-		// Don't include Error field for successful responses
+		// Don't set Error field - omitempty will exclude it from JSON
 	}
 }
 
