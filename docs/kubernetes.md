@@ -70,13 +70,6 @@ If you recreate the Kind cluster after updating to this version:
 http://localhost:9080
 ```
 
-**Method 2: Port forwarding (immediate access)**
-For existing clusters or immediate access:
-```bash
-kubectl -n dapr-actor-experiment port-forward svc/dapr-dashboard 9080:8080
-```
-Then access: `http://localhost:9080`
-
 ### Dashboard Features
 
 The dashboard allows you to:
@@ -85,24 +78,6 @@ The dashboard allows you to:
 - **View Logs**: Access logs from Dapr sidecars and applications
 - **Control Plane Status**: Monitor Dapr system components
 - **Metrics**: View application and system metrics
-
-### Dashboard Troubleshooting
-
-If the dashboard is not accessible:
-
-```bash
-# Check dashboard pod status
-kubectl -n dapr-actor-experiment get pods -l app=dapr-dashboard
-
-# View dashboard logs
-kubectl -n dapr-actor-experiment logs -l app=dapr-dashboard
-
-# Verify service and port mapping
-kubectl -n dapr-actor-experiment get svc dapr-dashboard
-
-# Use port forwarding as alternative access method
-kubectl -n dapr-actor-experiment port-forward svc/dapr-dashboard 9080:8080
-```
 
 ## Architecture
 
