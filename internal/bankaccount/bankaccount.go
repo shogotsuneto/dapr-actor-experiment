@@ -12,14 +12,6 @@ import (
 	"github.com/shogotsuneto/dapr-actor-experiment/internal/auth"
 )
 
-// AccountEvent represents a single account event (temporary definition until generator fix)
-type AccountEvent struct {
-	EventId   string                 `json:"eventId"`
-	EventType string                 `json:"eventType"`
-	Timestamp string                 `json:"timestamp"`
-	Data      map[string]interface{} `json:"data"`
-}
-
 // BankAccount demonstrates event sourcing pattern with in-memory state caching.
 // This actor stores events for durability and audit trail, while maintaining fast access
 // through ephemeral in-memory state cache as long as the actor is activated.
@@ -43,13 +35,6 @@ type BankAccount struct {
 	accountExists  bool  // Track if account exists to avoid repeated checks
 }
 
-// Event types
-const (
-	AccountCreatedEvent  = "AccountCreated"
-	MoneyDepositedEvent  = "MoneyDeposited"
-	MoneyWithdrawnEvent  = "MoneyWithdrawn"
-)
-
 // Internal event structures (not exposed in API)
 type AccountCreatedEventData struct {
 	OwnerName      string    `json:"ownerName"`
@@ -72,10 +57,10 @@ type MoneyWithdrawnEventData struct {
 
 // StoredEvent represents an event as stored in the state store
 type StoredEvent struct {
-	EventID   string      `json:"eventId"`
-	EventType string      `json:"eventType"`
-	Timestamp time.Time   `json:"timestamp"`
-	Data      interface{} `json:"data"`
+	EventID   string                    `json:"eventId"`
+	EventType AccountEventEventType     `json:"eventType"`
+	Timestamp time.Time                 `json:"timestamp"`
+	Data      interface{}               `json:"data"`
 }
 
 func (b *BankAccount) Type() string {
@@ -162,7 +147,7 @@ func (b *BankAccount) successResponse() *BankAccountState {
 	return response
 }
 
-func (b *BankAccount) errorResponse(code, message string, details map[string]interface{}) *BankAccountState {
+func (b *BankAccount) errorResponse(code ErrorCode, message string, details map[string]interface{}) *BankAccountState {
 	return &BankAccountState{
 		Success: false,
 		Error: Error{
@@ -173,7 +158,7 @@ func (b *BankAccount) errorResponse(code, message string, details map[string]int
 	}
 }
 
-func (b *BankAccount) errorResponseHistory(code, message string, details map[string]interface{}) *TransactionHistory {
+func (b *BankAccount) errorResponseHistory(code ErrorCode, message string, details map[string]interface{}) *TransactionHistory {
 	return &TransactionHistory{
 		Success: false,
 		Error: Error{
@@ -189,29 +174,29 @@ func (b *BankAccount) CreateAccount(ctx context.Context, request CreateAccountRe
 	userID, err := b.checkOwnership(ctx)
 	if err != nil {
 		log.Printf("BankAccount %s: User access denied - %v", b.ID(), err)
-		return b.errorResponse("AUTHORIZATION_ERROR", err.Error(), nil), nil
+		return b.errorResponse(ErrorCodeAuthorizationError, err.Error(), nil), nil
 	}
 	
 	// Ensure state is loaded
 	if err := b.ensureStateLoaded(ctx); err != nil {
-		return b.errorResponse("INTERNAL_ERROR", "Failed to load account state", map[string]interface{}{
+		return b.errorResponse(ErrorCodeInternalError, "Failed to load account state", map[string]interface{}{
 			"error": err.Error(),
 		}), nil
 	}
 	
 	// Check if account already exists (fast in-memory check)
 	if b.accountExists {
-		return b.errorResponse("ACCOUNT_ALREADY_EXISTS", "Account already exists", map[string]interface{}{
+		return b.errorResponse(ErrorCodeAccountAlreadyExists, "Account already exists", map[string]interface{}{
 			"accountId": b.ID(),
 		}), nil
 	}
 	
 	// Validate request
 	if request.OwnerName == "" {
-		return b.errorResponse("VALIDATION_ERROR", "Owner name is required", nil), nil
+		return b.errorResponse(ErrorCodeValidationError, "Owner name is required", nil), nil
 	}
 	if request.InitialDeposit < 0 {
-		return b.errorResponse("VALIDATION_ERROR", "Initial deposit cannot be negative", map[string]interface{}{
+		return b.errorResponse(ErrorCodeValidationError, "Initial deposit cannot be negative", map[string]interface{}{
 			"providedAmount": request.InitialDeposit,
 		}), nil
 	}
@@ -224,8 +209,8 @@ func (b *BankAccount) CreateAccount(ctx context.Context, request CreateAccountRe
 		CreatedAt:      time.Now(),
 	}
 	
-	if err := b.appendEvent(ctx, AccountCreatedEvent, eventData); err != nil {
-		return b.errorResponse("INTERNAL_ERROR", "Failed to create account", map[string]interface{}{
+	if err := b.appendEvent(ctx, AccountEventEventTypeAccountCreated, eventData); err != nil {
+		return b.errorResponse(ErrorCodeInternalError, "Failed to create account", map[string]interface{}{
 			"error": err.Error(),
 		}), nil
 	}
@@ -249,7 +234,7 @@ func (b *BankAccount) CreateAccount(ctx context.Context, request CreateAccountRe
 func (b *BankAccount) Deposit(ctx context.Context, request DepositRequest) (*BankAccountState, error) {
 	// Ensure state is loaded first so checkOwnership can validate
 	if err := b.ensureStateLoaded(ctx); err != nil {
-		return b.errorResponse("INTERNAL_ERROR", "Failed to load account state", map[string]interface{}{
+		return b.errorResponse(ErrorCodeInternalError, "Failed to load account state", map[string]interface{}{
 			"error": err.Error(),
 		}), nil
 	}
@@ -257,19 +242,19 @@ func (b *BankAccount) Deposit(ctx context.Context, request DepositRequest) (*Ban
 	// Check ownership
 	_, err := b.checkOwnership(ctx)
 	if err != nil {
-		return b.errorResponse("AUTHORIZATION_ERROR", err.Error(), nil), nil
+		return b.errorResponse(ErrorCodeAuthorizationError, err.Error(), nil), nil
 	}
 	
 	// Validate request
 	if request.Amount <= 0 {
-		return b.errorResponse("VALIDATION_ERROR", "Deposit amount must be positive", map[string]interface{}{
+		return b.errorResponse(ErrorCodeValidationError, "Deposit amount must be positive", map[string]interface{}{
 			"providedAmount": request.Amount,
 		}), nil
 	}
 	
 	// Ensure account exists
 	if !b.accountExists {
-		return b.errorResponse("ACCOUNT_NOT_FOUND", "Account does not exist - create account first", nil), nil
+		return b.errorResponse(ErrorCodeAccountNotFound, "Account does not exist - create account first", nil), nil
 	}
 	
 	// Create and store event for durability
@@ -279,8 +264,8 @@ func (b *BankAccount) Deposit(ctx context.Context, request DepositRequest) (*Ban
 		Timestamp:   time.Now(),
 	}
 	
-	if err := b.appendEvent(ctx, MoneyDepositedEvent, eventData); err != nil {
-		return b.errorResponse("INTERNAL_ERROR", "Failed to record deposit", map[string]interface{}{
+	if err := b.appendEvent(ctx, AccountEventEventTypeMoneyDeposited, eventData); err != nil {
+		return b.errorResponse(ErrorCodeInternalError, "Failed to record deposit", map[string]interface{}{
 			"error": err.Error(),
 		}), nil
 	}
@@ -294,7 +279,7 @@ func (b *BankAccount) Deposit(ctx context.Context, request DepositRequest) (*Ban
 func (b *BankAccount) Withdraw(ctx context.Context, request WithdrawRequest) (*BankAccountState, error) {
 	// Ensure state is loaded first so checkOwnership can validate
 	if err := b.ensureStateLoaded(ctx); err != nil {
-		return b.errorResponse("INTERNAL_ERROR", "Failed to load account state", map[string]interface{}{
+		return b.errorResponse(ErrorCodeInternalError, "Failed to load account state", map[string]interface{}{
 			"error": err.Error(),
 		}), nil
 	}
@@ -302,24 +287,24 @@ func (b *BankAccount) Withdraw(ctx context.Context, request WithdrawRequest) (*B
 	// Check ownership
 	_, err := b.checkOwnership(ctx)
 	if err != nil {
-		return b.errorResponse("AUTHORIZATION_ERROR", err.Error(), nil), nil
+		return b.errorResponse(ErrorCodeAuthorizationError, err.Error(), nil), nil
 	}
 	
 	// Validate request
 	if request.Amount <= 0 {
-		return b.errorResponse("VALIDATION_ERROR", "Withdrawal amount must be positive", map[string]interface{}{
+		return b.errorResponse(ErrorCodeValidationError, "Withdrawal amount must be positive", map[string]interface{}{
 			"providedAmount": request.Amount,
 		}), nil
 	}
 	
 	// Ensure account exists
 	if !b.accountExists {
-		return b.errorResponse("ACCOUNT_NOT_FOUND", "Account does not exist - create account first", nil), nil
+		return b.errorResponse(ErrorCodeAccountNotFound, "Account does not exist - create account first", nil), nil
 	}
 	
 	// Check sufficient balance using fast in-memory state
 	if b.cachedState.Balance < request.Amount {
-		return b.errorResponse("INSUFFICIENT_FUNDS", fmt.Sprintf("Insufficient funds: balance %.2f, requested %.2f", b.cachedState.Balance, request.Amount), map[string]interface{}{
+		return b.errorResponse(ErrorCodeInsufficientFunds, fmt.Sprintf("Insufficient funds: balance %.2f, requested %.2f", b.cachedState.Balance, request.Amount), map[string]interface{}{
 			"currentBalance":   b.cachedState.Balance,
 			"requestedAmount": request.Amount,
 		}), nil
@@ -332,8 +317,8 @@ func (b *BankAccount) Withdraw(ctx context.Context, request WithdrawRequest) (*B
 		Timestamp:   time.Now(),
 	}
 	
-	if err := b.appendEvent(ctx, MoneyWithdrawnEvent, eventData); err != nil {
-		return b.errorResponse("INTERNAL_ERROR", "Failed to record withdrawal", map[string]interface{}{
+	if err := b.appendEvent(ctx, AccountEventEventTypeMoneyWithdrawn, eventData); err != nil {
+		return b.errorResponse(ErrorCodeInternalError, "Failed to record withdrawal", map[string]interface{}{
 			"error": err.Error(),
 		}), nil
 	}
@@ -347,7 +332,7 @@ func (b *BankAccount) Withdraw(ctx context.Context, request WithdrawRequest) (*B
 func (b *BankAccount) GetBalance(ctx context.Context) (*BankAccountState, error) {
 	// Ensure state is loaded first so checkOwnership can validate
 	if err := b.ensureStateLoaded(ctx); err != nil {
-		return b.errorResponse("INTERNAL_ERROR", "Failed to load account state", map[string]interface{}{
+		return b.errorResponse(ErrorCodeInternalError, "Failed to load account state", map[string]interface{}{
 			"error": err.Error(),
 		}), nil
 	}
@@ -355,12 +340,12 @@ func (b *BankAccount) GetBalance(ctx context.Context) (*BankAccountState, error)
 	// Check ownership
 	_, err := b.checkOwnership(ctx)
 	if err != nil {
-		return b.errorResponse("AUTHORIZATION_ERROR", err.Error(), nil), nil
+		return b.errorResponse(ErrorCodeAuthorizationError, err.Error(), nil), nil
 	}
 	
 	// Check if account exists
 	if !b.accountExists {
-		return b.errorResponse("ACCOUNT_NOT_FOUND", "Account does not exist - create account first", nil), nil
+		return b.errorResponse(ErrorCodeAccountNotFound, "Account does not exist - create account first", nil), nil
 	}
 	
 	// Return fast in-memory cached state
@@ -370,7 +355,7 @@ func (b *BankAccount) GetBalance(ctx context.Context) (*BankAccountState, error)
 func (b *BankAccount) GetHistory(ctx context.Context) (*TransactionHistory, error) {
 	// Ensure state is loaded first so checkOwnership can validate
 	if err := b.ensureStateLoaded(ctx); err != nil {
-		return b.errorResponseHistory("INTERNAL_ERROR", "Failed to load account state", map[string]interface{}{
+		return b.errorResponseHistory(ErrorCodeInternalError, "Failed to load account state", map[string]interface{}{
 			"error": err.Error(),
 		}), nil
 	}
@@ -378,23 +363,23 @@ func (b *BankAccount) GetHistory(ctx context.Context) (*TransactionHistory, erro
 	// Check ownership
 	_, err := b.checkOwnership(ctx)
 	if err != nil {
-		return b.errorResponseHistory("AUTHORIZATION_ERROR", err.Error(), nil), nil
+		return b.errorResponseHistory(ErrorCodeAuthorizationError, err.Error(), nil), nil
 	}
 	
 	if !b.accountExists {
-		return b.errorResponseHistory("ACCOUNT_NOT_FOUND", "Account does not exist - create account first", nil), nil
+		return b.errorResponseHistory(ErrorCodeAccountNotFound, "Account does not exist - create account first", nil), nil
 	}
 	
 	// Get events for history (still need to read from storage for complete audit trail)
 	events, err := b.getAllEvents(ctx)
 	if err != nil {
-		return b.errorResponseHistory("INTERNAL_ERROR", "Failed to retrieve transaction history", map[string]interface{}{
+		return b.errorResponseHistory(ErrorCodeInternalError, "Failed to retrieve transaction history", map[string]interface{}{
 			"error": err.Error(),
 		}), nil
 	}
 	
 	// Convert internal events to API events
-	var apiEvents []interface{}
+	var apiEvents []AccountEvent
 	for _, event := range events {
 		apiEvent := AccountEvent{
 			EventId:   event.EventID,
@@ -414,7 +399,7 @@ func (b *BankAccount) GetHistory(ctx context.Context) (*TransactionHistory, erro
 
 // Event sourcing implementation details
 
-func (b *BankAccount) appendEvent(ctx context.Context, eventType string, eventData interface{}) error {
+func (b *BankAccount) appendEvent(ctx context.Context, eventType AccountEventEventType, eventData interface{}) error {
 	event := StoredEvent{
 		EventID:   uuid.New().String(),
 		EventType: eventType,
@@ -477,7 +462,7 @@ func (b *BankAccount) computeStateFromEvents(ctx context.Context) (*BankAccountS
 	// Replay events to compute current state
 	for _, event := range events {
 		switch event.EventType {
-		case AccountCreatedEvent:
+		case AccountEventEventTypeAccountCreated:
 			data, err := b.parseEventData(event.Data, &AccountCreatedEventData{})
 			if err != nil {
 				return nil, fmt.Errorf("failed to parse AccountCreated event: %v", err)
@@ -488,7 +473,7 @@ func (b *BankAccount) computeStateFromEvents(ctx context.Context) (*BankAccountS
 			state.Balance = createdData.InitialDeposit
 			state.CreatedAt = createdData.CreatedAt.Format(time.RFC3339)
 			
-		case MoneyDepositedEvent:
+		case AccountEventEventTypeMoneyDeposited:
 			data, err := b.parseEventData(event.Data, &MoneyDepositedEventData{})
 			if err != nil {
 				return nil, fmt.Errorf("failed to parse MoneyDeposited event: %v", err)
@@ -496,7 +481,7 @@ func (b *BankAccount) computeStateFromEvents(ctx context.Context) (*BankAccountS
 			depositData := data.(*MoneyDepositedEventData)
 			state.Balance += depositData.Amount
 			
-		case MoneyWithdrawnEvent:
+		case AccountEventEventTypeMoneyWithdrawn:
 			data, err := b.parseEventData(event.Data, &MoneyWithdrawnEventData{})
 			if err != nil {
 				return nil, fmt.Errorf("failed to parse MoneyWithdrawn event: %v", err)

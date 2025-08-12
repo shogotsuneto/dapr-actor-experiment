@@ -27,7 +27,7 @@ func (c *Counter) Type() string {
 func (c *Counter) Increment(ctx context.Context) (*CounterState, error) {
 	state, err := c.getState(ctx)
 	if err != nil {
-		return c.errorResponse("INTERNAL_ERROR", "Failed to get counter state", map[string]interface{}{
+		return c.errorResponse(ErrorCodeInternalError, "Failed to get counter state", map[string]interface{}{
 			"error": err.Error(),
 		}), nil
 	}
@@ -35,7 +35,7 @@ func (c *Counter) Increment(ctx context.Context) (*CounterState, error) {
 	state.Value++
 	
 	if err := c.setState(ctx, state); err != nil {
-		return c.errorResponse("INTERNAL_ERROR", "Failed to save counter state", map[string]interface{}{
+		return c.errorResponse(ErrorCodeInternalError, "Failed to save counter state", map[string]interface{}{
 			"error": err.Error(),
 		}), nil
 	}
@@ -46,7 +46,7 @@ func (c *Counter) Increment(ctx context.Context) (*CounterState, error) {
 func (c *Counter) Decrement(ctx context.Context) (*CounterState, error) {
 	state, err := c.getState(ctx)
 	if err != nil {
-		return c.errorResponse("INTERNAL_ERROR", "Failed to get counter state", map[string]interface{}{
+		return c.errorResponse(ErrorCodeInternalError, "Failed to get counter state", map[string]interface{}{
 			"error": err.Error(),
 		}), nil
 	}
@@ -54,7 +54,7 @@ func (c *Counter) Decrement(ctx context.Context) (*CounterState, error) {
 	state.Value--
 	
 	if err := c.setState(ctx, state); err != nil {
-		return c.errorResponse("INTERNAL_ERROR", "Failed to save counter state", map[string]interface{}{
+		return c.errorResponse(ErrorCodeInternalError, "Failed to save counter state", map[string]interface{}{
 			"error": err.Error(),
 		}), nil
 	}
@@ -65,7 +65,7 @@ func (c *Counter) Decrement(ctx context.Context) (*CounterState, error) {
 func (c *Counter) Get(ctx context.Context) (*CounterState, error) {
 	state, err := c.getState(ctx)
 	if err != nil {
-		return c.errorResponse("INTERNAL_ERROR", "Failed to get counter state", map[string]interface{}{
+		return c.errorResponse(ErrorCodeInternalError, "Failed to get counter state", map[string]interface{}{
 			"error": err.Error(),
 		}), nil
 	}
@@ -78,11 +78,11 @@ func (c *Counter) Set(ctx context.Context, request SetValueRequest) (*CounterSta
 	userID, ok := auth.GetUserID(ctx)
 	if !ok {
 		log.Printf("Counter %s: Unauthenticated user attempted Set operation", c.ID())
-		return c.errorResponse("AUTHENTICATION_ERROR", "Authentication required for set operations", nil), nil
+		return c.errorResponse(ErrorCodeAuthenticationError, "Authentication required for set operations", nil), nil
 	}
 	
 	if err := c.validateSetRequest(request); err != nil {
-		return c.errorResponse("VALIDATION_ERROR", err.Error(), map[string]interface{}{
+		return c.errorResponse(ErrorCodeValidationError, err.Error(), map[string]interface{}{
 			"requestedValue": request.Value,
 		}), nil
 	}
@@ -90,7 +90,7 @@ func (c *Counter) Set(ctx context.Context, request SetValueRequest) (*CounterSta
 	state := &counterState{Value: request.Value}
 	
 	if err := c.setState(ctx, state); err != nil {
-		return c.errorResponse("INTERNAL_ERROR", "Failed to save counter state", map[string]interface{}{
+		return c.errorResponse(ErrorCodeInternalError, "Failed to save counter state", map[string]interface{}{
 			"error": err.Error(),
 		}), nil
 	}
@@ -115,7 +115,7 @@ func (c *Counter) successResponse(value int32) *CounterState {
 	}
 }
 
-func (c *Counter) errorResponse(code, message string, details map[string]interface{}) *CounterState {
+func (c *Counter) errorResponse(code ErrorCode, message string, details map[string]interface{}) *CounterState {
 	return &CounterState{
 		Success: false,
 		Error: Error{

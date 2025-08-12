@@ -292,17 +292,8 @@ func testBankAccountEventSourcing(t *testing.T, client *DaprClient) {
 	foundDeposits := 0
 	foundWithdrawals := 0
 	foundAccountCreated := 0
-	for _, eventInterface := range history.Events {
-		// Convert interface{} to map[string]interface{} (JSON unmarshaling result)
-		eventMap, ok := eventInterface.(map[string]interface{})
-		if !ok {
-			continue
-		}
-		eventType, ok := eventMap["eventType"].(string)
-		if !ok {
-			continue
-		}
-		switch eventType {
+	for _, event := range history.Events {
+		switch string(event.EventType) {
 		case "AccountCreated":
 			foundAccountCreated++
 		case "MoneyDeposited":

@@ -4,6 +4,18 @@
 package bankaccount
 
 
+// AccountEvent A single account event
+type AccountEvent struct {
+	// Event-specific data
+	Data map[string]interface{} `json:"data"`
+	// Unique event identifier
+	EventId string `json:"eventId"`
+	// Type of event
+	EventType AccountEventEventType `json:"eventType"`
+	// When the event occurred
+	Timestamp string `json:"timestamp"`
+}
+
 // BankAccountState Current state of bank account (computed from events)
 type BankAccountState struct {
 	// Unique account identifier (only present if success=true)
@@ -43,7 +55,7 @@ type DepositRequest struct {
 // Error Error information returned within 200 responses
 type Error struct {
 	// Error code identifying the type of error
-	Code string `json:"code"`
+	Code ErrorCode `json:"code"`
 	// Additional error-specific details
 	Details map[string]interface{} `json:"details,omitempty"`
 	// Human-readable error message
@@ -57,7 +69,7 @@ type TransactionHistory struct {
 	// Error information returned within 200 responses
 	Error Error `json:"error,omitempty"`
 	// List of all events in chronological order (only present if success=true)
-	Events []interface{} `json:"events,omitempty"`
+	Events []AccountEvent `json:"events,omitempty"`
 	// Whether the operation was successful
 	Success bool `json:"success"`
 }
@@ -71,3 +83,30 @@ type WithdrawRequest struct {
 }
 
 
+
+
+
+// AccountEventEventType defines valid values for AccountEvent.eventType
+type AccountEventEventType string
+
+// AccountEventEventType constants
+const (
+	AccountEventEventTypeAccountCreated AccountEventEventType = "AccountCreated"
+	AccountEventEventTypeMoneyDeposited AccountEventEventType = "MoneyDeposited"
+	AccountEventEventTypeMoneyWithdrawn AccountEventEventType = "MoneyWithdrawn"
+)
+
+// ErrorCode defines valid values for Error.code
+type ErrorCode string
+
+// ErrorCode constants
+const (
+	ErrorCodeValidationError ErrorCode = "VALIDATION_ERROR"
+	ErrorCodeAuthenticationError ErrorCode = "AUTHENTICATION_ERROR"
+	ErrorCodeAuthorizationError ErrorCode = "AUTHORIZATION_ERROR"
+	ErrorCodeInsufficientFunds ErrorCode = "INSUFFICIENT_FUNDS"
+	ErrorCodeAccountNotFound ErrorCode = "ACCOUNT_NOT_FOUND"
+	ErrorCodeAccountAlreadyExists ErrorCode = "ACCOUNT_ALREADY_EXISTS"
+	ErrorCodeValueOutOfRange ErrorCode = "VALUE_OUT_OF_RANGE"
+	ErrorCodeInternalError ErrorCode = "INTERNAL_ERROR"
+)

@@ -17,7 +17,7 @@ type CounterState struct {
 // Error Error information returned within 200 responses
 type Error struct {
 	// Error code identifying the type of error
-	Code string `json:"code"`
+	Code ErrorCode `json:"code"`
 	// Additional error-specific details
 	Details map[string]interface{} `json:"details,omitempty"`
 	// Human-readable error message
@@ -31,3 +31,20 @@ type SetValueRequest struct {
 }
 
 
+
+
+
+// ErrorCode defines valid values for Error.code
+type ErrorCode string
+
+// ErrorCode constants
+const (
+	ErrorCodeValidationError ErrorCode = "VALIDATION_ERROR"
+	ErrorCodeAuthenticationError ErrorCode = "AUTHENTICATION_ERROR"
+	ErrorCodeAuthorizationError ErrorCode = "AUTHORIZATION_ERROR"
+	ErrorCodeInsufficientFunds ErrorCode = "INSUFFICIENT_FUNDS"
+	ErrorCodeAccountNotFound ErrorCode = "ACCOUNT_NOT_FOUND"
+	ErrorCodeAccountAlreadyExists ErrorCode = "ACCOUNT_ALREADY_EXISTS"
+	ErrorCodeValueOutOfRange ErrorCode = "VALUE_OUT_OF_RANGE"
+	ErrorCodeInternalError ErrorCode = "INTERNAL_ERROR"
+)
