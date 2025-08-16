@@ -12,6 +12,27 @@ import (
 	"github.com/shogotsuneto/dapr-actor-experiment/internal/bankaccount"
 )
 
+// Helper functions to assert bankaccount response success
+func assertBankAccountSuccess(t *testing.T, state bankaccount.BankAccountState, expectedBalance float64, message string) {
+	require.True(t, state.Success, "BankAccount operation should succeed: %s", message)
+	require.NotNil(t, state.Data, "BankAccount data should not be nil when success=true")
+	assert.Equal(t, expectedBalance, state.Data.Balance, message)
+}
+
+func assertBankAccountSuccessWithOwner(t *testing.T, state bankaccount.BankAccountState, expectedBalance float64, expectedOwner string, message string) {
+	require.True(t, state.Success, "BankAccount operation should succeed: %s", message)
+	require.NotNil(t, state.Data, "BankAccount data should not be nil when success=true")
+	assert.Equal(t, expectedBalance, state.Data.Balance, message)
+	assert.Equal(t, expectedOwner, state.Data.OwnerName, "Owner name should match")
+}
+
+func assertTransactionHistorySuccess(t *testing.T, history bankaccount.TransactionHistory, minEvents int, message string) {
+	require.True(t, history.Success, "TransactionHistory operation should succeed: %s", message)
+	require.NotNil(t, history.Data, "TransactionHistory data should not be nil when success=true")
+	assert.GreaterOrEqual(t, len(history.Data.Events), minEvents, message)
+	return
+}
+
 func TestBankAccount(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
@@ -65,8 +86,7 @@ func testBankAccountBasicOperations(t *testing.T, client *DaprClient) {
 		Method:    "GetBalance",
 	}, userToken, &balance)
 	require.NoError(t, err)
-	assert.Equal(t, 1000.0, balance.Balance, "Initial balance should be 1000.0")
-	assert.Equal(t, "Test User", balance.OwnerName, "Owner name should match")
+	assertBankAccountSuccessWithOwner(t, balance, 1000.0, "Test User", "Initial balance should be 1000.0")
 
 	// Test 3: Deposit money
 	var depositResult interface{}
@@ -88,7 +108,7 @@ func testBankAccountBasicOperations(t *testing.T, client *DaprClient) {
 		Method:    "GetBalance",
 	}, userToken, &balance)
 	require.NoError(t, err)
-	assert.Equal(t, 1500.0, balance.Balance, "Balance should be 1500.0 after deposit")
+	assertBankAccountSuccess(t, balance, 1500.0, "Balance should be 1500.0 after deposit")
 
 	// Test 5: Withdraw money
 	var withdrawResult interface{}
@@ -110,7 +130,7 @@ func testBankAccountBasicOperations(t *testing.T, client *DaprClient) {
 		Method:    "GetBalance",
 	}, userToken, &balance)
 	require.NoError(t, err)
-	assert.Equal(t, 1300.0, balance.Balance, "Final balance should be 1300.0")
+	assertBankAccountSuccess(t, balance, 1300.0, "Final balance should be 1300.0")
 }
 
 func testBankAccountStateIsolation(t *testing.T, client *DaprClient) {
@@ -214,8 +234,7 @@ func testBankAccountStateIsolation(t *testing.T, client *DaprClient) {
 				Method:    "GetBalance",
 			}, userToken, &balance)
 			require.NoError(t, err)
-			assert.Equal(t, account.expectedBalance, balance.Balance, "Final balance for %s should be %.2f", account.actorID, account.expectedBalance)
-			assert.Equal(t, account.ownerName, balance.OwnerName, "Owner name should match for %s", account.actorID)
+			assertBankAccountSuccessWithOwner(t, balance, account.expectedBalance, account.ownerName, fmt.Sprintf("Final balance for %s should be %.2f", account.actorID, account.expectedBalance))
 		})
 	}
 }
@@ -286,13 +305,13 @@ func testBankAccountEventSourcing(t *testing.T, client *DaprClient) {
 
 	// Verify transaction history contains all operations (including account creation)
 	// Should have: 1 account creation + 4 operations = 5 events
-	assert.GreaterOrEqual(t, len(history.Events), 5, "Should have at least 5 events including account creation")
+	assertTransactionHistorySuccess(t, history, 5, "Should have at least 5 events including account creation")
 
 	// Verify event types
 	foundDeposits := 0
 	foundWithdrawals := 0
 	foundAccountCreated := 0
-	for _, event := range history.Events {
+	for _, event := range history.Data.Events {
 		switch string(event.EventType) {
 		case "AccountCreated":
 			foundAccountCreated++
@@ -315,7 +334,7 @@ func testBankAccountEventSourcing(t *testing.T, client *DaprClient) {
 	}, userToken, &balance)
 	require.NoError(t, err)
 	expectedBalance := 1000.0 + 500.0 - 200.0 + 300.0 - 100.0 // 1500.0
-	assert.Equal(t, expectedBalance, balance.Balance, "Final balance should match event sourcing calculation")
+	assertBankAccountSuccess(t, balance, expectedBalance, "Final balance should match event sourcing calculation")
 }
 
 // Operation represents a bank account operation

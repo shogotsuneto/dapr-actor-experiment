@@ -123,7 +123,7 @@ func (b *BankAccount) checkOwnership(ctx context.Context) (string, error) {
 	}
 	
 	// For existing accounts, check against the stored owner ID
-	if b.cachedState != nil && b.cachedState.OwnerId != userID {
+	if b.cachedState != nil && b.cachedState.Data.OwnerId != userID {
 		return "", fmt.Errorf("insufficient permissions: cannot access this account")
 	}
 	
@@ -133,18 +133,19 @@ func (b *BankAccount) checkOwnership(ctx context.Context) (string, error) {
 // Helper methods for structured responses
 
 func (b *BankAccount) successResponse() *BankAccountState {
-	// Return successful response without Error field (omitempty will exclude it)
-	response := &BankAccountState{
-		Success:   true,
-		AccountId: b.cachedState.AccountId,
-		OwnerName: b.cachedState.OwnerName,
-		OwnerId:   b.cachedState.OwnerId,
-		Balance:   b.cachedState.Balance,
-		IsActive:  b.cachedState.IsActive,
-		CreatedAt: b.cachedState.CreatedAt,
+	// Return successful response with data nested under Data field
+	return &BankAccountState{
+		Success: true,
+		Data: &BankAccountStateData{
+			AccountId: b.cachedState.Data.AccountId,
+			OwnerName: b.cachedState.Data.OwnerName,
+			OwnerId:   b.cachedState.Data.OwnerId,
+			Balance:   b.cachedState.Data.Balance,
+			IsActive:  b.cachedState.Data.IsActive,
+			CreatedAt: b.cachedState.Data.CreatedAt,
+		},
+		// Don't set Error field - omitempty will exclude it from JSON
 	}
-	// Don't set Error field - omitempty will exclude it from JSON
-	return response
 }
 
 func (b *BankAccount) errorResponse(code ErrorCode, message string, details map[string]interface{}) *BankAccountState {
@@ -155,6 +156,7 @@ func (b *BankAccount) errorResponse(code ErrorCode, message string, details map[
 			Message: message,
 			Details: details,
 		},
+		// Don't set Data field - omitempty will exclude it from JSON
 	}
 }
 
@@ -166,6 +168,7 @@ func (b *BankAccount) errorResponseHistory(code ErrorCode, message string, detai
 			Message: message,
 			Details: details,
 		},
+		// Don't set Data field - omitempty will exclude it from JSON
 	}
 }
 
@@ -217,13 +220,15 @@ func (b *BankAccount) CreateAccount(ctx context.Context, request CreateAccountRe
 	
 	// Update in-memory cached state for fast access
 	b.cachedState = &BankAccountState{
-		Success:   true,
-		AccountId: b.ID(),
-		OwnerName: request.OwnerName,
-		OwnerId:   userID,
-		Balance:   request.InitialDeposit,
-		IsActive:  true,
-		CreatedAt: eventData.CreatedAt.Format(time.RFC3339),
+		Success: true,
+		Data: &BankAccountStateData{
+			AccountId: b.ID(),
+			OwnerName: request.OwnerName,
+			OwnerId:   userID,
+			Balance:   request.InitialDeposit,
+			IsActive:  true,
+			CreatedAt: eventData.CreatedAt.Format(time.RFC3339),
+		},
 	}
 	b.accountExists = true
 	
@@ -271,7 +276,7 @@ func (b *BankAccount) Deposit(ctx context.Context, request DepositRequest) (*Ban
 	}
 	
 	// Update in-memory cached state for fast access
-	b.cachedState.Balance += request.Amount
+	b.cachedState.Data.Balance += request.Amount
 	
 	return b.successResponse(), nil
 }
@@ -303,9 +308,9 @@ func (b *BankAccount) Withdraw(ctx context.Context, request WithdrawRequest) (*B
 	}
 	
 	// Check sufficient balance using fast in-memory state
-	if b.cachedState.Balance < request.Amount {
-		return b.errorResponse(ErrorCodeInsufficientFunds, fmt.Sprintf("Insufficient funds: balance %.2f, requested %.2f", b.cachedState.Balance, request.Amount), map[string]interface{}{
-			"currentBalance":   b.cachedState.Balance,
+	if b.cachedState.Data.Balance < request.Amount {
+		return b.errorResponse(ErrorCodeInsufficientFunds, fmt.Sprintf("Insufficient funds: balance %.2f, requested %.2f", b.cachedState.Data.Balance, request.Amount), map[string]interface{}{
+			"currentBalance":   b.cachedState.Data.Balance,
 			"requestedAmount": request.Amount,
 		}), nil
 	}
@@ -324,7 +329,7 @@ func (b *BankAccount) Withdraw(ctx context.Context, request WithdrawRequest) (*B
 	}
 	
 	// Update in-memory cached state for fast access
-	b.cachedState.Balance -= request.Amount
+	b.cachedState.Data.Balance -= request.Amount
 	
 	return b.successResponse(), nil
 }
@@ -391,9 +396,11 @@ func (b *BankAccount) GetHistory(ctx context.Context) (*TransactionHistory, erro
 	}
 	
 	return &TransactionHistory{
-		Success:   true,
-		AccountId: b.ID(),
-		Events:    apiEvents,
+		Success: true,
+		Data: &TransactionHistoryData{
+			AccountId: b.ID(),
+			Events:    apiEvents,
+		},
 	}, nil
 }
 
@@ -452,11 +459,14 @@ func (b *BankAccount) computeStateFromEvents(ctx context.Context) (*BankAccountS
 		return nil, nil // Account doesn't exist
 	}
 	
-	// Initialize state
+	// Initialize state with nested data structure
 	state := &BankAccountState{
-		AccountId: b.ID(),
-		Balance:   0,
-		IsActive:  true,
+		Success: true,
+		Data: &BankAccountStateData{
+			AccountId: b.ID(),
+			Balance:   0,
+			IsActive:  true,
+		},
 	}
 	
 	// Replay events to compute current state
@@ -468,10 +478,10 @@ func (b *BankAccount) computeStateFromEvents(ctx context.Context) (*BankAccountS
 				return nil, fmt.Errorf("failed to parse AccountCreated event: %v", err)
 			}
 			createdData := data.(*AccountCreatedEventData)
-			state.OwnerName = createdData.OwnerName
-			state.OwnerId = createdData.OwnerId
-			state.Balance = createdData.InitialDeposit
-			state.CreatedAt = createdData.CreatedAt.Format(time.RFC3339)
+			state.Data.OwnerName = createdData.OwnerName
+			state.Data.OwnerId = createdData.OwnerId
+			state.Data.Balance = createdData.InitialDeposit
+			state.Data.CreatedAt = createdData.CreatedAt.Format(time.RFC3339)
 			
 		case AccountEventEventTypeMoneyDeposited:
 			data, err := b.parseEventData(event.Data, &MoneyDepositedEventData{})
@@ -479,7 +489,7 @@ func (b *BankAccount) computeStateFromEvents(ctx context.Context) (*BankAccountS
 				return nil, fmt.Errorf("failed to parse MoneyDeposited event: %v", err)
 			}
 			depositData := data.(*MoneyDepositedEventData)
-			state.Balance += depositData.Amount
+			state.Data.Balance += depositData.Amount
 			
 		case AccountEventEventTypeMoneyWithdrawn:
 			data, err := b.parseEventData(event.Data, &MoneyWithdrawnEventData{})
@@ -487,7 +497,7 @@ func (b *BankAccount) computeStateFromEvents(ctx context.Context) (*BankAccountS
 				return nil, fmt.Errorf("failed to parse MoneyWithdrawn event: %v", err)
 			}
 			withdrawData := data.(*MoneyWithdrawnEventData)
-			state.Balance -= withdrawData.Amount
+			state.Data.Balance -= withdrawData.Amount
 		}
 	}
 	

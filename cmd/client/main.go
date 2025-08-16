@@ -41,7 +41,10 @@ func main() {
 	if err := json.Unmarshal(response.Data, &state); err != nil {
 		log.Fatalf("Failed to unmarshal response: %v", err)
 	}
-	log.Printf("Initial value: %d", state.Value)
+	if !state.Success {
+		log.Fatalf("Counter operation failed: %v", state.Error)
+	}
+	log.Printf("Initial value: %d", state.Data.Value)
 
 	// Test 2: Increment counter 5 times
 	log.Println("\n2. Incrementing counter 5 times...")
@@ -58,7 +61,10 @@ func main() {
 		if err := json.Unmarshal(response.Data, &state); err != nil {
 			log.Fatalf("Failed to unmarshal response: %v", err)
 		}
-		log.Printf("After increment %d: %d", i+1, state.Value)
+		if !state.Success {
+			log.Fatalf("Counter increment failed: %v", state.Error)
+		}
+		log.Printf("After increment %d: %d", i+1, state.Data.Value)
 		time.Sleep(500 * time.Millisecond)
 	}
 
@@ -77,7 +83,10 @@ func main() {
 		if err := json.Unmarshal(response.Data, &state); err != nil {
 			log.Fatalf("Failed to unmarshal response: %v", err)
 		}
-		log.Printf("After decrement %d: %d", i+1, state.Value)
+		if !state.Success {
+			log.Fatalf("Counter decrement failed: %v", state.Error)
+		}
+		log.Printf("After decrement %d: %d", i+1, state.Data.Value)
 		time.Sleep(500 * time.Millisecond)
 	}
 
@@ -99,7 +108,10 @@ func main() {
 	if err := json.Unmarshal(response.Data, &state); err != nil {
 		log.Fatalf("Failed to unmarshal response: %v", err)
 	}
-	log.Printf("After setting to 100: %d", state.Value)
+	if !state.Success {
+		log.Fatalf("Counter set failed: %v", state.Error)
+	}
+	log.Printf("After setting to 100: %d", state.Data.Value)
 
 	// Test 5: Final value check
 	log.Println("\n5. Getting final counter value...")
@@ -115,7 +127,10 @@ func main() {
 	if err := json.Unmarshal(response.Data, &state); err != nil {
 		log.Fatalf("Failed to unmarshal response: %v", err)
 	}
-	log.Printf("Final value: %d", state.Value)
+	if !state.Success {
+		log.Fatalf("Counter get failed: %v", state.Error)
+	}
+	log.Printf("Final value: %d", state.Data.Value)
 
 	// Test 6: Test with different actor instance
 	log.Println("\n6. Testing with different actor instance (counter-2)...")
@@ -133,7 +148,10 @@ func main() {
 	if err := json.Unmarshal(response.Data, &state); err != nil {
 		log.Fatalf("Failed to unmarshal response: %v", err)
 	}
-	log.Printf("Counter-2 initial value: %d", state.Value)
+	if !state.Success {
+		log.Fatalf("Counter-2 get failed: %v", state.Error)
+	}
+	log.Printf("Counter-2 initial value: %d", state.Data.Value)
 
 	// Increment counter-2
 	response, err = c.InvokeActor(ctx, &client.InvokeActorRequest{
@@ -148,7 +166,10 @@ func main() {
 	if err := json.Unmarshal(response.Data, &state); err != nil {
 		log.Fatalf("Failed to unmarshal response: %v", err)
 	}
-	log.Printf("Counter-2 after increment: %d", state.Value)
+	if !state.Success {
+		log.Fatalf("Counter-2 increment failed: %v", state.Error)
+	}
+	log.Printf("Counter-2 after increment: %d", state.Data.Value)
 
 	log.Println("\n=== Demo completed successfully! ===")
 	log.Println("This demonstrates:")

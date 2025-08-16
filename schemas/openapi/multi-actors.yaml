@@ -259,11 +259,16 @@ components:
           type: boolean
           description: Whether the operation was successful
           example: true
-        value:
-          type: integer
-          format: int32
-          description: The current counter value (only present if success=true)
-          example: 42
+        data:
+          type: object
+          description: Counter data (only present if success=true)
+          properties:
+            value:
+              type: integer
+              format: int32
+              description: The current counter value
+              example: 42
+          additionalProperties: false
         error:
           $ref: '#/components/schemas/Error'
       additionalProperties: false
@@ -294,32 +299,37 @@ components:
           type: boolean
           description: Whether the operation was successful
           example: true
-        accountId:
-          type: string
-          description: Unique account identifier (only present if success=true)
-          example: "account-123"
-        ownerName:
-          type: string
-          description: Account owner name (only present if success=true)
-          example: "John Doe"
-        ownerId:
-          type: string
-          description: Account owner ID (for authorization, only present if success=true)
-          example: "user-123"
-        balance:
-          type: number
-          format: double
-          description: Current account balance (computed from events, only present if success=true)
-          example: 1250.50
-        isActive:
-          type: boolean
-          description: Whether account is active (only present if success=true)
-          example: true
-        createdAt:
-          type: string
-          format: date-time
-          description: Account creation timestamp (only present if success=true)
-          example: "2024-01-15T10:30:00Z"
+        data:
+          type: object
+          description: Account data (only present if success=true)
+          properties:
+            accountId:
+              type: string
+              description: Unique account identifier
+              example: "account-123"
+            ownerName:
+              type: string
+              description: Account owner name
+              example: "John Doe"
+            ownerId:
+              type: string
+              description: Account owner ID (for authorization)
+              example: "user-123"
+            balance:
+              type: number
+              format: double
+              description: Current account balance (computed from events)
+              example: 1250.50
+            isActive:
+              type: boolean
+              description: Whether account is active
+              example: true
+            createdAt:
+              type: string
+              format: date-time
+              description: Account creation timestamp
+              example: "2024-01-15T10:30:00Z"
+          additionalProperties: false
         error:
           $ref: '#/components/schemas/Error'
       additionalProperties: false
@@ -395,15 +405,20 @@ components:
           type: boolean
           description: Whether the operation was successful
           example: true
-        accountId:
-          type: string
-          description: Account identifier (only present if success=true)
-          example: "account-123"
-        events:
-          type: array
-          description: List of all events in chronological order (only present if success=true)
-          items:
-            $ref: '#/components/schemas/AccountEvent'
+        data:
+          type: object
+          description: Transaction history data (only present if success=true)
+          properties:
+            accountId:
+              type: string
+              description: Account identifier
+              example: "account-123"
+            events:
+              type: array
+              description: List of all events in chronological order
+              items:
+                $ref: '#/components/schemas/AccountEvent'
+          additionalProperties: false
         error:
           $ref: '#/components/schemas/Error'
       additionalProperties: false

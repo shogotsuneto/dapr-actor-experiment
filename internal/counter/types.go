@@ -6,12 +6,18 @@ package counter
 
 // CounterState Current state of the counter actor (state-based)
 type CounterState struct {
+	// Counter data (only present if success=true)
+	Data *CounterStateData `json:"data,omitempty"`
 	// Error information returned within 200 responses
 	Error Error `json:"error,omitempty"`
 	// Whether the operation was successful
 	Success bool `json:"success"`
-	// The current counter value (only present if success=true)
-	Value int32 `json:"value,omitempty"`
+}
+
+// CounterStateData contains the counter data when success=true
+type CounterStateData struct {
+	// The current counter value
+	Value int32 `json:"value"`
 }
 
 // Error Error information returned within 200 responses
