@@ -136,7 +136,7 @@ func (b *BankAccount) successResponse() *BankAccountState {
 	// Return successful response with data nested under Data field
 	return &BankAccountState{
 		Success: true,
-		Data: &BankAccountStateData{
+		Data: BankAccountStateData{
 			AccountId: b.cachedState.Data.AccountId,
 			OwnerName: b.cachedState.Data.OwnerName,
 			OwnerId:   b.cachedState.Data.OwnerId,
@@ -221,7 +221,7 @@ func (b *BankAccount) CreateAccount(ctx context.Context, request CreateAccountRe
 	// Update in-memory cached state for fast access
 	b.cachedState = &BankAccountState{
 		Success: true,
-		Data: &BankAccountStateData{
+		Data: BankAccountStateData{
 			AccountId: b.ID(),
 			OwnerName: request.OwnerName,
 			OwnerId:   userID,
@@ -397,7 +397,7 @@ func (b *BankAccount) GetHistory(ctx context.Context) (*TransactionHistory, erro
 	
 	return &TransactionHistory{
 		Success: true,
-		Data: &TransactionHistoryData{
+		Data: TransactionHistoryData{
 			AccountId: b.ID(),
 			Events:    apiEvents,
 		},
@@ -462,7 +462,7 @@ func (b *BankAccount) computeStateFromEvents(ctx context.Context) (*BankAccountS
 	// Initialize state with nested data structure
 	state := &BankAccountState{
 		Success: true,
-		Data: &BankAccountStateData{
+		Data: BankAccountStateData{
 			AccountId: b.ID(),
 			Balance:   0,
 			IsActive:  true,

@@ -19,27 +19,27 @@ type AccountEvent struct {
 // BankAccountState Current state of bank account (computed from events)
 type BankAccountState struct {
 	// Account data (only present if success=true)
-	Data *BankAccountStateData `json:"data,omitempty"`
+	Data BankAccountStateData `json:"data,omitempty"`
 	// Error information returned within 200 responses
 	Error Error `json:"error,omitempty"`
 	// Whether the operation was successful
 	Success bool `json:"success"`
 }
 
-// BankAccountStateData contains the account data when success=true
+// BankAccountStateData Account data (only present if success=true)
 type BankAccountStateData struct {
 	// Unique account identifier
-	AccountId string `json:"accountId"`
+	AccountId string `json:"accountId,omitempty"`
 	// Current account balance (computed from events)
-	Balance float64 `json:"balance"`
+	Balance float64 `json:"balance,omitempty"`
 	// Account creation timestamp
-	CreatedAt string `json:"createdAt"`
+	CreatedAt string `json:"createdAt,omitempty"`
 	// Whether account is active
-	IsActive bool `json:"isActive"`
+	IsActive bool `json:"isActive,omitempty"`
 	// Account owner ID (for authorization)
-	OwnerId string `json:"ownerId"`
+	OwnerId string `json:"ownerId,omitempty"`
 	// Account owner name
-	OwnerName string `json:"ownerName"`
+	OwnerName string `json:"ownerName,omitempty"`
 }
 
 // CreateAccountRequest Request to create a new bank account
@@ -71,19 +71,19 @@ type Error struct {
 // TransactionHistory Complete transaction history (event sourcing benefit)
 type TransactionHistory struct {
 	// Transaction history data (only present if success=true)
-	Data *TransactionHistoryData `json:"data,omitempty"`
+	Data TransactionHistoryData `json:"data,omitempty"`
 	// Error information returned within 200 responses
 	Error Error `json:"error,omitempty"`
 	// Whether the operation was successful
 	Success bool `json:"success"`
 }
 
-// TransactionHistoryData contains the transaction history data when success=true
+// TransactionHistoryData Transaction history data (only present if success=true)
 type TransactionHistoryData struct {
 	// Account identifier
-	AccountId string `json:"accountId"`
+	AccountId string `json:"accountId,omitempty"`
 	// List of all events in chronological order
-	Events []AccountEvent `json:"events"`
+	Events []AccountEvent `json:"events,omitempty"`
 }
 
 // WithdrawRequest Request to withdraw money
@@ -93,6 +93,7 @@ type WithdrawRequest struct {
 	// Description of the withdrawal
 	Description string `json:"description"`
 }
+
 
 
 

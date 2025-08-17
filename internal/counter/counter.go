@@ -110,7 +110,7 @@ func (c *Counter) successResponse(value int32) *CounterState {
 	// Return successful response with data nested under Data field
 	return &CounterState{
 		Success: true,
-		Data: &CounterStateData{
+		Data: CounterStateData{
 			Value: value,
 		},
 		// Don't set Error field - omitempty will exclude it from JSON
