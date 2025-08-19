@@ -13,25 +13,6 @@ import (
 	"github.com/shogotsuneto/dapr-actor-experiment/internal/counter"
 )
 
-// Helper functions for multi-test
-func assertCounterSuccessMulti(t *testing.T, state counter.CounterState, expectedValue int32, message string) {
-	require.True(t, state.Success, "Counter operation should succeed: %s", message)
-	require.NotNil(t, state.Data, "Counter data should not be nil when success=true")
-	assert.Equal(t, expectedValue, state.Data.Value, message)
-}
-
-func assertBankAccountSuccessMulti(t *testing.T, state bankaccount.BankAccountState, expectedBalance float64, message string) {
-	require.True(t, state.Success, "BankAccount operation should succeed: %s", message)
-	require.NotNil(t, state.Data, "BankAccount data should not be nil when success=true")
-	assert.Equal(t, expectedBalance, state.Data.Balance, message)
-}
-
-func assertTransactionHistorySuccessMulti(t *testing.T, history bankaccount.TransactionHistory, minEvents int, message string) {
-	require.True(t, history.Success, "TransactionHistory operation should succeed: %s", message)
-	require.NotNil(t, history.Data, "TransactionHistory data should not be nil when success=true")
-	assert.GreaterOrEqual(t, len(history.Data.Events), minEvents, message)
-}
-
 func TestMultiActorIntegration(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
@@ -78,7 +59,7 @@ func testMultipleActorTypes(t *testing.T, client *DaprClient) {
 		Data:      counter.SetValueRequest{Value: int32(5)},
 	}, counterToken, &counterState)
 	require.NoError(t, err)
-	assertCounterSuccessMulti(t, counterState, int32(5), "Counter should be set to 5")
+	assert.Equal(t, int32(5), counterState.Value)
 
 	// BankAccount operations
 	bankActorID := fmt.Sprintf("multi-test-account-%d", time.Now().UnixNano()%10000)
@@ -108,7 +89,7 @@ func testMultipleActorTypes(t *testing.T, client *DaprClient) {
 		Method:    "Increment",
 	}, counterToken, &counterState)
 	require.NoError(t, err)
-	assertCounterSuccessMulti(t, counterState, int32(6), "Counter should be 6 after increment")
+	assert.Equal(t, int32(6), counterState.Value)
 
 	// Deposit to bank account
 	var depositResult interface{}
@@ -130,7 +111,7 @@ func testMultipleActorTypes(t *testing.T, client *DaprClient) {
 		Method:    "Decrement",
 	}, counterToken, &counterState)
 	require.NoError(t, err)
-	assertCounterSuccessMulti(t, counterState, int32(5), "Counter should be set to 5")
+	assert.Equal(t, int32(5), counterState.Value)
 
 	// Withdraw from bank account
 	var withdrawResult interface{}
@@ -153,7 +134,7 @@ func testMultipleActorTypes(t *testing.T, client *DaprClient) {
 		Method:    "Get",
 	}, counterToken, &counterState)
 	require.NoError(t, err)
-	assertCounterSuccessMulti(t, counterState, int32(5), "Counter should maintain its state")
+	assert.Equal(t, int32(5), counterState.Value, "Counter should maintain its state")
 
 	// Bank account should be 2200.0 (2000 + 500 - 300)
 	var balance bankaccount.BankAccountState
@@ -163,7 +144,7 @@ func testMultipleActorTypes(t *testing.T, client *DaprClient) {
 		Method:    "GetBalance",
 	}, bankToken, &balance)
 	require.NoError(t, err)
-	assertBankAccountSuccessMulti(t, balance, 2200.0, "Bank account should maintain its state")
+	assert.Equal(t, 2200.0, balance.Balance, "Bank account should maintain its state")
 }
 
 func testActorTypesIsolation(t *testing.T, client *DaprClient) {
@@ -188,7 +169,7 @@ func testActorTypesIsolation(t *testing.T, client *DaprClient) {
 		Data:      counter.SetValueRequest{Value: int32(100)},
 	}, counterToken, &counterState)
 	require.NoError(t, err)
-	assertCounterSuccessMulti(t, counterState, int32(100), "Counter should be 100")
+	assert.Equal(t, int32(100), counterState.Value)
 
 	// Create BankAccount with same ID "isolation-test"
 	var createResult interface{}
@@ -211,7 +192,7 @@ func testActorTypesIsolation(t *testing.T, client *DaprClient) {
 		Method:    "Get",
 	}, counterToken, &counterState)
 	require.NoError(t, err)
-	assertCounterSuccessMulti(t, counterState, int32(100), "Counter should maintain its state")
+	assert.Equal(t, int32(100), counterState.Value, "Counter should maintain its state")
 
 	// Check bank account
 	var balance bankaccount.BankAccountState
@@ -221,7 +202,7 @@ func testActorTypesIsolation(t *testing.T, client *DaprClient) {
 		Method:    "GetBalance",
 	}, bankToken, &balance)
 	require.NoError(t, err)
-	assertBankAccountSuccessMulti(t, balance, 1000.0, "BankAccount should maintain its state")
+	assert.Equal(t, 1000.0, balance.Balance, "BankAccount should maintain its state")
 }
 
 func testConcurrentActorOperations(t *testing.T, client *DaprClient) {
@@ -264,7 +245,7 @@ func testConcurrentActorOperations(t *testing.T, client *DaprClient) {
 			Data:      counter.SetValueRequest{Value: counterValues[i]},
 		}, counterToken, &state)
 		require.NoError(t, err)
-		assertCounterSuccessMulti(t, state, counterValues[i], fmt.Sprintf("Counter %s should have correct value", actorID))
+		assert.Equal(t, counterValues[i], state.Value)
 	}
 
 	for _, account := range bankActors {
@@ -295,7 +276,7 @@ func testConcurrentActorOperations(t *testing.T, client *DaprClient) {
 			Method:    "Increment",
 		}, counterToken, &state)
 		require.NoError(t, err)
-		assertCounterSuccessMulti(t, state, counterValues[i]+1, fmt.Sprintf("Counter %s should be incremented", actorID))
+		assert.Equal(t, counterValues[i]+1, state.Value)
 		counterValues[i]++ // Update expected value
 	}
 
@@ -328,7 +309,7 @@ func testConcurrentActorOperations(t *testing.T, client *DaprClient) {
 			Method:    "Get",
 		}, counterToken, &state)
 		require.NoError(t, err)
-		assertCounterSuccessMulti(t, state, counterValues[i], fmt.Sprintf("Counter %s should maintain correct state", actorID))
+		assert.Equal(t, counterValues[i], state.Value, "Counter %s should maintain correct state", actorID)
 	}
 
 	for _, account := range bankActors {
@@ -344,10 +325,8 @@ func testConcurrentActorOperations(t *testing.T, client *DaprClient) {
 		}, bankToken, &balance)
 		require.NoError(t, err)
 		expectedBalance := account.initial + depositAmount
-		require.True(t, balance.Success, "Balance operation should succeed for account %s", account.id)
-		require.NotNil(t, balance.Data, "Balance data should not be nil when success=true")
-		assert.Equal(t, expectedBalance, balance.Data.Balance, "Account %s should have correct balance", account.id)
-		assert.Equal(t, account.owner, balance.Data.OwnerName, "Account %s should have correct owner", account.id)
+		assert.Equal(t, expectedBalance, balance.Balance, "Account %s should have correct balance", account.id)
+		assert.Equal(t, account.owner, balance.OwnerName, "Account %s should have correct owner", account.id)
 	}
 
 	// Test transaction history for one of the bank accounts
@@ -362,5 +341,5 @@ func testConcurrentActorOperations(t *testing.T, client *DaprClient) {
 		Method:    "GetHistory",
 	}, bankToken, &history)
 	require.NoError(t, err)
-	assertTransactionHistorySuccessMulti(t, history, 2, "Should have at least account creation and deposit events")
+	assert.GreaterOrEqual(t, len(history.Events), 2, "Should have at least account creation and deposit events")
 }

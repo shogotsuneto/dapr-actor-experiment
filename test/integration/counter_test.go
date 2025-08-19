@@ -12,13 +12,6 @@ import (
 	"github.com/shogotsuneto/dapr-actor-experiment/internal/counter"
 )
 
-// Helper function to assert counter response success and return value
-func assertCounterSuccess(t *testing.T, state counter.CounterState, expectedValue int32, message string) {
-	require.True(t, state.Success, "Counter operation should succeed: %s", message)
-	require.NotNil(t, state.Data, "Counter data should not be nil when success=true")
-	assert.Equal(t, expectedValue, state.Data.Value, message)
-}
-
 func TestCounter(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
@@ -59,7 +52,7 @@ func testCounterBasicOperations(t *testing.T, client *DaprClient) {
 		Method:    "Get",
 	}, userToken, &initialState)
 	require.NoError(t, err)
-	assertCounterSuccess(t, initialState, int32(0), "Initial counter value should be 0")
+	assert.Equal(t, int32(0), initialState.Value, "Initial counter value should be 0")
 
 	// Test 2: Increment counter
 	var incrementedState counter.CounterState
@@ -69,7 +62,7 @@ func testCounterBasicOperations(t *testing.T, client *DaprClient) {
 		Method:    "Increment",
 	}, userToken, &incrementedState)
 	require.NoError(t, err)
-	assertCounterSuccess(t, incrementedState, int32(1), "Counter should be 1 after increment")
+	assert.Equal(t, int32(1), incrementedState.Value, "Counter should be 1 after increment")
 
 	// Test 3: Increment again
 	_, err = client.InvokeActorMethodWithJWT(ctx, ActorMethodRequest{
@@ -78,7 +71,7 @@ func testCounterBasicOperations(t *testing.T, client *DaprClient) {
 		Method:    "Increment",
 	}, userToken, &incrementedState)
 	require.NoError(t, err)
-	assertCounterSuccess(t, incrementedState, int32(2), "Counter should be 2 after second increment")
+	assert.Equal(t, int32(2), incrementedState.Value, "Counter should be 2 after second increment")
 
 	// Test 4: Set to specific value
 	var setState counter.CounterState
@@ -89,7 +82,7 @@ func testCounterBasicOperations(t *testing.T, client *DaprClient) {
 		Data:      counter.SetValueRequest{Value: int32(10)},
 	}, userToken, &setState)
 	require.NoError(t, err)
-	assertCounterSuccess(t, setState, int32(10), "Counter should be 10 after set")
+	assert.Equal(t, int32(10), setState.Value, "Counter should be 10 after set")
 
 	// Test 5: Decrement
 	var decrementedState counter.CounterState
@@ -99,7 +92,7 @@ func testCounterBasicOperations(t *testing.T, client *DaprClient) {
 		Method:    "Decrement",
 	}, userToken, &decrementedState)
 	require.NoError(t, err)
-	assertCounterSuccess(t, decrementedState, int32(9), "Counter should be 9 after decrement")
+	assert.Equal(t, int32(9), decrementedState.Value, "Counter should be 9 after decrement")
 
 	// Test 6: Verify final state persistence
 	var finalState counter.CounterState
@@ -109,7 +102,7 @@ func testCounterBasicOperations(t *testing.T, client *DaprClient) {
 		Method:    "Get",
 	}, userToken, &finalState)
 	require.NoError(t, err)
-	assertCounterSuccess(t, finalState, int32(9), "Final counter value should be 9")
+	assert.Equal(t, int32(9), finalState.Value, "Final counter value should be 9")
 }
 
 func testCounterStateIsolation(t *testing.T, client *DaprClient) {
@@ -137,7 +130,7 @@ func testCounterStateIsolation(t *testing.T, client *DaprClient) {
 			Data:      counter.SetValueRequest{Value: expectedValues[i]},
 		}, userToken, &state)
 		require.NoError(t, err)
-		assertCounterSuccess(t, state, expectedValues[i], "Counter should be set to expected value")
+		assert.Equal(t, expectedValues[i], state.Value, "Counter should be set to expected value")
 	}
 
 	// Verify that each actor maintained its own state
@@ -149,7 +142,7 @@ func testCounterStateIsolation(t *testing.T, client *DaprClient) {
 			Method:    "Get",
 		}, userToken, &state)
 		require.NoError(t, err)
-		assertCounterSuccess(t, state, expectedValues[i], fmt.Sprintf("Actor %s should maintain its own state", actorID))
+		assert.Equal(t, expectedValues[i], state.Value, "Actor %s should maintain its own state", actorID)
 	}
 }
 
@@ -230,7 +223,7 @@ func testCounterMultipleInstances(t *testing.T, client *DaprClient) {
 				Method:    "Get",
 			}, userToken, &finalState)
 			require.NoError(t, err)
-			assertCounterSuccess(t, finalState, tc.expectedFinal, fmt.Sprintf("Final value for %s should be %d", tc.actorID, tc.expectedFinal))
+			assert.Equal(t, tc.expectedFinal, finalState.Value, "Final value for %s should be %d", tc.actorID, tc.expectedFinal)
 		})
 	}
 }
