@@ -24,7 +24,7 @@ generate:
 	@docker run --rm -u root \
 		-v "$(PWD)/schemas/openapi/multi-actors.yaml:/input.yaml" \
 		-v "$(PWD)/internal:/output" \
-		ghcr.io/shogotsuneto/dapr-actor-gen:v0.0.3 \
+		ghcr.io/shogotsuneto/dapr-actor-gen:v0.0.4 \
 		/input.yaml /output
 	@echo "✓ Actor code generation completed successfully!"
 
@@ -32,7 +32,7 @@ generate:
 generate-install:
 	@echo "Installing code generation tools..."
 	@echo "Pulling external generator Docker image..."
-	@docker pull ghcr.io/shogotsuneto/dapr-actor-gen:v0.0.3
+	@docker pull ghcr.io/shogotsuneto/dapr-actor-gen:v0.0.4
 	@echo "✓ Installation complete!"
 
 # Clean generated code

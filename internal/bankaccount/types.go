@@ -19,9 +19,9 @@ type AccountEvent struct {
 // BankAccountState Current state of bank account (computed from events)
 type BankAccountState struct {
 	// Account data (only present if success=true)
-	Data BankAccountStateData `json:"data,omitempty"`
+	Data *BankAccountStateData `json:"data,omitempty"`
 	// Error information returned within 200 responses
-	Error Error `json:"error,omitempty"`
+	Error *Error `json:"error,omitempty"`
 	// Whether the operation was successful
 	Success bool `json:"success"`
 }
@@ -71,9 +71,9 @@ type Error struct {
 // TransactionHistory Complete transaction history (event sourcing benefit)
 type TransactionHistory struct {
 	// Transaction history data (only present if success=true)
-	Data TransactionHistoryData `json:"data,omitempty"`
+	Data *TransactionHistoryData `json:"data,omitempty"`
 	// Error information returned within 200 responses
-	Error Error `json:"error,omitempty"`
+	Error *Error `json:"error,omitempty"`
 	// Whether the operation was successful
 	Success bool `json:"success"`
 }
