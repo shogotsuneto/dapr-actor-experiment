@@ -215,10 +215,59 @@ components:
       example: "account-123"
 
   schemas:
+    # Common error structure for all responses
+    Error:
+      type: object
+      description: Error information returned within 200 responses
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+          description: Error code identifying the type of error
+          enum: 
+            - "VALIDATION_ERROR"
+            - "AUTHENTICATION_ERROR"
+            - "AUTHORIZATION_ERROR"
+            - "INSUFFICIENT_FUNDS"
+            - "ACCOUNT_NOT_FOUND"
+            - "ACCOUNT_ALREADY_EXISTS"
+            - "VALUE_OUT_OF_RANGE"
+            - "INTERNAL_ERROR"
+          example: "INSUFFICIENT_FUNDS"
+        message:
+          type: string
+          description: Human-readable error message
+          example: "Insufficient funds: balance 100.00, requested 150.00"
+        details:
+          type: object
+          description: Additional error-specific details
+          additionalProperties: true
+          example:
+            currentBalance: 100.00
+            requestedAmount: 150.00
+      additionalProperties: false
     # CounterActor schemas
     CounterState:
       type: object
       description: Current state of the counter actor (state-based)
+      required:
+        - success
+      properties:
+        success:
+          type: boolean
+          description: Whether the operation was successful
+          example: true
+        data:
+          $ref: '#/components/schemas/CounterStateData'
+        error:
+          $ref: '#/components/schemas/Error'
+      additionalProperties: false
+
+    CounterStateData:
+      type: object
+      description: Counter data (only present if success=true)
       required:
         - value
       properties:
@@ -249,11 +298,28 @@ components:
       type: object
       description: Current state of bank account (computed from events)
       required:
+        - success
+      properties:
+        success:
+          type: boolean
+          description: Whether the operation was successful
+          example: true
+        data:
+          $ref: '#/components/schemas/BankAccountStateData'
+        error:
+          $ref: '#/components/schemas/Error'
+      additionalProperties: false
+
+    BankAccountStateData:
+      type: object
+      description: Account data (only present if success=true)
+      required:
         - accountId
         - ownerName
         - ownerId
         - balance
         - isActive
+        - createdAt
       properties:
         accountId:
           type: string
@@ -347,6 +413,22 @@ components:
     TransactionHistory:
       type: object
       description: Complete transaction history (event sourcing benefit)
+      required:
+        - success
+      properties:
+        success:
+          type: boolean
+          description: Whether the operation was successful
+          example: true
+        data:
+          $ref: '#/components/schemas/TransactionHistoryData'
+        error:
+          $ref: '#/components/schemas/Error'
+      additionalProperties: false
+
+    TransactionHistoryData:
+      type: object
+      description: Transaction history data (only present if success=true)
       required:
         - accountId
         - events

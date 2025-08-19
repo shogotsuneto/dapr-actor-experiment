@@ -25,6 +25,7 @@ Always reference these instructions first and fallback to search or bash command
 - **Install Generator**: `make generate-install` - takes 1 second. Downloads Docker image for code generation.
 - **Generate Code**: `make generate` - takes 1 second. NEVER CANCEL. Set timeout to 30+ seconds.
 - **Clean Generated Code**: `make generate-clean` - preserves implementation files, removes generated files
+- **IMPORTANT**: DO NOT manually edit generated files (those with "DO NOT EDIT manually" header), always modify the OpenAPI schema and regenerate instead
 
 ## Validation
 
