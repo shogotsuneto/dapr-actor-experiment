@@ -17,7 +17,7 @@ type CounterState struct {
 // CounterStateData Counter data (only present if success=true)
 type CounterStateData struct {
 	// The current counter value
-	Value int32 `json:"value,omitempty"`
+	Value int32 `json:"value"`
 }
 
 // Error Error information returned within 200 responses

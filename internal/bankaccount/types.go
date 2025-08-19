@@ -29,17 +29,17 @@ type BankAccountState struct {
 // BankAccountStateData Account data (only present if success=true)
 type BankAccountStateData struct {
 	// Unique account identifier
-	AccountId string `json:"accountId,omitempty"`
+	AccountId string `json:"accountId"`
 	// Current account balance (computed from events)
-	Balance float64 `json:"balance,omitempty"`
+	Balance float64 `json:"balance"`
 	// Account creation timestamp
-	CreatedAt string `json:"createdAt,omitempty"`
+	CreatedAt string `json:"createdAt"`
 	// Whether account is active
-	IsActive bool `json:"isActive,omitempty"`
+	IsActive bool `json:"isActive"`
 	// Account owner ID (for authorization)
-	OwnerId string `json:"ownerId,omitempty"`
+	OwnerId string `json:"ownerId"`
 	// Account owner name
-	OwnerName string `json:"ownerName,omitempty"`
+	OwnerName string `json:"ownerName"`
 }
 
 // CreateAccountRequest Request to create a new bank account
@@ -81,9 +81,9 @@ type TransactionHistory struct {
 // TransactionHistoryData Transaction history data (only present if success=true)
 type TransactionHistoryData struct {
 	// Account identifier
-	AccountId string `json:"accountId,omitempty"`
+	AccountId string `json:"accountId"`
 	// List of all events in chronological order
-	Events []AccountEvent `json:"events,omitempty"`
+	Events []AccountEvent `json:"events"`
 }
 
 // WithdrawRequest Request to withdraw money
