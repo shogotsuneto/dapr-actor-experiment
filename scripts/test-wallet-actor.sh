@@ -3,8 +3,50 @@
 echo "Testing Wallet Actor (External Event Store)"
 echo "==========================================="
 
-# Wallet actor doesn't require authentication (for simplicity in demo)
-# This demonstrates external event store usage without additional auth complexity
+# Check if server is running
+if ! curl -s http://localhost:3500/v1.0/healthz > /dev/null; then
+    echo "Error: Dapr sidecar not running. Please run 'docker compose up -d' first."
+    exit 1
+fi
+
+echo "✓ Dapr sidecar is running"
+
+# Generate JWT token for wallet operations
+generate_token() {
+    echo "Generating JWT token for wallet operations..."
+    
+    JWKS_URL="http://localhost:3000/generate-token"
+    
+    # Check if JWKS service is available
+    if ! curl -s "$JWKS_URL" > /dev/null; then
+        echo "JWKS Mock API not available - authentication required for wallet operations"
+        echo "Please start with: docker compose up -d"
+        exit 1
+    fi
+    
+    # Generate token for wallet user
+    WALLET_TOKEN_RESPONSE=$(curl -s -X POST "$JWKS_URL" \
+        -H "Content-Type: application/json" \
+        -d '{
+            "claims": {
+                "sub": "wallet-user-001",
+                "name": "Wallet Test User",
+                "email": "wallet@example.com"
+            },
+            "expiresIn": 3600
+        }')
+    WALLET_TOKEN=$(echo "$WALLET_TOKEN_RESPONSE" | grep -o '"token":"[^"]*"' | cut -d'"' -f4)
+    
+    if [ -z "$WALLET_TOKEN" ]; then
+        echo "Failed to generate JWT token"
+        exit 1
+    fi
+    
+    echo "✓ JWT token generated successfully"
+}
+
+# Generate authentication token
+generate_token
 
 # Test variables
 WALLET_ID="test-wallet-001"
@@ -21,6 +63,7 @@ echo ""
 echo -e "${BLUE}1. Creating wallet for John Doe with USD currency...${NC}"
 RESPONSE=$(curl -s -X POST "$BASE_URL/CreateWallet" \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $WALLET_TOKEN" \
   -d '{
     "ownerName": "John Doe",
     "currency": "USD",
@@ -38,7 +81,8 @@ fi
 
 echo ""
 echo -e "${BLUE}2. Getting wallet balance...${NC}"
-RESPONSE=$(curl -s -X GET "$BASE_URL/GetBalance")
+RESPONSE=$(curl -s -X GET "$BASE_URL/GetBalance" \
+  -H "Authorization: Bearer $WALLET_TOKEN")
 echo "Response: $RESPONSE"
 
 if echo "$RESPONSE" | grep -q '"balance":100'; then
@@ -51,6 +95,7 @@ echo ""
 echo -e "${BLUE}3. Adding funds (50.00) to wallet...${NC}"
 RESPONSE=$(curl -s -X POST "$BASE_URL/AddFunds" \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $WALLET_TOKEN" \
   -d '{
     "amount": 50.00,
     "description": "Monthly allowance"
@@ -66,7 +111,8 @@ fi
 
 echo ""
 echo -e "${BLUE}4. Getting updated balance...${NC}"
-RESPONSE=$(curl -s -X GET "$BASE_URL/GetBalance")
+RESPONSE=$(curl -s -X GET "$BASE_URL/GetBalance" \
+  -H "Authorization: Bearer $WALLET_TOKEN")
 echo "Response: $RESPONSE"
 
 if echo "$RESPONSE" | grep -q '"balance":150'; then
@@ -79,6 +125,7 @@ echo ""
 echo -e "${BLUE}5. Spending funds (25.00) from wallet...${NC}"
 RESPONSE=$(curl -s -X POST "$BASE_URL/SpendFunds" \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $WALLET_TOKEN" \
   -d '{
     "amount": 25.00,
     "description": "Coffee purchase"
@@ -94,7 +141,8 @@ fi
 
 echo ""
 echo -e "${BLUE}6. Getting final balance...${NC}"
-RESPONSE=$(curl -s -X GET "$BASE_URL/GetBalance")
+RESPONSE=$(curl -s -X GET "$BASE_URL/GetBalance" \
+  -H "Authorization: Bearer $WALLET_TOKEN")
 echo "Response: $RESPONSE"
 
 if echo "$RESPONSE" | grep -q '"balance":125'; then
@@ -105,7 +153,8 @@ fi
 
 echo ""
 echo -e "${BLUE}7. Getting transaction history from external event store...${NC}"
-RESPONSE=$(curl -s -X GET "$BASE_URL/GetTransactions")
+RESPONSE=$(curl -s -X GET "$BASE_URL/GetTransactions" \
+  -H "Authorization: Bearer $WALLET_TOKEN")
 echo "Response: $RESPONSE"
 
 if echo "$RESPONSE" | grep -q '"eventType":"WalletCreated"' && \
@@ -120,6 +169,7 @@ echo ""
 echo -e "${BLUE}8. Testing insufficient funds scenario...${NC}"
 RESPONSE=$(curl -s -X POST "$BASE_URL/SpendFunds" \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $WALLET_TOKEN" \
   -d '{
     "amount": 200.00,
     "description": "Expensive purchase"

@@ -11,8 +11,10 @@ This project showcases:
 - **Dapr Actor Pattern**: Stateful actor implementation with persistent state
 - **Authentication Middleware**: Demonstrating how to add middleware for user context access in actors
 - **Multiple Actor Types**: Support for different actor patterns in a single application
-- **Counter Actor**: Simple state-based counter with increment, decrement, get, and set operations
-- **Bank Account Actor**: Event-sourced bank account demonstrating transaction history and audit trails
+- **Counter Actor**: Simple state-based counter with increment, decrement, get, and set operations (Dapr StateManager)
+- **Bank Account Actor**: Event-sourced bank account demonstrating transaction history and audit trails (Dapr StateManager)
+- **Wallet Actor**: Event-sourced wallet using external event store (go-simple-eventstore) for third-party integration
+- **External Data Store Integration**: Demonstrates how to use third-party libraries alongside Dapr actors
 - **Docker-Only Setup**: Simple deployment using Docker Compose, no Dapr CLI required
 
 ## Quick Start
@@ -37,8 +39,9 @@ cd dapr-actor-experiment
 ./scripts/test-multi-actors.sh
 
 # Or test individual actor types:
-# ./scripts/test-counter-actor.sh
-# ./scripts/test-bank-account-actor.sh
+# ./scripts/test-counter-actor.sh      # State-based pattern
+# ./scripts/test-bank-account-actor.sh # Event-sourced pattern (Dapr)
+# ./scripts/test-wallet-actor.sh       # Event-sourced pattern (external store)
 
 # Cleanup when done
 docker compose down
@@ -428,6 +431,7 @@ This repository includes detailed documentation on various aspects of Dapr actor
 ### Architecture and Concepts
 - **[Authentication Middleware](docs/authentication-middleware.md)** - Guide to adding authentication middleware and accessing userID in actor methods
 - **[Multiple Actors](docs/multiple-actors.md)** - Complete guide to multiple actor types, state-based vs event-sourced patterns
+- **[External Data Stores](docs/external-data-stores.md)** - How to integrate third-party libraries and databases with Dapr actors using the WalletActor example
 - **[Client vs Curl](docs/client-vs-curl.md)** - Understand the difference between using the Go client (Dapr SDK) vs direct HTTP calls with curl
 - **[Event Sourcing](docs/event-sourcing.md)** - Learn whether this implementation uses event sourcing and understand the state-based approach
 - **[Akka Comparison](docs/akka-comparison.md)** - Compare Dapr actors with Akka actors, including mailbox concepts and architectural differences
@@ -435,8 +439,9 @@ This repository includes detailed documentation on various aspects of Dapr actor
 
 ### Key Insights
 - **Authentication Middleware**: Demonstrates how to add middleware and access user context in actors for ownership validation
-- **Multiple Actor Types**: This implementation supports both state-based (CounterActor) and event-sourced (BankAccountActor) patterns. See [Multiple Actors documentation](docs/multiple-actors.md) for details.
-- **Event Sourcing vs State-Based**: CounterActor uses state-based persistence while BankAccountActor demonstrates full event sourcing with audit trails.
+- **Multiple Actor Types**: This implementation supports state-based (CounterActor), event-sourced via Dapr (BankAccountActor), and external event store (WalletActor) patterns. See [Multiple Actors documentation](docs/multiple-actors.md) for details.
+- **External Data Store Integration**: Shows how to use third-party libraries like go-simple-eventstore alongside Dapr actors while maintaining the actor programming model. See [External Data Stores documentation](docs/external-data-stores.md).
+- **Event Sourcing vs State-Based**: CounterActor uses state-based persistence, BankAccountActor demonstrates event sourcing with Dapr StateManager, and WalletActor shows event sourcing with external event stores.
 - **How does it compare to Akka?** Both implement the actor model but serve different use cases. See [Akka Comparison](docs/akka-comparison.md) for a detailed analysis.
 - **Client vs curl difference?** Both send identical HTTP requests to Dapr sidecar, but the Go client provides type safety and better error handling. See [Client vs Curl](docs/client-vs-curl.md) for details.
 
