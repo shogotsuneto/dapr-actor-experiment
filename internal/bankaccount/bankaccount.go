@@ -118,15 +118,6 @@ func (b *BankAccount) ensureStateLoaded(ctx context.Context) error {
 	return nil
 }
 
-// getCachedState returns the in-memory cached state for fast O(1) access.
-// This leverages the actor pattern's stateful nature for optimal performance.
-func (b *BankAccount) getCachedState() (*BankAccountState, error) {
-	if !b.accountExists {
-		return nil, fmt.Errorf("account does not exist - create account first")
-	}
-	return b.state, nil
-}
-
 // checkOwnership verifies that the user can access this account
 func (b *BankAccount) checkOwnership(ctx context.Context) (string, error) {
 	userID, ok := auth.GetUserID(ctx)
