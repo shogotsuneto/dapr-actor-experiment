@@ -14,8 +14,7 @@ import (
 	"github.com/shogotsuneto/dapr-actor-experiment/internal/auth"
 	"github.com/shogotsuneto/dapr-actor-experiment/internal/bankaccount"
 	"github.com/shogotsuneto/dapr-actor-experiment/internal/counter"
-	"github.com/shogotsuneto/dapr-actor-experiment/internal/wallet"
-	"github.com/shogotsuneto/go-simple-eventstore/memory"
+	"github.com/shogotsuneto/go-simple-eventstore/postgres"
 )
 
 // healthHandler provides a simple health check endpoint
@@ -32,12 +31,11 @@ func statusHandler(ctx context.Context, in *common.InvocationEvent) (out *common
 	response := map[string]interface{}{
 		"status":      "running",
 		"service":     "dapr-actor-demo",
-		"actor_types": []string{counter.ActorTypeCounter, bankaccount.ActorTypeBankAccount, wallet.ActorTypeWallet},
-		"description": "Multi-actor service demonstrating state-based, event-sourced, and external event store patterns",
+		"actor_types": []string{counter.ActorTypeCounter, bankaccount.ActorTypeBankAccount},
+		"description": "Multi-actor service demonstrating state-based and external event store patterns",
 		"patterns": map[string]string{
 			counter.ActorTypeCounter:     "State-based - stores current value only (Dapr StateManager)",
-			bankaccount.ActorTypeBankAccount: "Event-sourced - stores events and computes state (Dapr StateManager)",
-			wallet.ActorTypeWallet:       "Event-sourced - stores events using external event store (go-simple-eventstore)",
+			bankaccount.ActorTypeBankAccount: "Event-sourced - stores events using external postgres event store (go-simple-eventstore)",
 		},
 	}
 	
@@ -50,11 +48,23 @@ func statusHandler(ctx context.Context, in *common.InvocationEvent) (out *common
 }
 
 func main() {
-	// Initialize external event store for Wallet actors (singleton pattern demonstration)
-	log.Println("Initializing external event store (in-memory) for Wallet actors...")
-	externalEventStore := memory.NewInMemoryEventStore()
-	wallet.SetGlobalEventStore(externalEventStore)
-	log.Printf("External event store configured - Wallet actors will use go-simple-eventstore")
+	// Initialize external postgres event store for BankAccount actors (singleton pattern demonstration)
+	log.Println("Initializing external postgres event store for BankAccount actors...")
+	
+	// Configure postgres connection using connection string
+	postgresConfig := postgres.Config{
+		ConnectionString: "postgres://postgres:postgres@postgres:5432/eventstore?sslmode=disable",
+		TableName:        "bankaccount_events",
+		UseClientGeneratedTimestamps: false, // Use database timestamps
+	}
+	
+	externalEventStore, err := postgres.NewPostgresEventStore(postgresConfig)
+	if err != nil {
+		log.Fatalf("Failed to initialize postgres event store: %v", err)
+	}
+	
+	bankaccount.SetGlobalEventStore(externalEventStore)
+	log.Printf("External postgres event store configured - BankAccount actors will use go-simple-eventstore")
 	
 	// Create Chi router with middleware
 	r := chi.NewRouter()
@@ -84,13 +94,9 @@ func main() {
 	log.Printf("Registering %s with state-based pattern", counter.ActorTypeCounter)
 	s.RegisterActorImplFactoryContext(counter.NewActorFactory())
 	
-	// Register BankAccount using generated factory with contract enforcement
-	log.Printf("Registering %s with event sourcing pattern", bankaccount.ActorTypeBankAccount)
+	// Register BankAccount using generated factory with external postgres event store
+	log.Printf("Registering %s with external postgres event store pattern", bankaccount.ActorTypeBankAccount)
 	s.RegisterActorImplFactoryContext(bankaccount.NewActorFactory())
-	
-	// Register Wallet using generated factory with external event store
-	log.Printf("Registering %s with external event store pattern", wallet.ActorTypeWallet)
-	s.RegisterActorImplFactoryContext(wallet.NewActorFactory())
 	
 	// Add health and status endpoints
 	s.AddServiceInvocationHandler("/health", healthHandler)
@@ -101,8 +107,7 @@ func main() {
 	log.Printf("  - Authentication: Enabled via Dapr Bearer middleware")
 	log.Printf("Actors registered:")
 	log.Printf("  - %s: State-based counter operations (Dapr StateManager)", counter.ActorTypeCounter)
-	log.Printf("  - %s: Event-sourced bank account with full audit trail (Dapr StateManager)", bankaccount.ActorTypeBankAccount)
-	log.Printf("  - %s: Event-sourced wallet using external event store (go-simple-eventstore)", wallet.ActorTypeWallet)
+	log.Printf("  - %s: Event-sourced bank account using external postgres event store (go-simple-eventstore)", bankaccount.ActorTypeBankAccount)
 	
 	// Start the service
 	if err := s.Start(); err != nil && err != http.ErrServerClosed {
