@@ -34,10 +34,11 @@ type BankAccount struct {
 	// Reference to shared external event store (singleton)
 	eventStore eventstore.EventStore
 	
-	// Ephemeral in-memory state for fast access (cached from events)
-	cachedState    *BankAccountState
+	// Ephemeral in-memory state for fast access (computed from events)
+	state    *BankAccountState
 	stateLoaded    bool  // Track if state has been loaded from events
 	accountExists  bool  // Track if account exists to avoid repeated checks
+	streamVersion  int   // Track current stream version for optimistic concurrency
 }
 
 // Internal event structures (not exposed in API)
@@ -106,11 +107,11 @@ func (b *BankAccount) ensureStateLoaded(ctx context.Context) error {
 	if state == nil {
 		// Account doesn't exist yet
 		b.accountExists = false
-		b.cachedState = nil
+		b.state = nil
 	} else {
 		// Account exists, cache the computed state for fast access
 		b.accountExists = true
-		b.cachedState = state
+		b.state = state
 	}
 	
 	b.stateLoaded = true
@@ -123,7 +124,7 @@ func (b *BankAccount) getCachedState() (*BankAccountState, error) {
 	if !b.accountExists {
 		return nil, fmt.Errorf("account does not exist - create account first")
 	}
-	return b.cachedState, nil
+	return b.state, nil
 }
 
 // checkOwnership verifies that the user can access this account
@@ -143,7 +144,7 @@ func (b *BankAccount) checkOwnership(ctx context.Context) (string, error) {
 	}
 	
 	// For existing accounts, check against the stored owner ID
-	if b.cachedState != nil && b.cachedState.Data.OwnerId != userID {
+	if b.state != nil && b.state.Data.OwnerId != userID {
 		return "", fmt.Errorf("insufficient permissions: cannot access this account")
 	}
 	
@@ -157,12 +158,12 @@ func (b *BankAccount) successResponse() *BankAccountState {
 	return &BankAccountState{
 		Success: true,
 		Data: &BankAccountStateData{
-			AccountId: b.cachedState.Data.AccountId,
-			OwnerName: b.cachedState.Data.OwnerName,
-			OwnerId:   b.cachedState.Data.OwnerId,
-			Balance:   b.cachedState.Data.Balance,
-			IsActive:  b.cachedState.Data.IsActive,
-			CreatedAt: b.cachedState.Data.CreatedAt,
+			AccountId: b.state.Data.AccountId,
+			OwnerName: b.state.Data.OwnerName,
+			OwnerId:   b.state.Data.OwnerId,
+			Balance:   b.state.Data.Balance,
+			IsActive:  b.state.Data.IsActive,
+			CreatedAt: b.state.Data.CreatedAt,
 		},
 		// Don't set Error field - omitempty will exclude it from JSON
 	}
@@ -232,14 +233,17 @@ func (b *BankAccount) CreateAccount(ctx context.Context, request CreateAccountRe
 		CreatedAt:      time.Now(),
 	}
 	
+	// Initialize stream version for new account
+	b.streamVersion = 0
+	
 	if err := b.appendEvent(ctx, AccountEventEventTypeAccountCreated, eventData); err != nil {
 		return b.errorResponse(ErrorCodeInternalError, "Failed to create account", map[string]interface{}{
 			"error": err.Error(),
 		}), nil
 	}
 	
-	// Update in-memory cached state for fast access
-	b.cachedState = &BankAccountState{
+	// Update in-memory state for fast access
+	b.state = &BankAccountState{
 		Success: true,
 		Data: &BankAccountStateData{
 			AccountId: b.ID(),
@@ -253,7 +257,7 @@ func (b *BankAccount) CreateAccount(ctx context.Context, request CreateAccountRe
 	b.accountExists = true
 	
 	log.Printf("BankAccount %s: Account created by user %s for owner %s", b.ID(), userID, request.OwnerName)
-	return b.cachedState, nil
+	return b.state, nil
 }
 
 func (b *BankAccount) Deposit(ctx context.Context, request DepositRequest) (*BankAccountState, error) {
@@ -295,8 +299,8 @@ func (b *BankAccount) Deposit(ctx context.Context, request DepositRequest) (*Ban
 		}), nil
 	}
 	
-	// Update in-memory cached state for fast access
-	b.cachedState.Data.Balance += request.Amount
+	// Update in-memory state for fast access
+	b.state.Data.Balance += request.Amount
 	
 	return b.successResponse(), nil
 }
@@ -328,9 +332,9 @@ func (b *BankAccount) Withdraw(ctx context.Context, request WithdrawRequest) (*B
 	}
 	
 	// Check sufficient balance using fast in-memory state
-	if b.cachedState.Data.Balance < request.Amount {
-		return b.errorResponse(ErrorCodeInsufficientFunds, fmt.Sprintf("Insufficient funds: balance %.2f, requested %.2f", b.cachedState.Data.Balance, request.Amount), map[string]interface{}{
-			"currentBalance":   b.cachedState.Data.Balance,
+	if b.state.Data.Balance < request.Amount {
+		return b.errorResponse(ErrorCodeInsufficientFunds, fmt.Sprintf("Insufficient funds: balance %.2f, requested %.2f", b.state.Data.Balance, request.Amount), map[string]interface{}{
+			"currentBalance":   b.state.Data.Balance,
 			"requestedAmount": request.Amount,
 		}), nil
 	}
@@ -348,8 +352,8 @@ func (b *BankAccount) Withdraw(ctx context.Context, request WithdrawRequest) (*B
 		}), nil
 	}
 	
-	// Update in-memory cached state for fast access
-	b.cachedState.Data.Balance -= request.Amount
+	// Update in-memory state for fast access
+	b.state.Data.Balance -= request.Amount
 	
 	return b.successResponse(), nil
 }
@@ -449,9 +453,16 @@ func (b *BankAccount) appendEvent(ctx context.Context, eventType AccountEventEve
 		},
 	}
 	
-	// Append to event store using stream ID based on actor ID
+	// Append to event store using stream ID based on actor ID with version check
 	streamID := fmt.Sprintf("bankaccount-%s", b.ID())
-	return b.eventStore.Append(streamID, []eventstore.Event{event}, -1) // -1 = no version check
+	err = b.eventStore.Append(streamID, []eventstore.Event{event}, b.streamVersion)
+	if err != nil {
+		return err
+	}
+	
+	// Increment stream version after successful append
+	b.streamVersion++
+	return nil
 }
 
 func (b *BankAccount) getAllEvents(ctx context.Context) ([]eventstore.Event, error) {
@@ -482,6 +493,7 @@ func (b *BankAccount) computeStateFromEvents(ctx context.Context) (*BankAccountS
 	}
 	
 	if len(events) == 0 {
+		b.streamVersion = 0 // No events yet
 		return nil, nil // Account doesn't exist
 	}
 	
@@ -495,7 +507,7 @@ func (b *BankAccount) computeStateFromEvents(ctx context.Context) (*BankAccountS
 		},
 	}
 	
-	// Replay events to compute current state
+	// Replay events to compute current state and track version
 	for _, event := range events {
 		switch event.Type {
 		case string(AccountEventEventTypeAccountCreated):
@@ -523,6 +535,9 @@ func (b *BankAccount) computeStateFromEvents(ctx context.Context) (*BankAccountS
 			state.Data.Balance -= data.Amount
 		}
 	}
+	
+	// Update stream version to the number of events processed
+	b.streamVersion = len(events)
 	
 	return state, nil
 }
