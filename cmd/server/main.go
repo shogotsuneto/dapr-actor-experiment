@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 	daprd "github.com/dapr/go-sdk/service/http"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	_ "github.com/lib/pq" // PostgreSQL driver
 	
 	"github.com/shogotsuneto/dapr-actor-experiment/internal/auth"
 	"github.com/shogotsuneto/dapr-actor-experiment/internal/bankaccount"
@@ -52,9 +54,32 @@ func main() {
 	log.Println("Initializing external postgres event store for BankAccount actors...")
 	
 	// Configure postgres connection using connection string
+	connectionString := "postgres://postgres:postgres@postgres:5432/eventstore?sslmode=disable"
+	tableName := "bankaccount_events"
+	
+	// Initialize database schema first
+	log.Println("Initializing database schema...")
+	db, err := sql.Open("postgres", connectionString)
+	if err != nil {
+		log.Fatalf("Failed to open database connection: %v", err)
+	}
+	defer db.Close()
+	
+	// Test the connection
+	if err := db.Ping(); err != nil {
+		log.Fatalf("Failed to connect to database: %v", err)
+	}
+	
+	// Initialize the schema
+	if err := postgres.InitSchema(db, tableName, false); err != nil {
+		log.Fatalf("Failed to initialize database schema: %v", err)
+	}
+	log.Printf("Database schema initialized successfully for table: %s", tableName)
+	
+	// Create the event store
 	postgresConfig := postgres.Config{
-		ConnectionString: "postgres://postgres:postgres@postgres:5432/eventstore?sslmode=disable",
-		TableName:        "bankaccount_events",
+		ConnectionString: connectionString,
+		TableName:        tableName,
 		UseClientGeneratedTimestamps: false, // Use database timestamps
 	}
 	
