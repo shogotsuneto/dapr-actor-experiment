@@ -30,6 +30,10 @@ kubectl apply -f "${PROJECT_ROOT}/k8s/local/dapr-components.yaml"
 echo "Deploying Redis..."
 kubectl apply -f "${PROJECT_ROOT}/k8s/local/redis.yaml"
 
+# Apply PostgreSQL
+echo "Deploying PostgreSQL..."
+kubectl apply -f "${PROJECT_ROOT}/k8s/local/postgres.yaml"
+
 # Apply JWKS Mock API
 echo "Deploying JWKS Mock API..."
 kubectl apply -f "${PROJECT_ROOT}/k8s/local/jwks-mock-api.yaml"
@@ -37,6 +41,9 @@ kubectl apply -f "${PROJECT_ROOT}/k8s/local/jwks-mock-api.yaml"
 # Wait for dependencies to be ready
 echo "Waiting for Redis to be ready..."
 kubectl -n dapr-actor-experiment wait --for=condition=available --timeout=300s deployment/redis
+
+echo "Waiting for PostgreSQL to be ready..."
+kubectl -n dapr-actor-experiment wait --for=condition=available --timeout=300s deployment/postgres
 
 echo "Waiting for JWKS Mock API to be ready..."
 kubectl -n dapr-actor-experiment wait --for=condition=available --timeout=300s deployment/jwks-mock-api
@@ -65,6 +72,7 @@ echo "  # Actor service (Dapr HTTP API): http://localhost:3500"
 echo "  # JWKS Mock API: http://localhost:3000"
 echo "  # Dapr Dashboard: http://localhost:9080"
 echo "  # Redis (for debugging): localhost:6379"
+echo "  # PostgreSQL (for debugging): localhost:5432"
 echo ""
 echo "Run tests:"
 echo "  ./scripts/kind-test.sh"

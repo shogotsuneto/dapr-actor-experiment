@@ -10,29 +10,35 @@ import (
 	"github.com/dapr/go-sdk/actor"
 	"github.com/google/uuid"
 	"github.com/shogotsuneto/dapr-actor-experiment/internal/auth"
+	"github.com/shogotsuneto/go-simple-eventstore"
 )
 
-// BankAccount demonstrates event sourcing pattern with in-memory state caching.
-// This actor stores events for durability and audit trail, while maintaining fast access
-// through ephemeral in-memory state cache as long as the actor is activated.
+// BankAccount demonstrates event sourcing pattern with external postgres event store.
+// This actor stores events using go-simple-eventstore/postgres for durability and audit trail,
+// while maintaining fast access through ephemeral in-memory state cache as long as the actor is activated.
 //
 // OPTIMIZATION BENEFITS:
 // 1. Fast Access: Operations use cached in-memory state instead of recomputing from events every time
 // 2. Actor Pattern: Leverages stateful actor model with in-memory state while actor is active
-// 3. Durability: Events are still persisted for durability and audit trail
+// 3. External Durability: Events are persisted to postgres for durability and audit trail
 // 4. Efficiency: State is computed from events only once (lazy loading) when actor is first accessed
 // 5. Consistency: In-memory state is kept in sync with events as operations are performed
 //
-// COMPARISON WITH PURE EVENT SOURCING:
-// - Before: Every operation called getAllEvents() + computeStateFromEvents() = O(n) events read
-// - After: State loaded once, operations use cached state = O(1) access time
+// COMPARISON WITH PREVIOUS IMPLEMENTATION:
+// - Before: Used Dapr StateManager for event storage
+// - After: Uses external postgres event store for event storage
+// - Both: Implement event sourcing patterns but with different persistence layers
 type BankAccount struct {
 	actor.ServerImplBaseCtx
 	
-	// Ephemeral in-memory state for fast access (cached from events)
-	cachedState    *BankAccountState
+	// Reference to shared external event store (singleton)
+	eventStore eventstore.EventStore
+	
+	// Ephemeral in-memory state for fast access (computed from events)
+	state    *BankAccountState
 	stateLoaded    bool  // Track if state has been loaded from events
 	accountExists  bool  // Track if account exists to avoid repeated checks
+	streamVersion  int   // Track current stream version for optimistic concurrency
 }
 
 // Internal event structures (not exposed in API)
@@ -55,7 +61,18 @@ type MoneyWithdrawnEventData struct {
 	Timestamp   time.Time `json:"timestamp"`
 }
 
-// StoredEvent represents an event as stored in the state store
+// NewBankAccount creates a new BankAccount actor instance with access to the provided event store.
+func NewBankAccount(eventStore eventstore.EventStore) *BankAccount {
+	if eventStore == nil {
+		log.Printf("WARNING: BankAccount created without event store. External persistence disabled.")
+	}
+	
+	return &BankAccount{
+		eventStore: eventStore,
+	}
+}
+
+// StoredEvent represents an event as stored in the event store
 type StoredEvent struct {
 	EventID   string                    `json:"eventId"`
 	EventType AccountEventEventType     `json:"eventType"`
@@ -67,7 +84,7 @@ func (b *BankAccount) Type() string {
 	return ActorTypeBankAccount
 }
 
-// ensureStateLoaded loads and caches state from events if not already loaded.
+// ensureStateLoaded loads and caches state from event store if not already loaded.
 // This provides fast in-memory access while maintaining event sourcing benefits.
 // 
 // PERFORMANCE: This method implements lazy loading - state is computed from events
@@ -77,7 +94,11 @@ func (b *BankAccount) ensureStateLoaded(ctx context.Context) error {
 		return nil // State already loaded and cached - fast path!
 	}
 	
-	// Load state from events for the first time (expensive operation)
+	if b.eventStore == nil {
+		return fmt.Errorf("event store not configured")
+	}
+	
+	// Load state from event store for the first time (expensive operation)
 	state, err := b.computeStateFromEvents(ctx)
 	if err != nil {
 		return err
@@ -86,24 +107,15 @@ func (b *BankAccount) ensureStateLoaded(ctx context.Context) error {
 	if state == nil {
 		// Account doesn't exist yet
 		b.accountExists = false
-		b.cachedState = nil
+		b.state = nil
 	} else {
 		// Account exists, cache the computed state for fast access
 		b.accountExists = true
-		b.cachedState = state
+		b.state = state
 	}
 	
 	b.stateLoaded = true
 	return nil
-}
-
-// getCachedState returns the in-memory cached state for fast O(1) access.
-// This leverages the actor pattern's stateful nature for optimal performance.
-func (b *BankAccount) getCachedState() (*BankAccountState, error) {
-	if !b.accountExists {
-		return nil, fmt.Errorf("account does not exist - create account first")
-	}
-	return b.cachedState, nil
 }
 
 // checkOwnership verifies that the user can access this account
@@ -123,7 +135,7 @@ func (b *BankAccount) checkOwnership(ctx context.Context) (string, error) {
 	}
 	
 	// For existing accounts, check against the stored owner ID
-	if b.cachedState != nil && b.cachedState.Data.OwnerId != userID {
+	if b.state != nil && b.state.Data.OwnerId != userID {
 		return "", fmt.Errorf("insufficient permissions: cannot access this account")
 	}
 	
@@ -137,12 +149,12 @@ func (b *BankAccount) successResponse() *BankAccountState {
 	return &BankAccountState{
 		Success: true,
 		Data: &BankAccountStateData{
-			AccountId: b.cachedState.Data.AccountId,
-			OwnerName: b.cachedState.Data.OwnerName,
-			OwnerId:   b.cachedState.Data.OwnerId,
-			Balance:   b.cachedState.Data.Balance,
-			IsActive:  b.cachedState.Data.IsActive,
-			CreatedAt: b.cachedState.Data.CreatedAt,
+			AccountId: b.state.Data.AccountId,
+			OwnerName: b.state.Data.OwnerName,
+			OwnerId:   b.state.Data.OwnerId,
+			Balance:   b.state.Data.Balance,
+			IsActive:  b.state.Data.IsActive,
+			CreatedAt: b.state.Data.CreatedAt,
 		},
 		// Don't set Error field - omitempty will exclude it from JSON
 	}
@@ -212,14 +224,17 @@ func (b *BankAccount) CreateAccount(ctx context.Context, request CreateAccountRe
 		CreatedAt:      time.Now(),
 	}
 	
+	// Initialize stream version for new account
+	b.streamVersion = 0
+	
 	if err := b.appendEvent(ctx, AccountEventEventTypeAccountCreated, eventData); err != nil {
 		return b.errorResponse(ErrorCodeInternalError, "Failed to create account", map[string]interface{}{
 			"error": err.Error(),
 		}), nil
 	}
 	
-	// Update in-memory cached state for fast access
-	b.cachedState = &BankAccountState{
+	// Update in-memory state for fast access
+	b.state = &BankAccountState{
 		Success: true,
 		Data: &BankAccountStateData{
 			AccountId: b.ID(),
@@ -233,7 +248,7 @@ func (b *BankAccount) CreateAccount(ctx context.Context, request CreateAccountRe
 	b.accountExists = true
 	
 	log.Printf("BankAccount %s: Account created by user %s for owner %s", b.ID(), userID, request.OwnerName)
-	return b.cachedState, nil
+	return b.state, nil
 }
 
 func (b *BankAccount) Deposit(ctx context.Context, request DepositRequest) (*BankAccountState, error) {
@@ -275,8 +290,8 @@ func (b *BankAccount) Deposit(ctx context.Context, request DepositRequest) (*Ban
 		}), nil
 	}
 	
-	// Update in-memory cached state for fast access
-	b.cachedState.Data.Balance += request.Amount
+	// Update in-memory state for fast access
+	b.state.Data.Balance += request.Amount
 	
 	return b.successResponse(), nil
 }
@@ -308,9 +323,9 @@ func (b *BankAccount) Withdraw(ctx context.Context, request WithdrawRequest) (*B
 	}
 	
 	// Check sufficient balance using fast in-memory state
-	if b.cachedState.Data.Balance < request.Amount {
-		return b.errorResponse(ErrorCodeInsufficientFunds, fmt.Sprintf("Insufficient funds: balance %.2f, requested %.2f", b.cachedState.Data.Balance, request.Amount), map[string]interface{}{
-			"currentBalance":   b.cachedState.Data.Balance,
+	if b.state.Data.Balance < request.Amount {
+		return b.errorResponse(ErrorCodeInsufficientFunds, fmt.Sprintf("Insufficient funds: balance %.2f, requested %.2f", b.state.Data.Balance, request.Amount), map[string]interface{}{
+			"currentBalance":   b.state.Data.Balance,
 			"requestedAmount": request.Amount,
 		}), nil
 	}
@@ -328,8 +343,8 @@ func (b *BankAccount) Withdraw(ctx context.Context, request WithdrawRequest) (*B
 		}), nil
 	}
 	
-	// Update in-memory cached state for fast access
-	b.cachedState.Data.Balance -= request.Amount
+	// Update in-memory state for fast access
+	b.state.Data.Balance -= request.Amount
 	
 	return b.successResponse(), nil
 }
@@ -375,7 +390,7 @@ func (b *BankAccount) GetHistory(ctx context.Context) (*TransactionHistory, erro
 		return b.errorResponseHistory(ErrorCodeAccountNotFound, "Account does not exist - create account first", nil), nil
 	}
 	
-	// Get events for history (still need to read from storage for complete audit trail)
+	// Get events for history from event store (still need to read from storage for complete audit trail)
 	events, err := b.getAllEvents(ctx)
 	if err != nil {
 		return b.errorResponseHistory(ErrorCodeInternalError, "Failed to retrieve transaction history", map[string]interface{}{
@@ -383,12 +398,12 @@ func (b *BankAccount) GetHistory(ctx context.Context) (*TransactionHistory, erro
 		}), nil
 	}
 	
-	// Convert internal events to API events
+	// Convert events to API events
 	var apiEvents []AccountEvent
 	for _, event := range events {
 		apiEvent := AccountEvent{
-			EventId:   event.EventID,
-			EventType: event.EventType,
+			EventId:   event.ID,
+			EventType: AccountEventEventType(event.Type),
 			Timestamp: event.Timestamp.Format(time.RFC3339),
 			Data:      b.convertEventDataToMap(event.Data),
 		}
@@ -404,44 +419,57 @@ func (b *BankAccount) GetHistory(ctx context.Context) (*TransactionHistory, erro
 	}, nil
 }
 
-// Event sourcing implementation details
+// Event store implementation details
 
 func (b *BankAccount) appendEvent(ctx context.Context, eventType AccountEventEventType, eventData interface{}) error {
-	event := StoredEvent{
-		EventID:   uuid.New().String(),
-		EventType: eventType,
-		Timestamp: time.Now(),
-		Data:      eventData,
+	if b.eventStore == nil {
+		return fmt.Errorf("event store not configured")
 	}
 	
-	// Load existing events
-	events, err := b.getAllEvents(ctx)
+	// Convert event data to JSON
+	dataBytes, err := json.Marshal(eventData)
+	if err != nil {
+		return fmt.Errorf("failed to marshal event data: %v", err)
+	}
+	
+	// Create event for store
+	event := eventstore.Event{
+		ID:        uuid.New().String(),
+		Type:      string(eventType),
+		Data:      dataBytes,
+		Timestamp: time.Now(),
+		Metadata: map[string]string{
+			"actorType": ActorTypeBankAccount,
+			"actorId":   b.ID(),
+		},
+	}
+	
+	// Append to event store using stream ID based on actor ID with version check
+	streamID := fmt.Sprintf("bankaccount-%s", b.ID())
+	err = b.eventStore.Append(streamID, []eventstore.Event{event}, b.streamVersion)
 	if err != nil {
 		return err
 	}
 	
-	// Append new event
-	events = append(events, event)
-	
-	// Store back to state manager
-	eventsKey := "events"
-	return b.GetStateManager().Set(ctx, eventsKey, events)
+	// Increment stream version after successful append
+	b.streamVersion++
+	return nil
 }
 
-func (b *BankAccount) getAllEvents(ctx context.Context) ([]StoredEvent, error) {
-	eventsKey := "events"
-	var events []StoredEvent
-	
-	ok, err := b.GetStateManager().Contains(ctx, eventsKey)
-	if err != nil {
-		return nil, err
+func (b *BankAccount) getAllEvents(ctx context.Context) ([]eventstore.Event, error) {
+	if b.eventStore == nil {
+		return nil, fmt.Errorf("event store not configured")
 	}
 	
-	if !ok {
-		return []StoredEvent{}, nil
-	}
+	streamID := fmt.Sprintf("bankaccount-%s", b.ID())
 	
-	err = b.GetStateManager().Get(ctx, eventsKey, &events)
+	// Load all events from event store
+	events, err := b.eventStore.Load(streamID, eventstore.LoadOptions{
+		ExclusiveStartVersion: 0,
+		Limit: 0, // 0 = no limit
+		Desc:  false, // chronological order
+	})
+	
 	if err != nil {
 		return nil, err
 	}
@@ -456,6 +484,7 @@ func (b *BankAccount) computeStateFromEvents(ctx context.Context) (*BankAccountS
 	}
 	
 	if len(events) == 0 {
+		b.streamVersion = 0 // No events yet
 		return nil, nil // Account doesn't exist
 	}
 	
@@ -469,69 +498,50 @@ func (b *BankAccount) computeStateFromEvents(ctx context.Context) (*BankAccountS
 		},
 	}
 	
-	// Replay events to compute current state
+	// Replay events to compute current state and track version
 	for _, event := range events {
-		switch event.EventType {
-		case AccountEventEventTypeAccountCreated:
-			data, err := b.parseEventData(event.Data, &AccountCreatedEventData{})
-			if err != nil {
+		switch event.Type {
+		case string(AccountEventEventTypeAccountCreated):
+			var data AccountCreatedEventData
+			if err := json.Unmarshal(event.Data, &data); err != nil {
 				return nil, fmt.Errorf("failed to parse AccountCreated event: %v", err)
 			}
-			createdData := data.(*AccountCreatedEventData)
-			state.Data.OwnerName = createdData.OwnerName
-			state.Data.OwnerId = createdData.OwnerId
-			state.Data.Balance = createdData.InitialDeposit
-			state.Data.CreatedAt = createdData.CreatedAt.Format(time.RFC3339)
+			state.Data.OwnerName = data.OwnerName
+			state.Data.OwnerId = data.OwnerId
+			state.Data.Balance = data.InitialDeposit
+			state.Data.CreatedAt = data.CreatedAt.Format(time.RFC3339)
 			
-		case AccountEventEventTypeMoneyDeposited:
-			data, err := b.parseEventData(event.Data, &MoneyDepositedEventData{})
-			if err != nil {
+		case string(AccountEventEventTypeMoneyDeposited):
+			var data MoneyDepositedEventData
+			if err := json.Unmarshal(event.Data, &data); err != nil {
 				return nil, fmt.Errorf("failed to parse MoneyDeposited event: %v", err)
 			}
-			depositData := data.(*MoneyDepositedEventData)
-			state.Data.Balance += depositData.Amount
+			state.Data.Balance += data.Amount
 			
-		case AccountEventEventTypeMoneyWithdrawn:
-			data, err := b.parseEventData(event.Data, &MoneyWithdrawnEventData{})
-			if err != nil {
+		case string(AccountEventEventTypeMoneyWithdrawn):
+			var data MoneyWithdrawnEventData
+			if err := json.Unmarshal(event.Data, &data); err != nil {
 				return nil, fmt.Errorf("failed to parse MoneyWithdrawn event: %v", err)
 			}
-			withdrawData := data.(*MoneyWithdrawnEventData)
-			state.Data.Balance -= withdrawData.Amount
+			state.Data.Balance -= data.Amount
 		}
+	}
+	
+	// Update stream version from the last event's version field
+	if len(events) > 0 {
+		b.streamVersion = int(events[len(events)-1].Version)
+	} else {
+		b.streamVersion = 0
 	}
 	
 	return state, nil
 }
 
-func (b *BankAccount) parseEventData(data interface{}, target interface{}) (interface{}, error) {
-	// Convert to JSON and back to parse properly
-	jsonData, err := json.Marshal(data)
-	if err != nil {
-		return nil, err
-	}
-	
-	err = json.Unmarshal(jsonData, target)
-	if err != nil {
-		return nil, err
-	}
-	
-	return target, nil
-}
-
-func (b *BankAccount) convertEventDataToMap(data interface{}) map[string]interface{} {
-	// Convert to JSON and back to get a map
-	jsonData, err := json.Marshal(data)
-	if err != nil {
-		return map[string]interface{}{"error": "failed to convert event data"}
-	}
-	
+func (b *BankAccount) convertEventDataToMap(data []byte) map[string]interface{} {
 	var result map[string]interface{}
-	err = json.Unmarshal(jsonData, &result)
-	if err != nil {
+	if err := json.Unmarshal(data, &result); err != nil {
 		return map[string]interface{}{"error": "failed to parse event data"}
 	}
-	
 	return result
 }
 

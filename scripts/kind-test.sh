@@ -27,6 +27,7 @@ echo "Waiting for services to be ready..."
 kubectl -n dapr-actor-experiment wait --for=condition=ready pod -l app=actor-service --timeout=300s
 kubectl -n dapr-actor-experiment wait --for=condition=ready pod -l app=jwks-mock-api --timeout=60s
 kubectl -n dapr-actor-experiment wait --for=condition=ready pod -l app=redis --timeout=60s
+kubectl -n dapr-actor-experiment wait --for=condition=ready pod -l app=postgres --timeout=60s
 
 # Test health endpoints using NodePort services (no port forwarding needed)
 echo "Testing health endpoints..."
@@ -59,6 +60,29 @@ elif [[ "$JWKS_HEALTH_CODE" == "000" ]]; then
 else
     echo "ERROR: JWKS Mock API health check failed (HTTP $JWKS_HEALTH_CODE)"
     exit 1
+fi
+
+# Test PostgreSQL connectivity 
+echo "Checking PostgreSQL connectivity..."
+if command -v psql >/dev/null 2>&1; then
+    # Use psql if available
+    if PGPASSWORD=postgres psql -h localhost -p 5432 -U postgres -d eventstore -c "SELECT 1;" >/dev/null 2>&1; then
+        echo "✓ PostgreSQL is accessible via psql"
+    else
+        echo "WARNING: PostgreSQL psql test failed, but continuing (database may still be initializing)"
+    fi
+else
+    # Alternative test using pg_isready if available, or skip if neither is available
+    if command -v pg_isready >/dev/null 2>&1; then
+        if pg_isready -h localhost -p 5432 -U postgres >/dev/null 2>&1; then
+            echo "✓ PostgreSQL is ready via pg_isready"
+        else
+            echo "WARNING: PostgreSQL pg_isready test failed, but continuing"
+        fi
+    else
+        echo "INFO: PostgreSQL client tools not available, skipping direct connectivity test"
+        echo "INFO: PostgreSQL connectivity will be verified through actor service tests"
+    fi
 fi
 
 # Run the existing test scripts (they should work with direct access)
