@@ -60,24 +60,14 @@ type MoneyWithdrawnEventData struct {
 	Timestamp   time.Time `json:"timestamp"`
 }
 
-// Global event store instance (singleton pattern)
-var globalEventStore eventstore.EventStore
-
-// SetGlobalEventStore sets the shared event store instance that all BankAccount actors will use.
-// This demonstrates how actors can share global resources like database connection pools.
-func SetGlobalEventStore(store eventstore.EventStore) {
-	globalEventStore = store
-	log.Printf("BankAccount: Global event store configured")
-}
-
-// NewBankAccount creates a new BankAccount actor instance with access to the global event store.
-func NewBankAccount() *BankAccount {
-	if globalEventStore == nil {
-		log.Printf("WARNING: BankAccount created without global event store. External persistence disabled.")
+// NewBankAccount creates a new BankAccount actor instance with access to the provided event store.
+func NewBankAccount(eventStore eventstore.EventStore) *BankAccount {
+	if eventStore == nil {
+		log.Printf("WARNING: BankAccount created without event store. External persistence disabled.")
 	}
 	
 	return &BankAccount{
-		eventStore: globalEventStore,
+		eventStore: eventStore,
 	}
 }
 

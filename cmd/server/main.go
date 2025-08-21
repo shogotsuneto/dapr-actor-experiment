@@ -88,7 +88,6 @@ func main() {
 		log.Fatalf("Failed to initialize postgres event store: %v", err)
 	}
 	
-	bankaccount.SetGlobalEventStore(externalEventStore)
 	log.Printf("External postgres event store configured - BankAccount actors will use go-simple-eventstore")
 	
 	// Create Chi router with middleware
@@ -119,9 +118,9 @@ func main() {
 	log.Printf("Registering %s with state-based pattern", counter.ActorTypeCounter)
 	s.RegisterActorImplFactoryContext(counter.NewActorFactory())
 	
-	// Register BankAccount using generated factory with external postgres event store
+	// Register BankAccount using generated factory with external postgres event store (closure pattern)
 	log.Printf("Registering %s with external postgres event store pattern", bankaccount.ActorTypeBankAccount)
-	s.RegisterActorImplFactoryContext(bankaccount.NewActorFactory())
+	s.RegisterActorImplFactoryContext(bankaccount.NewActorFactory(externalEventStore))
 	
 	// Add health and status endpoints
 	s.AddServiceInvocationHandler("/health", healthHandler)
