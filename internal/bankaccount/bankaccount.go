@@ -527,8 +527,12 @@ func (b *BankAccount) computeStateFromEvents(ctx context.Context) (*BankAccountS
 		}
 	}
 	
-	// Update stream version to the number of events processed
-	b.streamVersion = len(events)
+	// Update stream version from the last event's version field
+	if len(events) > 0 {
+		b.streamVersion = int(events[len(events)-1].Version)
+	} else {
+		b.streamVersion = 0
+	}
 	
 	return state, nil
 }
