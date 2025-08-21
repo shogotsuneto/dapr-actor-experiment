@@ -71,7 +71,7 @@ func NewBankAccount(eventStore eventstore.EventStore) *BankAccount {
 	}
 }
 
-// StoredEvent represents an event as stored in the external event store
+// StoredEvent represents an event as stored in the event store
 type StoredEvent struct {
 	EventID   string                    `json:"eventId"`
 	EventType AccountEventEventType     `json:"eventType"`
@@ -83,7 +83,7 @@ func (b *BankAccount) Type() string {
 	return ActorTypeBankAccount
 }
 
-// ensureStateLoaded loads and caches state from external event store if not already loaded.
+// ensureStateLoaded loads and caches state from event store if not already loaded.
 // This provides fast in-memory access while maintaining event sourcing benefits.
 // 
 // PERFORMANCE: This method implements lazy loading - state is computed from events
@@ -94,11 +94,11 @@ func (b *BankAccount) ensureStateLoaded(ctx context.Context) error {
 	}
 	
 	if b.eventStore == nil {
-		return fmt.Errorf("external event store not configured")
+		return fmt.Errorf("event store not configured")
 	}
 	
-	// Load state from external event store for the first time (expensive operation)
-	state, err := b.computeStateFromExternalEvents(ctx)
+	// Load state from event store for the first time (expensive operation)
+	state, err := b.computeStateFromEvents(ctx)
 	if err != nil {
 		return err
 	}
@@ -232,7 +232,7 @@ func (b *BankAccount) CreateAccount(ctx context.Context, request CreateAccountRe
 		CreatedAt:      time.Now(),
 	}
 	
-	if err := b.appendExternalEvent(ctx, AccountEventEventTypeAccountCreated, eventData); err != nil {
+	if err := b.appendEvent(ctx, AccountEventEventTypeAccountCreated, eventData); err != nil {
 		return b.errorResponse(ErrorCodeInternalError, "Failed to create account", map[string]interface{}{
 			"error": err.Error(),
 		}), nil
@@ -289,7 +289,7 @@ func (b *BankAccount) Deposit(ctx context.Context, request DepositRequest) (*Ban
 		Timestamp:   time.Now(),
 	}
 	
-	if err := b.appendExternalEvent(ctx, AccountEventEventTypeMoneyDeposited, eventData); err != nil {
+	if err := b.appendEvent(ctx, AccountEventEventTypeMoneyDeposited, eventData); err != nil {
 		return b.errorResponse(ErrorCodeInternalError, "Failed to record deposit", map[string]interface{}{
 			"error": err.Error(),
 		}), nil
@@ -342,7 +342,7 @@ func (b *BankAccount) Withdraw(ctx context.Context, request WithdrawRequest) (*B
 		Timestamp:   time.Now(),
 	}
 	
-	if err := b.appendExternalEvent(ctx, AccountEventEventTypeMoneyWithdrawn, eventData); err != nil {
+	if err := b.appendEvent(ctx, AccountEventEventTypeMoneyWithdrawn, eventData); err != nil {
 		return b.errorResponse(ErrorCodeInternalError, "Failed to record withdrawal", map[string]interface{}{
 			"error": err.Error(),
 		}), nil
@@ -395,22 +395,22 @@ func (b *BankAccount) GetHistory(ctx context.Context) (*TransactionHistory, erro
 		return b.errorResponseHistory(ErrorCodeAccountNotFound, "Account does not exist - create account first", nil), nil
 	}
 	
-	// Get events for history from external event store (still need to read from storage for complete audit trail)
-	events, err := b.getAllExternalEvents(ctx)
+	// Get events for history from event store (still need to read from storage for complete audit trail)
+	events, err := b.getAllEvents(ctx)
 	if err != nil {
 		return b.errorResponseHistory(ErrorCodeInternalError, "Failed to retrieve transaction history", map[string]interface{}{
 			"error": err.Error(),
 		}), nil
 	}
 	
-	// Convert external events to API events
+	// Convert events to API events
 	var apiEvents []AccountEvent
 	for _, event := range events {
 		apiEvent := AccountEvent{
 			EventId:   event.ID,
 			EventType: AccountEventEventType(event.Type),
 			Timestamp: event.Timestamp.Format(time.RFC3339),
-			Data:      b.convertExternalEventDataToMap(event.Data),
+			Data:      b.convertEventDataToMap(event.Data),
 		}
 		apiEvents = append(apiEvents, apiEvent)
 	}
@@ -424,11 +424,11 @@ func (b *BankAccount) GetHistory(ctx context.Context) (*TransactionHistory, erro
 	}, nil
 }
 
-// External event store implementation details
+// Event store implementation details
 
-func (b *BankAccount) appendExternalEvent(ctx context.Context, eventType AccountEventEventType, eventData interface{}) error {
+func (b *BankAccount) appendEvent(ctx context.Context, eventType AccountEventEventType, eventData interface{}) error {
 	if b.eventStore == nil {
-		return fmt.Errorf("external event store not configured")
+		return fmt.Errorf("event store not configured")
 	}
 	
 	// Convert event data to JSON
@@ -437,7 +437,7 @@ func (b *BankAccount) appendExternalEvent(ctx context.Context, eventType Account
 		return fmt.Errorf("failed to marshal event data: %v", err)
 	}
 	
-	// Create event for external store
+	// Create event for store
 	event := eventstore.Event{
 		ID:        uuid.New().String(),
 		Type:      string(eventType),
@@ -449,19 +449,19 @@ func (b *BankAccount) appendExternalEvent(ctx context.Context, eventType Account
 		},
 	}
 	
-	// Append to external event store using stream ID based on actor ID
+	// Append to event store using stream ID based on actor ID
 	streamID := fmt.Sprintf("bankaccount-%s", b.ID())
 	return b.eventStore.Append(streamID, []eventstore.Event{event}, -1) // -1 = no version check
 }
 
-func (b *BankAccount) getAllExternalEvents(ctx context.Context) ([]eventstore.Event, error) {
+func (b *BankAccount) getAllEvents(ctx context.Context) ([]eventstore.Event, error) {
 	if b.eventStore == nil {
-		return nil, fmt.Errorf("external event store not configured")
+		return nil, fmt.Errorf("event store not configured")
 	}
 	
 	streamID := fmt.Sprintf("bankaccount-%s", b.ID())
 	
-	// Load all events from external event store
+	// Load all events from event store
 	events, err := b.eventStore.Load(streamID, eventstore.LoadOptions{
 		ExclusiveStartVersion: 0,
 		Limit: 0, // 0 = no limit
@@ -475,8 +475,8 @@ func (b *BankAccount) getAllExternalEvents(ctx context.Context) ([]eventstore.Ev
 	return events, nil
 }
 
-func (b *BankAccount) computeStateFromExternalEvents(ctx context.Context) (*BankAccountState, error) {
-	events, err := b.getAllExternalEvents(ctx)
+func (b *BankAccount) computeStateFromEvents(ctx context.Context) (*BankAccountState, error) {
+	events, err := b.getAllEvents(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -527,7 +527,7 @@ func (b *BankAccount) computeStateFromExternalEvents(ctx context.Context) (*Bank
 	return state, nil
 }
 
-func (b *BankAccount) convertExternalEventDataToMap(data []byte) map[string]interface{} {
+func (b *BankAccount) convertEventDataToMap(data []byte) map[string]interface{} {
 	var result map[string]interface{}
 	if err := json.Unmarshal(data, &result); err != nil {
 		return map[string]interface{}{"error": "failed to parse event data"}
