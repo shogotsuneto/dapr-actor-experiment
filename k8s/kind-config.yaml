@@ -30,6 +30,10 @@ nodes:
   - containerPort: 30000
     hostPort: 3000
     protocol: TCP
+  # PostgreSQL port (NodePort 30432)
+  - containerPort: 30432
+    hostPort: 5432
+    protocol: TCP
   # Dapr Dashboard port (NodePort 30090)
   - containerPort: 30090
     hostPort: 9080
