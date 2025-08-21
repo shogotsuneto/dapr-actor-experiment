@@ -14,6 +14,8 @@ import (
 	"github.com/shogotsuneto/dapr-actor-experiment/internal/auth"
 	"github.com/shogotsuneto/dapr-actor-experiment/internal/bankaccount"
 	"github.com/shogotsuneto/dapr-actor-experiment/internal/counter"
+	"github.com/shogotsuneto/dapr-actor-experiment/internal/wallet"
+	"github.com/shogotsuneto/go-simple-eventstore/memory"
 )
 
 // healthHandler provides a simple health check endpoint
@@ -30,11 +32,12 @@ func statusHandler(ctx context.Context, in *common.InvocationEvent) (out *common
 	response := map[string]interface{}{
 		"status":      "running",
 		"service":     "dapr-actor-demo",
-		"actor_types": []string{counter.ActorTypeCounter, bankaccount.ActorTypeBankAccount},
-		"description": "Multi-actor service demonstrating state-based and event-sourced patterns",
+		"actor_types": []string{counter.ActorTypeCounter, bankaccount.ActorTypeBankAccount, wallet.ActorTypeWallet},
+		"description": "Multi-actor service demonstrating state-based, event-sourced, and external event store patterns",
 		"patterns": map[string]string{
-			counter.ActorTypeCounter:     "State-based - stores current value only",
-			bankaccount.ActorTypeBankAccount: "Event-sourced - stores events and computes state",
+			counter.ActorTypeCounter:     "State-based - stores current value only (Dapr StateManager)",
+			bankaccount.ActorTypeBankAccount: "Event-sourced - stores events and computes state (Dapr StateManager)",
+			wallet.ActorTypeWallet:       "Event-sourced - stores events using external event store (go-simple-eventstore)",
 		},
 	}
 	
@@ -47,6 +50,12 @@ func statusHandler(ctx context.Context, in *common.InvocationEvent) (out *common
 }
 
 func main() {
+	// Initialize external event store for Wallet actors (singleton pattern demonstration)
+	log.Println("Initializing external event store (in-memory) for Wallet actors...")
+	externalEventStore := memory.NewInMemoryEventStore()
+	wallet.SetGlobalEventStore(externalEventStore)
+	log.Printf("External event store configured - Wallet actors will use go-simple-eventstore")
+	
 	// Create Chi router with middleware
 	r := chi.NewRouter()
 	
@@ -79,6 +88,10 @@ func main() {
 	log.Printf("Registering %s with event sourcing pattern", bankaccount.ActorTypeBankAccount)
 	s.RegisterActorImplFactoryContext(bankaccount.NewActorFactory())
 	
+	// Register Wallet using generated factory with external event store
+	log.Printf("Registering %s with external event store pattern", wallet.ActorTypeWallet)
+	s.RegisterActorImplFactoryContext(wallet.NewActorFactory())
+	
 	// Add health and status endpoints
 	s.AddServiceInvocationHandler("/health", healthHandler)
 	s.AddServiceInvocationHandler("/status", statusHandler)
@@ -87,8 +100,9 @@ func main() {
 	log.Printf("Authentication Configuration:")
 	log.Printf("  - Authentication: Enabled via Dapr Bearer middleware")
 	log.Printf("Actors registered:")
-	log.Printf("  - %s: State-based counter operations", counter.ActorTypeCounter)
-	log.Printf("  - %s: Event-sourced bank account with full audit trail", bankaccount.ActorTypeBankAccount)
+	log.Printf("  - %s: State-based counter operations (Dapr StateManager)", counter.ActorTypeCounter)
+	log.Printf("  - %s: Event-sourced bank account with full audit trail (Dapr StateManager)", bankaccount.ActorTypeBankAccount)
+	log.Printf("  - %s: Event-sourced wallet using external event store (go-simple-eventstore)", wallet.ActorTypeWallet)
 	
 	// Start the service
 	if err := s.Start(); err != nil && err != http.ErrServerClosed {

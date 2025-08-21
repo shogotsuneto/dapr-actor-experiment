@@ -39,6 +39,14 @@ echo "Running BankAccount Tests..."
 echo "=================================="
 bash "$SCRIPT_DIR/test-bank-account-actor.sh"
 
+# Run WalletActor tests  
+echo ""
+echo ""
+echo "=================================="
+echo "Running Wallet Tests..."
+echo "=================================="
+bash "$SCRIPT_DIR/test-wallet-actor.sh"
+
 # Summary
 echo ""
 echo ""
