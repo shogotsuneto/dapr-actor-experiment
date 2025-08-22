@@ -208,7 +208,7 @@ See [Integration Tests README](test/integration/README.md) for detailed document
 - **CounterActor**: State-based actor with persistent counter value using generated OpenAPI types
 - **BankAccountActor**: Event-sourced actor with transaction history and full audit trail
 - **Authentication Middleware**: Demonstrates user context extraction and ownership validation
-- **Operations**: CounterActor (`get`, `increment`, `decrement`, `set`), BankAccountActor (`createAccount`, `deposit`, `withdraw`, `getBalance`, `getHistory`)
+- **Operations**: CounterActor (`Get`, `Increment`, `Decrement`, `Set`), BankAccountActor (`CreateAccount`, `Deposit`, `Withdraw`, `GetBalance`, `GetHistory`)
 - **State Persistence**: Automatic state management via Dapr state store
 - **Event Sourcing**: BankAccountActor demonstrates event sourcing with complete transaction history
 - **Type Safety**: Schema-compliant implementation with compile-time validation for multiple actor types
@@ -241,17 +241,17 @@ echo "Generated token: $TOKEN"
 ```bash
 # Get current counter value
 curl -H "Authorization: Bearer $TOKEN" \
-  http://localhost:3500/v1.0/actors/Counter/counter-1/method/get
+  http://localhost:3500/v1.0/actors/Counter/counter-1/method/Get
 
 # Increment counter
 curl -X POST -H "Authorization: Bearer $TOKEN" \
-  http://localhost:3500/v1.0/actors/Counter/counter-1/method/increment
+  http://localhost:3500/v1.0/actors/Counter/counter-1/method/Increment
 
 # Set counter to specific value
 curl -X POST -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"value": 42}' \
-  http://localhost:3500/v1.0/actors/Counter/counter-1/method/set
+  http://localhost:3500/v1.0/actors/Counter/counter-1/method/Set
 ```
 
 #### Step 3: Test BankAccountActor with Ownership
@@ -269,21 +269,21 @@ ALICE_TOKEN=$(curl -s -X POST http://localhost:3000/generate-token \
 curl -X POST -H "Authorization: Bearer $ALICE_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"ownerName": "Alice Johnson", "initialDeposit": 1000.0}' \
-  http://localhost:3500/v1.0/actors/BankAccount/account-alice/method/createAccount
+  http://localhost:3500/v1.0/actors/BankAccount/account-alice/method/CreateAccount
 
 # Deposit money to Alice's account
 curl -X POST -H "Authorization: Bearer $ALICE_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"amount": 250.0, "description": "Salary deposit"}' \
-  http://localhost:3500/v1.0/actors/BankAccount/account-alice/method/deposit
+  http://localhost:3500/v1.0/actors/BankAccount/account-alice/method/Deposit
 
 # Get Alice's balance
 curl -H "Authorization: Bearer $ALICE_TOKEN" \
-  http://localhost:3500/v1.0/actors/BankAccount/account-alice/method/getBalance
+  http://localhost:3500/v1.0/actors/BankAccount/account-alice/method/GetBalance
 
 # Get Alice's transaction history
 curl -H "Authorization: Bearer $ALICE_TOKEN" \
-  http://localhost:3500/v1.0/actors/BankAccount/account-alice/method/getHistory
+  http://localhost:3500/v1.0/actors/BankAccount/account-alice/method/GetHistory
 ```
 
 #### Quick Testing (Single Command)
@@ -293,7 +293,7 @@ For quick testing, combine token generation and requests:
 ```bash
 # Test Counter with inline token
 curl -H "Authorization: Bearer $(curl -s -X POST http://localhost:3000/generate-token -H "Content-Type: application/json" -d '{"claims": {"sub": "user-123"}, "expiresIn": 3600}' | jq -r '.token')" \
-  http://localhost:3500/v1.0/actors/Counter/counter-1/method/get
+  http://localhost:3500/v1.0/actors/Counter/counter-1/method/Get
 ```
 
 ### Automated Testing
@@ -400,12 +400,12 @@ go run ./cmd/client
 
 ### CounterActor Methods
 
-| Method    | Description              | Request Body      | Response         |
-|-----------|--------------------------|-------------------|------------------|
-| `get`     | Get current value        | None              | `{"value": int}` |
-| `increment` | Increment by 1         | None              | `{"value": int}` |
-| `decrement` | Decrement by 1         | None              | `{"value": int}` |
-| `set`     | Set to specific value    | `{"value": int}`  | `{"value": int}` |
+| Method      | Description              | Request Body      | Response         |
+|-------------|--------------------------|-------------------|------------------|
+| `Get`       | Get current value        | None              | `{"value": int}` |
+| `Increment` | Increment by 1           | None              | `{"value": int}` |
+| `Decrement` | Decrement by 1           | None              | `{"value": int}` |
+| `Set`       | Set to specific value    | `{"value": int}`  | `{"value": int}` |
 
 ### Actor State
 
