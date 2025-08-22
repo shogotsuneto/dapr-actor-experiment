@@ -304,6 +304,9 @@ The project includes both shell script tests and comprehensive Go integration te
 Use the streamlined test scripts to quickly validate both actor types:
 
 ```bash
+# Quick demo (minimal output, fast validation)
+./scripts/quick-demo.sh
+
 # Test both state-based and event-sourced patterns
 ./scripts/test-multi-actors.sh
 
@@ -370,10 +373,8 @@ If you want to modify the code and test changes:
    docker compose up -d redis actor-service actor-service-dapr
    
    # Test your changes
-   ./scripts/test-multi-actors.sh  # Test all actors
-   # OR
-   ./scripts/test-counter-actor.sh      # Test CounterActor only
-   ./scripts/test-bank-account-actor.sh # Test BankAccountActor only
+   ./scripts/quick-demo.sh             # Quick validation
+   ./scripts/test-multi-actors.sh       # Comprehensive testing
    ```
 
 3. **View logs** for debugging:
