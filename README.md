@@ -220,69 +220,99 @@ See [Integration Tests README](test/integration/README.md) for detailed document
 
 ## Manual Testing
 
-### Using curl
+### Manual Testing with Authentication
 
-Once the server is running, you can test the actor directly:
+All actor endpoints require JWT authentication. Follow these steps for manual testing:
+
+#### Step 1: Generate JWT Token
+
+```bash
+# Generate a token for Counter operations
+TOKEN=$(curl -s -X POST http://localhost:3000/generate-token \
+  -H "Content-Type: application/json" \
+  -d '{"claims": {"sub": "user-123"}, "expiresIn": 3600}' | \
+  jq -r '.token')
+
+echo "Generated token: $TOKEN"
+```
+
+#### Step 2: Test CounterActor with Authentication
 
 ```bash
 # Get current counter value
-curl http://localhost:3500/v1.0/actors/CounterActor/counter-1/method/get
+curl -H "Authorization: Bearer $TOKEN" \
+  http://localhost:3500/v1.0/actors/Counter/counter-1/method/get
 
 # Increment counter
-curl -X POST http://localhost:3500/v1.0/actors/CounterActor/counter-1/method/increment
-
-# Decrement counter  
-curl -X POST http://localhost:3500/v1.0/actors/CounterActor/counter-1/method/decrement
+curl -X POST -H "Authorization: Bearer $TOKEN" \
+  http://localhost:3500/v1.0/actors/Counter/counter-1/method/increment
 
 # Set counter to specific value
-curl -X POST http://localhost:3500/v1.0/actors/CounterActor/counter-1/method/set \
+curl -X POST -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"value": 42}'
-
-# Test different actor instance
-curl http://localhost:3500/v1.0/actors/CounterActor/counter-2/method/get
+  -d '{"value": 42}' \
+  http://localhost:3500/v1.0/actors/Counter/counter-1/method/set
 ```
 
-### Testing BankAccountActor (Event-Sourced)
+#### Step 3: Test BankAccountActor with Ownership
+
+BankAccount actors enforce ownership - the actor ID must match the user ID in the JWT token:
 
 ```bash
-# Create bank account
-curl -X POST http://localhost:3500/v1.0/actors/BankAccountActor/account-123/method/createAccount \
+# Generate token for account owner (user ID matches actor ID)
+ALICE_TOKEN=$(curl -s -X POST http://localhost:3000/generate-token \
   -H "Content-Type: application/json" \
-  -d '{"ownerName": "John Doe", "initialDeposit": 1000.0}'
+  -d '{"claims": {"sub": "account-alice"}, "expiresIn": 3600}' | \
+  jq -r '.token')
 
-# Deposit money
-curl -X POST http://localhost:3500/v1.0/actors/BankAccountActor/account-123/method/deposit \
+# Create Alice's bank account (actor ID 'account-alice' matches token sub)
+curl -X POST -H "Authorization: Bearer $ALICE_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"amount": 250.0, "description": "Salary deposit"}'
+  -d '{"ownerName": "Alice Johnson", "initialDeposit": 1000.0}' \
+  http://localhost:3500/v1.0/actors/BankAccount/account-alice/method/createAccount
 
-# Withdraw money
-curl -X POST http://localhost:3500/v1.0/actors/BankAccountActor/account-123/method/withdraw \
+# Deposit money to Alice's account
+curl -X POST -H "Authorization: Bearer $ALICE_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"amount": 50.0, "description": "ATM withdrawal"}'
+  -d '{"amount": 250.0, "description": "Salary deposit"}' \
+  http://localhost:3500/v1.0/actors/BankAccount/account-alice/method/deposit
 
-# Get current balance
-curl http://localhost:3500/v1.0/actors/BankAccountActor/account-123/method/getBalance
+# Get Alice's balance
+curl -H "Authorization: Bearer $ALICE_TOKEN" \
+  http://localhost:3500/v1.0/actors/BankAccount/account-alice/method/getBalance
 
-# Get transaction history (shows event sourcing power!)
-curl http://localhost:3500/v1.0/actors/BankAccountActor/account-123/method/getHistory
+# Get Alice's transaction history
+curl -H "Authorization: Bearer $ALICE_TOKEN" \
+  http://localhost:3500/v1.0/actors/BankAccount/account-alice/method/getHistory
+```
+
+#### Quick Testing (Single Command)
+
+For quick testing, combine token generation and requests:
+
+```bash
+# Test Counter with inline token
+curl -H "Authorization: Bearer $(curl -s -X POST http://localhost:3000/generate-token -H "Content-Type: application/json" -d '{"claims": {"sub": "user-123"}, "expiresIn": 3600}' | jq -r '.token')" \
+  http://localhost:3500/v1.0/actors/Counter/counter-1/method/get
 ```
 
 ### Automated Testing
 
 The project includes both shell script tests and comprehensive Go integration tests:
 
-#### Shell Scripts (Legacy)
-Use the comprehensive test script to test both actor types:
+#### Shell Scripts (Quick Testing)
+Use the streamlined test scripts to quickly validate both actor types:
 
 ```bash
 # Test both state-based and event-sourced patterns
 ./scripts/test-multi-actors.sh
 
 # Or test individual actor types:
-# ./scripts/test-counter-actor.sh
-# ./scripts/test-bank-account-actor.sh
+./scripts/test-counter-actor.sh       # Counter only
+./scripts/test-bank-account-actor.sh  # BankAccount only
 ```
+
+These scripts automatically handle JWT authentication when available and provide concise output focused on demonstrating key functionality.
 
 #### Go Integration Tests (Recommended)
 Modern integration tests with better error handling and CI/CD integration:
