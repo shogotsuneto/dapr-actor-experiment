@@ -60,7 +60,7 @@ func testMultipleActorTypes(t *testing.T, client *DaprClient) {
 	ctx := context.Background()
 
 	// Test that both actor types can operate simultaneously
-	// This replicates the test-multi-actors.sh functionality
+	// This replicates the quick-demo.sh and individual test functionality
 
 	// Counter operations
 	counterActorID := fmt.Sprintf("multi-test-counter-%d", time.Now().UnixNano()%10000)
@@ -228,7 +228,7 @@ func testConcurrentActorOperations(t *testing.T, client *DaprClient) {
 	ctx := context.Background()
 
 	// Test concurrent operations on multiple instances of both actor types
-	// This simulates the comprehensive scenario from test-multi-actors.sh
+	// This simulates the comprehensive scenario from quick-demo.sh and individual test scripts
 
 	// Setup multiple counter actors with unique IDs
 	timestamp := time.Now().UnixNano() % 10000

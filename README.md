@@ -34,7 +34,7 @@ cd dapr-actor-experiment
 ./scripts/run-docker.sh
 
 # Test the service
-./scripts/test-multi-actors.sh
+./scripts/quick-demo.sh
 
 # Or test individual actor types:
 # ./scripts/test-counter-actor.sh
@@ -62,7 +62,7 @@ For a more production-like environment, you can also run the demo on local Kuber
 ./scripts/kind-deploy.sh
 
 # Test the application (smoke tests)
-./scripts/kind-test.sh
+./scripts/quick-demo.sh
 
 # Run comprehensive integration tests
 make test-integration-kind
@@ -99,7 +99,7 @@ docker compose up -d
 # Test with JWT authentication
 ./scripts/test-bank-account-actor.sh
 ./scripts/test-counter-actor.sh
-./scripts/test-multi-actors.sh
+./scripts/quick-demo.sh
 ```
 
 The Bearer middleware configuration:
@@ -116,7 +116,7 @@ You can also run Docker Compose commands directly:
 docker compose up -d
 
 # Test the service
-./scripts/test-multi-actors.sh
+./scripts/quick-demo.sh
 
 # Or test individual actor types:
 # ./scripts/test-counter-actor.sh
@@ -208,7 +208,7 @@ See [Integration Tests README](test/integration/README.md) for detailed document
 - **CounterActor**: State-based actor with persistent counter value using generated OpenAPI types
 - **BankAccountActor**: Event-sourced actor with transaction history and full audit trail
 - **Authentication Middleware**: Demonstrates user context extraction and ownership validation
-- **Operations**: CounterActor (`get`, `increment`, `decrement`, `set`), BankAccountActor (`createAccount`, `deposit`, `withdraw`, `getBalance`, `getHistory`)
+- **Operations**: CounterActor (`Get`, `Increment`, `Decrement`, `Set`), BankAccountActor (`CreateAccount`, `Deposit`, `Withdraw`, `GetBalance`, `GetHistory`)
 - **State Persistence**: Automatic state management via Dapr state store
 - **Event Sourcing**: BankAccountActor demonstrates event sourcing with complete transaction history
 - **Type Safety**: Schema-compliant implementation with compile-time validation for multiple actor types
@@ -220,69 +220,99 @@ See [Integration Tests README](test/integration/README.md) for detailed document
 
 ## Manual Testing
 
-### Using curl
+### Manual Testing with Authentication
 
-Once the server is running, you can test the actor directly:
+All actor endpoints require JWT authentication. Follow these steps for manual testing:
+
+#### Step 1: Generate JWT Token
+
+```bash
+# Generate a token for Counter operations
+TOKEN=$(curl -s -X POST http://localhost:3000/generate-token \
+  -H "Content-Type: application/json" \
+  -d '{"claims": {"sub": "user-123"}, "expiresIn": 3600}' | \
+  jq -r '.token')
+
+echo "Generated token: $TOKEN"
+```
+
+#### Step 2: Test CounterActor with Authentication
 
 ```bash
 # Get current counter value
-curl http://localhost:3500/v1.0/actors/CounterActor/counter-1/method/get
+curl -H "Authorization: Bearer $TOKEN" \
+  http://localhost:3500/v1.0/actors/Counter/counter-1/method/Get
 
 # Increment counter
-curl -X POST http://localhost:3500/v1.0/actors/CounterActor/counter-1/method/increment
-
-# Decrement counter  
-curl -X POST http://localhost:3500/v1.0/actors/CounterActor/counter-1/method/decrement
+curl -X POST -H "Authorization: Bearer $TOKEN" \
+  http://localhost:3500/v1.0/actors/Counter/counter-1/method/Increment
 
 # Set counter to specific value
-curl -X POST http://localhost:3500/v1.0/actors/CounterActor/counter-1/method/set \
+curl -X POST -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"value": 42}'
-
-# Test different actor instance
-curl http://localhost:3500/v1.0/actors/CounterActor/counter-2/method/get
+  -d '{"value": 42}' \
+  http://localhost:3500/v1.0/actors/Counter/counter-1/method/Set
 ```
 
-### Testing BankAccountActor (Event-Sourced)
+#### Step 3: Test BankAccountActor with Ownership
+
+BankAccount actors enforce ownership - the actor ID must match the user ID in the JWT token:
 
 ```bash
-# Create bank account
-curl -X POST http://localhost:3500/v1.0/actors/BankAccountActor/account-123/method/createAccount \
+# Generate token for account owner (user ID matches actor ID)
+ALICE_TOKEN=$(curl -s -X POST http://localhost:3000/generate-token \
   -H "Content-Type: application/json" \
-  -d '{"ownerName": "John Doe", "initialDeposit": 1000.0}'
+  -d '{"claims": {"sub": "account-alice"}, "expiresIn": 3600}' | \
+  jq -r '.token')
 
-# Deposit money
-curl -X POST http://localhost:3500/v1.0/actors/BankAccountActor/account-123/method/deposit \
+# Create Alice's bank account (actor ID 'account-alice' matches token sub)
+curl -X POST -H "Authorization: Bearer $ALICE_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"amount": 250.0, "description": "Salary deposit"}'
+  -d '{"ownerName": "Alice Johnson", "initialDeposit": 1000.0}' \
+  http://localhost:3500/v1.0/actors/BankAccount/account-alice/method/CreateAccount
 
-# Withdraw money
-curl -X POST http://localhost:3500/v1.0/actors/BankAccountActor/account-123/method/withdraw \
+# Deposit money to Alice's account
+curl -X POST -H "Authorization: Bearer $ALICE_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"amount": 50.0, "description": "ATM withdrawal"}'
+  -d '{"amount": 250.0, "description": "Salary deposit"}' \
+  http://localhost:3500/v1.0/actors/BankAccount/account-alice/method/Deposit
 
-# Get current balance
-curl http://localhost:3500/v1.0/actors/BankAccountActor/account-123/method/getBalance
+# Get Alice's balance
+curl -H "Authorization: Bearer $ALICE_TOKEN" \
+  http://localhost:3500/v1.0/actors/BankAccount/account-alice/method/GetBalance
 
-# Get transaction history (shows event sourcing power!)
-curl http://localhost:3500/v1.0/actors/BankAccountActor/account-123/method/getHistory
+# Get Alice's transaction history
+curl -H "Authorization: Bearer $ALICE_TOKEN" \
+  http://localhost:3500/v1.0/actors/BankAccount/account-alice/method/GetHistory
+```
+
+#### Quick Testing (Single Command)
+
+For quick testing, combine token generation and requests:
+
+```bash
+# Test Counter with inline token
+curl -H "Authorization: Bearer $(curl -s -X POST http://localhost:3000/generate-token -H "Content-Type: application/json" -d '{"claims": {"sub": "user-123"}, "expiresIn": 3600}' | jq -r '.token')" \
+  http://localhost:3500/v1.0/actors/Counter/counter-1/method/Get
 ```
 
 ### Automated Testing
 
 The project includes both shell script tests and comprehensive Go integration tests:
 
-#### Shell Scripts (Legacy)
-Use the comprehensive test script to test both actor types:
+#### Shell Scripts (Quick Testing)
+Use the streamlined test scripts to quickly validate both actor types:
 
 ```bash
-# Test both state-based and event-sourced patterns
-./scripts/test-multi-actors.sh
+# Quick demo (minimal output, fast validation)
+./scripts/quick-demo.sh
 
-# Or test individual actor types:
-# ./scripts/test-counter-actor.sh
-# ./scripts/test-bank-account-actor.sh
+# Or test individual actor types for comprehensive testing:
+./scripts/test-counter-actor.sh       # Counter only
+./scripts/test-bank-account-actor.sh  # BankAccount only
 ```
+
+These scripts automatically handle JWT authentication when available and provide concise output focused on demonstrating key functionality.
 
 #### Go Integration Tests (Recommended)
 Modern integration tests with better error handling and CI/CD integration:
@@ -340,10 +370,9 @@ If you want to modify the code and test changes:
    docker compose up -d redis actor-service actor-service-dapr
    
    # Test your changes
-   ./scripts/test-multi-actors.sh  # Test all actors
-   # OR
-   ./scripts/test-counter-actor.sh      # Test CounterActor only
-   ./scripts/test-bank-account-actor.sh # Test BankAccountActor only
+   ./scripts/quick-demo.sh             # Quick validation
+   ./scripts/test-counter-actor.sh     # Counter comprehensive testing
+   ./scripts/test-bank-account-actor.sh # BankAccount comprehensive testing
    ```
 
 3. **View logs** for debugging:
@@ -371,12 +400,12 @@ go run ./cmd/client
 
 ### CounterActor Methods
 
-| Method    | Description              | Request Body      | Response         |
-|-----------|--------------------------|-------------------|------------------|
-| `get`     | Get current value        | None              | `{"value": int}` |
-| `increment` | Increment by 1         | None              | `{"value": int}` |
-| `decrement` | Decrement by 1         | None              | `{"value": int}` |
-| `set`     | Set to specific value    | `{"value": int}`  | `{"value": int}` |
+| Method      | Description              | Request Body      | Response         |
+|-------------|--------------------------|-------------------|------------------|
+| `Get`       | Get current value        | None              | `{"value": int}` |
+| `Increment` | Increment by 1           | None              | `{"value": int}` |
+| `Decrement` | Decrement by 1           | None              | `{"value": int}` |
+| `Set`       | Set to specific value    | `{"value": int}`  | `{"value": int}` |
 
 ### Actor State
 

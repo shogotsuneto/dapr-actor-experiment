@@ -31,7 +31,7 @@ Always reference these instructions first and fallback to search or bash command
 
 ### Manual Testing Commands
 ALWAYS run comprehensive test scripts after making changes:
-- **Test All Actors**: `./scripts/test-multi-actors.sh` - takes 1 second. Tests both CounterActor and BankAccountActor.
+- **Test All Actors**: `./scripts/quick-demo.sh` - takes 1 second. Quick validation of both CounterActor and BankAccountActor.
 - **Test Counter Only**: `./scripts/test-counter-actor.sh` - tests state-based actor pattern
 - **Test BankAccount Only**: `./scripts/test-bank-account-actor.sh` - tests event-sourced actor pattern
 
@@ -44,7 +44,7 @@ ALWAYS run these commands after making changes:
 1. `make build` - ensure code compiles
 2. `make test-unit` - run unit tests
 3. `docker compose up -d --build` - deploy services (WAIT for completion)
-4. `./scripts/test-multi-actors.sh` - exercise full functionality
+4. `./scripts/quick-demo.sh` - exercise basic functionality
 5. `make test-integration` - run comprehensive integration tests
 6. `docker compose down` - clean up
 
@@ -68,7 +68,7 @@ ALWAYS run these commands after making changes:
 - **docker-compose.yml**: Main service orchestration
 - **test/integration/docker-compose.test.yml**: Dedicated test environment
 - **schemas/openapi/multi-actors.yaml**: API specification for code generation
-- **scripts/test-multi-actors.sh**: Comprehensive test script
+- **scripts/quick-demo.sh**: Quick validation script
 
 ### Environment Requirements
 - **Docker**: Required for all deployment and testing
@@ -114,7 +114,7 @@ The repository includes comprehensive documentation:
 For production-like environments:
 - **Setup Kind Cluster**: `./scripts/kind-setup.sh` - takes 60 seconds. NEVER CANCEL. Set timeout 120+ seconds.
 - **Deploy to Kind**: `./scripts/kind-deploy.sh` - takes 30 seconds. NEVER CANCEL. Set timeout 90+ seconds.
-- **Test on Kind**: `./scripts/kind-test.sh` - smoke tests
+- **Test on Kind**: `./scripts/quick-demo.sh` - smoke tests
 - **Integration Tests on Kind**: `make test-integration-kind` - comprehensive tests
 - **Cleanup Kind**: `./scripts/kind-cleanup.sh`
 

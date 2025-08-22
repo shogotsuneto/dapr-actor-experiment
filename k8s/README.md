@@ -22,7 +22,7 @@ This directory contains Kubernetes manifests for deploying the Dapr Actor Experi
 ./scripts/kind-deploy.sh
 
 # Test deployment
-./scripts/kind-test.sh
+./scripts/quick-demo.sh
 
 # Cleanup
 ./scripts/kind-cleanup.sh

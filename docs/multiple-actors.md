@@ -184,10 +184,10 @@ go test ./internal/counteractor
 go test ./internal/bankaccountactor
 ```
 
-Or use the comprehensive test script:
+Or use the comprehensive test scripts:
 ```bash
-# Test all actors
-./scripts/test-multi-actors.sh
+# Quick demo
+./scripts/quick-demo.sh
 
 # Or test individual actor types:
 ./scripts/test-counter-actor.sh      # CounterActor only  
