@@ -76,9 +76,9 @@ echo "Testing CounterActor..."
 echo "Testing BankAccountActor..."
 "${PROJECT_ROOT}/scripts/test-bank-account-actor.sh"
 
-# Test multi-actor scenarios
-echo "Testing multi-actor scenarios..."
-"${PROJECT_ROOT}/scripts/test-multi-actors.sh"
+# Test quick demo
+echo "Testing quick demo..."
+"${PROJECT_ROOT}/scripts/quick-demo.sh"
 
 echo "✅ All Kubernetes tests passed!"
 echo ""

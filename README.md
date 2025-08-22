@@ -34,7 +34,7 @@ cd dapr-actor-experiment
 ./scripts/run-docker.sh
 
 # Test the service
-./scripts/test-multi-actors.sh
+./scripts/quick-demo.sh
 
 # Or test individual actor types:
 # ./scripts/test-counter-actor.sh
@@ -99,7 +99,7 @@ docker compose up -d
 # Test with JWT authentication
 ./scripts/test-bank-account-actor.sh
 ./scripts/test-counter-actor.sh
-./scripts/test-multi-actors.sh
+./scripts/quick-demo.sh
 ```
 
 The Bearer middleware configuration:
@@ -116,7 +116,7 @@ You can also run Docker Compose commands directly:
 docker compose up -d
 
 # Test the service
-./scripts/test-multi-actors.sh
+./scripts/quick-demo.sh
 
 # Or test individual actor types:
 # ./scripts/test-counter-actor.sh
@@ -307,10 +307,7 @@ Use the streamlined test scripts to quickly validate both actor types:
 # Quick demo (minimal output, fast validation)
 ./scripts/quick-demo.sh
 
-# Test both state-based and event-sourced patterns
-./scripts/test-multi-actors.sh
-
-# Or test individual actor types:
+# Or test individual actor types for comprehensive testing:
 ./scripts/test-counter-actor.sh       # Counter only
 ./scripts/test-bank-account-actor.sh  # BankAccount only
 ```
@@ -374,7 +371,8 @@ If you want to modify the code and test changes:
    
    # Test your changes
    ./scripts/quick-demo.sh             # Quick validation
-   ./scripts/test-multi-actors.sh       # Comprehensive testing
+   ./scripts/test-counter-actor.sh     # Counter comprehensive testing
+   ./scripts/test-bank-account-actor.sh # BankAccount comprehensive testing
    ```
 
 3. **View logs** for debugging:

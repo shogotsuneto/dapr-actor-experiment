@@ -58,7 +58,6 @@ echo "Current balance: $BALANCE"
 
 echo ""
 echo "✅ Quick demo completed!"
-echo "   Run the full test scripts for comprehensive examples:"
+echo "   Run the individual test scripts for comprehensive examples:"
 echo "   • ./scripts/test-counter-actor.sh"
 echo "   • ./scripts/test-bank-account-actor.sh"
-echo "   • ./scripts/test-multi-actors.sh"
