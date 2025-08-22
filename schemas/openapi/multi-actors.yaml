@@ -182,21 +182,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/BankAccountState'
 
-  /BankAccount/{actorId}/method/GetHistory:
-    get:
-      summary: Get transaction history
-      description: |
-        Gets complete transaction history for the account.
-        Shows the power of event sourcing - full audit trail.
-      parameters:
-        - $ref: '#/components/parameters/ActorId'
-      responses:
-        '200':
-          description: Transaction history
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/TransactionHistory'
+
 
 components:
   parameters:
@@ -410,68 +396,3 @@ components:
           example: "ATM withdrawal"
       additionalProperties: false
 
-    TransactionHistory:
-      type: object
-      description: Complete transaction history (event sourcing benefit)
-      required:
-        - success
-      properties:
-        success:
-          type: boolean
-          description: Whether the operation was successful
-          example: true
-        data:
-          $ref: '#/components/schemas/TransactionHistoryData'
-        error:
-          $ref: '#/components/schemas/Error'
-      additionalProperties: false
-
-    TransactionHistoryData:
-      type: object
-      description: Transaction history data (only present if success=true)
-      required:
-        - accountId
-        - events
-      properties:
-        accountId:
-          type: string
-          description: Account identifier
-          example: "account-123"
-        events:
-          type: array
-          description: List of all events in chronological order
-          items:
-            $ref: '#/components/schemas/AccountEvent'
-      additionalProperties: false
-
-    AccountEvent:
-      type: object
-      description: A single account event
-      required:
-        - eventId
-        - eventType
-        - timestamp
-        - data
-      properties:
-        eventId:
-          type: string
-          description: Unique event identifier
-          example: "evt-001"
-        eventType:
-          type: string
-          description: Type of event
-          enum: ["AccountCreated", "MoneyDeposited", "MoneyWithdrawn"]
-          example: "MoneyDeposited"
-        timestamp:
-          type: string
-          format: date-time
-          description: When the event occurred
-          example: "2024-01-15T10:30:00Z"
-        data:
-          type: object
-          description: Event-specific data
-          additionalProperties: true
-          example:
-            amount: 250.00
-            description: "Salary deposit"
-      additionalProperties: false

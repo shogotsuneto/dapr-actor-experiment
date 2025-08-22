@@ -1,7 +1,6 @@
 // Package bankaccount provides primitives for OpenAPI-based schema validation.
 //
-// WARNING: This file will be overwritten by code generation. 
-// Developers should restore the implementation after regeneration.
+// Code generated from OpenAPI specification. DO NOT EDIT manually.
 package bankaccount
 
 import (

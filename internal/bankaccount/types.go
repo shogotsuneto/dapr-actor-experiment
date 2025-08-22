@@ -4,18 +4,6 @@
 package bankaccount
 
 
-// AccountEvent A single account event
-type AccountEvent struct {
-	// Event-specific data
-	Data map[string]interface{} `json:"data"`
-	// Unique event identifier
-	EventId string `json:"eventId"`
-	// Type of event
-	EventType AccountEventEventType `json:"eventType"`
-	// When the event occurred
-	Timestamp string `json:"timestamp"`
-}
-
 // BankAccountState Current state of bank account (computed from events)
 type BankAccountState struct {
 	// Account data (only present if success=true)
@@ -68,24 +56,6 @@ type Error struct {
 	Message string `json:"message"`
 }
 
-// TransactionHistory Complete transaction history (event sourcing benefit)
-type TransactionHistory struct {
-	// Transaction history data (only present if success=true)
-	Data *TransactionHistoryData `json:"data,omitempty"`
-	// Error information returned within 200 responses
-	Error *Error `json:"error,omitempty"`
-	// Whether the operation was successful
-	Success bool `json:"success"`
-}
-
-// TransactionHistoryData Transaction history data (only present if success=true)
-type TransactionHistoryData struct {
-	// Account identifier
-	AccountId string `json:"accountId"`
-	// List of all events in chronological order
-	Events []AccountEvent `json:"events"`
-}
-
 // WithdrawRequest Request to withdraw money
 type WithdrawRequest struct {
 	// Amount to withdraw
@@ -97,16 +67,6 @@ type WithdrawRequest struct {
 
 
 
-
-// AccountEventEventType defines valid values for AccountEvent.eventType
-type AccountEventEventType string
-
-// AccountEventEventType constants
-const (
-	AccountEventEventTypeAccountCreated AccountEventEventType = "AccountCreated"
-	AccountEventEventTypeMoneyDeposited AccountEventEventType = "MoneyDeposited"
-	AccountEventEventTypeMoneyWithdrawn AccountEventEventType = "MoneyWithdrawn"
-)
 
 // ErrorCode defines valid values for Error.code
 type ErrorCode string

@@ -13,6 +13,15 @@ import (
 	"github.com/shogotsuneto/go-simple-eventstore"
 )
 
+// Internal event type constants (not exposed in API)
+type AccountEventEventType string
+
+const (
+	AccountEventEventTypeAccountCreated AccountEventEventType = "AccountCreated"
+	AccountEventEventTypeMoneyDeposited AccountEventEventType = "MoneyDeposited"
+	AccountEventEventTypeMoneyWithdrawn AccountEventEventType = "MoneyWithdrawn"
+)
+
 // BankAccount demonstrates event sourcing pattern with external postgres event store.
 // This actor stores events using go-simple-eventstore/postgres for durability and audit trail,
 // while maintaining fast access through ephemeral in-memory state cache as long as the actor is activated.
@@ -72,13 +81,7 @@ func NewBankAccount(eventStore eventstore.EventStore) *BankAccount {
 	}
 }
 
-// StoredEvent represents an event as stored in the event store
-type StoredEvent struct {
-	EventID   string                    `json:"eventId"`
-	EventType AccountEventEventType     `json:"eventType"`
-	Timestamp time.Time                 `json:"timestamp"`
-	Data      interface{}               `json:"data"`
-}
+
 
 func (b *BankAccount) Type() string {
 	return ActorTypeBankAccount
@@ -172,17 +175,7 @@ func (b *BankAccount) errorResponse(code ErrorCode, message string, details map[
 	}
 }
 
-func (b *BankAccount) errorResponseHistory(code ErrorCode, message string, details map[string]interface{}) *TransactionHistory {
-	return &TransactionHistory{
-		Success: false,
-		Error: &Error{
-			Code:    code,
-			Message: message,
-			Details: details,
-		},
-		// Don't set Data field - omitempty will exclude it from JSON
-	}
-}
+
 
 func (b *BankAccount) CreateAccount(ctx context.Context, request CreateAccountRequest) (*BankAccountState, error) {
 	// Check ownership and get user ID
@@ -372,52 +365,7 @@ func (b *BankAccount) GetBalance(ctx context.Context) (*BankAccountState, error)
 	return b.successResponse(), nil
 }
 
-func (b *BankAccount) GetHistory(ctx context.Context) (*TransactionHistory, error) {
-	// Ensure state is loaded first so checkOwnership can validate
-	if err := b.ensureStateLoaded(ctx); err != nil {
-		return b.errorResponseHistory(ErrorCodeInternalError, "Failed to load account state", map[string]interface{}{
-			"error": err.Error(),
-		}), nil
-	}
-	
-	// Check ownership
-	_, err := b.checkOwnership(ctx)
-	if err != nil {
-		return b.errorResponseHistory(ErrorCodeAuthorizationError, err.Error(), nil), nil
-	}
-	
-	if !b.accountExists {
-		return b.errorResponseHistory(ErrorCodeAccountNotFound, "Account does not exist - create account first", nil), nil
-	}
-	
-	// Get events for history from event store (still need to read from storage for complete audit trail)
-	events, err := b.getAllEvents(ctx)
-	if err != nil {
-		return b.errorResponseHistory(ErrorCodeInternalError, "Failed to retrieve transaction history", map[string]interface{}{
-			"error": err.Error(),
-		}), nil
-	}
-	
-	// Convert events to API events
-	var apiEvents []AccountEvent
-	for _, event := range events {
-		apiEvent := AccountEvent{
-			EventId:   event.ID,
-			EventType: AccountEventEventType(event.Type),
-			Timestamp: event.Timestamp.Format(time.RFC3339),
-			Data:      b.convertEventDataToMap(event.Data),
-		}
-		apiEvents = append(apiEvents, apiEvent)
-	}
-	
-	return &TransactionHistory{
-		Success: true,
-		Data: &TransactionHistoryData{
-			AccountId: b.ID(),
-			Events:    apiEvents,
-		},
-	}, nil
-}
+
 
 // Event store implementation details
 
@@ -477,6 +425,41 @@ func (b *BankAccount) getAllEvents(ctx context.Context) ([]eventstore.Event, err
 	return events, nil
 }
 
+// applyEventToState applies a single event to the state in a centralized manner.
+// This provides unified event handling and reduces code duplication.
+func (b *BankAccount) applyEventToState(state *BankAccountStateData, event eventstore.Event) error {
+	switch AccountEventEventType(event.Type) {
+	case AccountEventEventTypeAccountCreated:
+		var data AccountCreatedEventData
+		if err := json.Unmarshal(event.Data, &data); err != nil {
+			return fmt.Errorf("failed to parse AccountCreated event: %v", err)
+		}
+		state.OwnerName = data.OwnerName
+		state.OwnerId = data.OwnerId
+		state.Balance = data.InitialDeposit
+		state.CreatedAt = data.CreatedAt.Format(time.RFC3339)
+		
+	case AccountEventEventTypeMoneyDeposited:
+		var data MoneyDepositedEventData
+		if err := json.Unmarshal(event.Data, &data); err != nil {
+			return fmt.Errorf("failed to parse MoneyDeposited event: %v", err)
+		}
+		state.Balance += data.Amount
+		
+	case AccountEventEventTypeMoneyWithdrawn:
+		var data MoneyWithdrawnEventData
+		if err := json.Unmarshal(event.Data, &data); err != nil {
+			return fmt.Errorf("failed to parse MoneyWithdrawn event: %v", err)
+		}
+		state.Balance -= data.Amount
+		
+	default:
+		return fmt.Errorf("unknown event type: %s", event.Type)
+	}
+	
+	return nil
+}
+
 func (b *BankAccount) computeStateFromEvents(ctx context.Context) (*BankAccountState, error) {
 	events, err := b.getAllEvents(ctx)
 	if err != nil {
@@ -498,32 +481,10 @@ func (b *BankAccount) computeStateFromEvents(ctx context.Context) (*BankAccountS
 		},
 	}
 	
-	// Replay events to compute current state and track version
+	// Apply all events in sequence using centralized event application logic
 	for _, event := range events {
-		switch event.Type {
-		case string(AccountEventEventTypeAccountCreated):
-			var data AccountCreatedEventData
-			if err := json.Unmarshal(event.Data, &data); err != nil {
-				return nil, fmt.Errorf("failed to parse AccountCreated event: %v", err)
-			}
-			state.Data.OwnerName = data.OwnerName
-			state.Data.OwnerId = data.OwnerId
-			state.Data.Balance = data.InitialDeposit
-			state.Data.CreatedAt = data.CreatedAt.Format(time.RFC3339)
-			
-		case string(AccountEventEventTypeMoneyDeposited):
-			var data MoneyDepositedEventData
-			if err := json.Unmarshal(event.Data, &data); err != nil {
-				return nil, fmt.Errorf("failed to parse MoneyDeposited event: %v", err)
-			}
-			state.Data.Balance += data.Amount
-			
-		case string(AccountEventEventTypeMoneyWithdrawn):
-			var data MoneyWithdrawnEventData
-			if err := json.Unmarshal(event.Data, &data); err != nil {
-				return nil, fmt.Errorf("failed to parse MoneyWithdrawn event: %v", err)
-			}
-			state.Data.Balance -= data.Amount
+		if err := b.applyEventToState(state.Data, event); err != nil {
+			return nil, fmt.Errorf("failed to apply event %s: %v", event.ID, err)
 		}
 	}
 	
@@ -537,11 +498,5 @@ func (b *BankAccount) computeStateFromEvents(ctx context.Context) (*BankAccountS
 	return state, nil
 }
 
-func (b *BankAccount) convertEventDataToMap(data []byte) map[string]interface{} {
-	var result map[string]interface{}
-	if err := json.Unmarshal(data, &result); err != nil {
-		return map[string]interface{}{"error": "failed to parse event data"}
-	}
-	return result
-}
+
 
