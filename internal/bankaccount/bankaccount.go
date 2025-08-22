@@ -220,23 +220,27 @@ func (b *BankAccount) CreateAccount(ctx context.Context, request CreateAccountRe
 	// Initialize stream version for new account
 	b.streamVersion = 0
 	
-	if err := b.appendEvent(ctx, AccountEventEventTypeAccountCreated, eventData); err != nil {
+	event, err := b.appendEvent(ctx, AccountEventEventTypeAccountCreated, eventData)
+	if err != nil {
 		return b.errorResponse(ErrorCodeInternalError, "Failed to create account", map[string]interface{}{
 			"error": err.Error(),
 		}), nil
 	}
 	
-	// Update in-memory state for fast access
+	// Initialize state and apply the event using centralized logic
 	b.state = &BankAccountState{
 		Success: true,
 		Data: &BankAccountStateData{
 			AccountId: b.ID(),
-			OwnerName: request.OwnerName,
-			OwnerId:   userID,
-			Balance:   request.InitialDeposit,
+			Balance:   0,
 			IsActive:  true,
-			CreatedAt: eventData.CreatedAt.Format(time.RFC3339),
 		},
+	}
+	
+	if err := b.applyEventToState(b.state.Data, *event, true); err != nil {
+		return b.errorResponse(ErrorCodeInternalError, "Failed to apply state change", map[string]interface{}{
+			"error": err.Error(),
+		}), nil
 	}
 	b.accountExists = true
 	
@@ -277,19 +281,15 @@ func (b *BankAccount) Deposit(ctx context.Context, request DepositRequest) (*Ban
 		Timestamp:   time.Now(),
 	}
 	
-	if err := b.appendEvent(ctx, AccountEventEventTypeMoneyDeposited, eventData); err != nil {
+	event, err := b.appendEvent(ctx, AccountEventEventTypeMoneyDeposited, eventData)
+	if err != nil {
 		return b.errorResponse(ErrorCodeInternalError, "Failed to record deposit", map[string]interface{}{
 			"error": err.Error(),
 		}), nil
 	}
 	
 	// Update in-memory state using centralized event application
-	dataBytes, _ := json.Marshal(eventData)
-	event := eventstore.Event{
-		Type: string(AccountEventEventTypeMoneyDeposited),
-		Data: dataBytes,
-	}
-	if err := b.applyEventToState(b.state.Data, event); err != nil {
+	if err := b.applyEventToState(b.state.Data, *event, true); err != nil {
 		return b.errorResponse(ErrorCodeInternalError, "Failed to apply state change", map[string]interface{}{
 			"error": err.Error(),
 		}), nil
@@ -339,19 +339,15 @@ func (b *BankAccount) Withdraw(ctx context.Context, request WithdrawRequest) (*B
 		Timestamp:   time.Now(),
 	}
 	
-	if err := b.appendEvent(ctx, AccountEventEventTypeMoneyWithdrawn, eventData); err != nil {
+	event, err := b.appendEvent(ctx, AccountEventEventTypeMoneyWithdrawn, eventData)
+	if err != nil {
 		return b.errorResponse(ErrorCodeInternalError, "Failed to record withdrawal", map[string]interface{}{
 			"error": err.Error(),
 		}), nil
 	}
 	
 	// Update in-memory state using centralized event application
-	dataBytes, _ := json.Marshal(eventData)
-	event := eventstore.Event{
-		Type: string(AccountEventEventTypeMoneyWithdrawn),
-		Data: dataBytes,
-	}
-	if err := b.applyEventToState(b.state.Data, event); err != nil {
+	if err := b.applyEventToState(b.state.Data, *event, true); err != nil {
 		return b.errorResponse(ErrorCodeInternalError, "Failed to apply state change", map[string]interface{}{
 			"error": err.Error(),
 		}), nil
@@ -387,15 +383,15 @@ func (b *BankAccount) GetBalance(ctx context.Context) (*BankAccountState, error)
 
 // Event store implementation details
 
-func (b *BankAccount) appendEvent(ctx context.Context, eventType AccountEventEventType, eventData interface{}) error {
+func (b *BankAccount) appendEvent(ctx context.Context, eventType AccountEventEventType, eventData interface{}) (*eventstore.Event, error) {
 	if b.eventStore == nil {
-		return fmt.Errorf("event store not configured")
+		return nil, fmt.Errorf("event store not configured")
 	}
 	
 	// Convert event data to JSON
 	dataBytes, err := json.Marshal(eventData)
 	if err != nil {
-		return fmt.Errorf("failed to marshal event data: %v", err)
+		return nil, fmt.Errorf("failed to marshal event data: %v", err)
 	}
 	
 	// Create event for store
@@ -414,12 +410,11 @@ func (b *BankAccount) appendEvent(ctx context.Context, eventType AccountEventEve
 	streamID := fmt.Sprintf("bankaccount-%s", b.ID())
 	err = b.eventStore.Append(streamID, []eventstore.Event{event}, b.streamVersion)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	
-	// Increment stream version after successful append
-	b.streamVersion++
-	return nil
+	// Stream version will be managed in applyEventToState when the event is applied
+	return &event, nil
 }
 
 func (b *BankAccount) getAllEvents(ctx context.Context) ([]eventstore.Event, error) {
@@ -445,7 +440,8 @@ func (b *BankAccount) getAllEvents(ctx context.Context) ([]eventstore.Event, err
 
 // applyEventToState applies a single event to the state in a centralized manner.
 // This provides unified event handling and reduces code duplication.
-func (b *BankAccount) applyEventToState(state *BankAccountStateData, event eventstore.Event) error {
+// The updateVersion parameter controls whether to update the stream version.
+func (b *BankAccount) applyEventToState(state *BankAccountStateData, event eventstore.Event, updateVersion bool) error {
 	switch AccountEventEventType(event.Type) {
 	case AccountEventEventTypeAccountCreated:
 		var data AccountCreatedEventData
@@ -475,6 +471,16 @@ func (b *BankAccount) applyEventToState(state *BankAccountStateData, event event
 		return fmt.Errorf("unknown event type: %s", event.Type)
 	}
 	
+	// Update stream version if requested and event has a version
+	if updateVersion {
+		if event.Version > 0 {
+			b.streamVersion = int(event.Version)
+		} else {
+			// For new events without a version, increment the current version
+			b.streamVersion++
+		}
+	}
+	
 	return nil
 }
 
@@ -501,7 +507,7 @@ func (b *BankAccount) computeStateFromEvents(ctx context.Context) (*BankAccountS
 	
 	// Apply all events in sequence using centralized event application logic
 	for _, event := range events {
-		if err := b.applyEventToState(state.Data, event); err != nil {
+		if err := b.applyEventToState(state.Data, event, false); err != nil {
 			return nil, fmt.Errorf("failed to apply event %s: %v", event.ID, err)
 		}
 	}
