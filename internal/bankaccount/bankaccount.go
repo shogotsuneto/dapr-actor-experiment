@@ -283,8 +283,17 @@ func (b *BankAccount) Deposit(ctx context.Context, request DepositRequest) (*Ban
 		}), nil
 	}
 	
-	// Update in-memory state for fast access
-	b.state.Data.Balance += request.Amount
+	// Update in-memory state using centralized event application
+	dataBytes, _ := json.Marshal(eventData)
+	event := eventstore.Event{
+		Type: string(AccountEventEventTypeMoneyDeposited),
+		Data: dataBytes,
+	}
+	if err := b.applyEventToState(b.state.Data, event); err != nil {
+		return b.errorResponse(ErrorCodeInternalError, "Failed to apply state change", map[string]interface{}{
+			"error": err.Error(),
+		}), nil
+	}
 	
 	return b.successResponse(), nil
 }
@@ -336,8 +345,17 @@ func (b *BankAccount) Withdraw(ctx context.Context, request WithdrawRequest) (*B
 		}), nil
 	}
 	
-	// Update in-memory state for fast access
-	b.state.Data.Balance -= request.Amount
+	// Update in-memory state using centralized event application
+	dataBytes, _ := json.Marshal(eventData)
+	event := eventstore.Event{
+		Type: string(AccountEventEventTypeMoneyWithdrawn),
+		Data: dataBytes,
+	}
+	if err := b.applyEventToState(b.state.Data, event); err != nil {
+		return b.errorResponse(ErrorCodeInternalError, "Failed to apply state change", map[string]interface{}{
+			"error": err.Error(),
+		}), nil
+	}
 	
 	return b.successResponse(), nil
 }
