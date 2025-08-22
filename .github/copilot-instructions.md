@@ -114,7 +114,7 @@ The repository includes comprehensive documentation:
 For production-like environments:
 - **Setup Kind Cluster**: `./scripts/kind-setup.sh` - takes 60 seconds. NEVER CANCEL. Set timeout 120+ seconds.
 - **Deploy to Kind**: `./scripts/kind-deploy.sh` - takes 30 seconds. NEVER CANCEL. Set timeout 90+ seconds.
-- **Test on Kind**: `./scripts/kind-test.sh` - smoke tests
+- **Test on Kind**: `./scripts/quick-demo.sh` - smoke tests
 - **Integration Tests on Kind**: `make test-integration-kind` - comprehensive tests
 - **Cleanup Kind**: `./scripts/kind-cleanup.sh`
 

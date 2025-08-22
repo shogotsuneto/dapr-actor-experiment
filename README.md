@@ -62,7 +62,7 @@ For a more production-like environment, you can also run the demo on local Kuber
 ./scripts/kind-deploy.sh
 
 # Test the application (smoke tests)
-./scripts/kind-test.sh
+./scripts/quick-demo.sh
 
 # Run comprehensive integration tests
 make test-integration-kind

@@ -31,7 +31,7 @@ Ensure you have the following tools installed:
 **Smoke Tests** (simplified validation):
 ```bash
 # Run basic API validation tests
-./scripts/kind-test.sh
+./scripts/quick-demo.sh
 ```
 
 **Integration Tests** (comprehensive validation):
