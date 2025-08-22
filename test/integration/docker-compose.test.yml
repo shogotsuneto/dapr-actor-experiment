@@ -29,6 +29,23 @@ services:
       timeout: 3s
       retries: 10
 
+  # PostgreSQL for external event store
+  postgres:
+    image: postgres:15-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=eventstore
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   # Redis for state store
   redis:
     image: redis:7-alpine
@@ -60,6 +77,8 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+      postgres:
+        condition: service_healthy
       placement:
         condition: service_started
 
@@ -89,6 +108,8 @@ services:
         condition: service_started
       redis:
         condition: service_healthy
+      postgres:
+        condition: service_healthy
       placement:
         condition: service_started
 
@@ -111,8 +132,13 @@ services:
         condition: service_started
       redis:
         condition: service_healthy
+      postgres:
+        condition: service_healthy
     profiles:
       - test-runner
+
+volumes:
+  postgres_data:
 
 networks:
   default:
