@@ -408,16 +408,14 @@ func (b *BankAccount) appendEvent(ctx context.Context, eventType AccountEventEve
 	
 	// Append to event store using stream ID based on actor ID with version check
 	streamID := fmt.Sprintf("bankaccount-%s", b.ID())
-	latestVersion, err := b.eventStore.Append(streamID, []eventstore.Event{event}, int(b.streamVersion))
+	events := []eventstore.Event{event}
+	_, err = b.eventStore.Append(streamID, events, int(b.streamVersion))
 	if err != nil {
 		return nil, err
 	}
 	
-	// Set the version on the event object from the eventstore
-	event.Version = latestVersion
-	
 	// The event now has its version set by the event store
-	return &event, nil
+	return &events[0], nil
 }
 
 func (b *BankAccount) getAllEvents(ctx context.Context) ([]eventstore.Event, error) {
