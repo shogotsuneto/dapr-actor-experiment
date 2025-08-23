@@ -26,12 +26,7 @@ func assertBankAccountSuccessWithOwner(t *testing.T, state bankaccount.BankAccou
 	assert.Equal(t, expectedOwner, state.Data.OwnerName, "Owner name should match")
 }
 
-func assertTransactionHistorySuccess(t *testing.T, history bankaccount.TransactionHistory, minEvents int, message string) {
-	require.True(t, history.Success, "TransactionHistory operation should succeed: %s", message)
-	require.NotNil(t, history.Data, "TransactionHistory data should not be nil when success=true")
-	assert.GreaterOrEqual(t, len(history.Data.Events), minEvents, message)
-	return
-}
+
 
 func TestBankAccount(t *testing.T) {
 	if testing.Short() {
@@ -293,37 +288,6 @@ func testBankAccountEventSourcing(t *testing.T, client *DaprClient) {
 		}
 		require.NoError(t, err)
 	}
-
-	// Get transaction history to verify event sourcing
-	var history bankaccount.TransactionHistory
-	_, err = client.InvokeActorMethodWithJWT(ctx, ActorMethodRequest{
-		ActorType: "BankAccount",
-		ActorID:   actorID,
-		Method:    "GetHistory",
-	}, userToken, &history)
-	require.NoError(t, err)
-
-	// Verify transaction history contains all operations (including account creation)
-	// Should have: 1 account creation + 4 operations = 5 events
-	assertTransactionHistorySuccess(t, history, 5, "Should have at least 5 events including account creation")
-
-	// Verify event types
-	foundDeposits := 0
-	foundWithdrawals := 0
-	foundAccountCreated := 0
-	for _, event := range history.Data.Events {
-		switch string(event.EventType) {
-		case "AccountCreated":
-			foundAccountCreated++
-		case "MoneyDeposited":
-			foundDeposits++
-		case "MoneyWithdrawn":
-			foundWithdrawals++
-		}
-	}
-	assert.GreaterOrEqual(t, foundAccountCreated, 1, "Should have account creation event")
-	assert.GreaterOrEqual(t, foundDeposits, 2, "Should have at least 2 deposit events")
-	assert.GreaterOrEqual(t, foundWithdrawals, 2, "Should have at least 2 withdrawal events")
 
 	// Verify final balance matches expected calculation
 	var balance bankaccount.BankAccountState

@@ -118,7 +118,7 @@ func main() {
 	log.Printf("Registering %s with state-based pattern", counter.ActorTypeCounter)
 	s.RegisterActorImplFactoryContext(counter.NewActorFactory())
 	
-	// Register BankAccount using generated factory with external postgres event store (closure pattern)
+	// Register BankAccount using custom factory with external postgres event store
 	log.Printf("Registering %s with external postgres event store pattern", bankaccount.ActorTypeBankAccount)
 	s.RegisterActorImplFactoryContext(bankaccount.NewActorFactory(externalEventStore))
 	

@@ -21,8 +21,6 @@ type BankAccountAPI interface {
 	Deposit(ctx context.Context, request DepositRequest) (*BankAccountState, error)
 	// Get current account balance
 	GetBalance(ctx context.Context) (*BankAccountState, error)
-	// Get transaction history
-	GetHistory(ctx context.Context) (*TransactionHistory, error)
 	// Withdraw money from account
 	Withdraw(ctx context.Context, request WithdrawRequest) (*BankAccountState, error)
 }

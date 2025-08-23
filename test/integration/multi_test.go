@@ -26,11 +26,7 @@ func assertBankAccountSuccessMulti(t *testing.T, state bankaccount.BankAccountSt
 	assert.Equal(t, expectedBalance, state.Data.Balance, message)
 }
 
-func assertTransactionHistorySuccessMulti(t *testing.T, history bankaccount.TransactionHistory, minEvents int, message string) {
-	require.True(t, history.Success, "TransactionHistory operation should succeed: %s", message)
-	require.NotNil(t, history.Data, "TransactionHistory data should not be nil when success=true")
-	assert.GreaterOrEqual(t, len(history.Data.Events), minEvents, message)
-}
+
 
 func TestMultiActorIntegration(t *testing.T) {
 	if testing.Short() {
@@ -349,18 +345,4 @@ func testConcurrentActorOperations(t *testing.T, client *DaprClient) {
 		assert.Equal(t, expectedBalance, balance.Data.Balance, "Account %s should have correct balance", account.id)
 		assert.Equal(t, account.owner, balance.Data.OwnerName, "Account %s should have correct owner", account.id)
 	}
-
-	// Test transaction history for one of the bank accounts
-	firstAccount := bankActors[0]
-	bankToken, err := generateTestToken(firstAccount.id, firstAccount.owner, fmt.Sprintf("%s@example.com", firstAccount.id), []string{"user"}, 1*time.Hour)
-	require.NoError(t, err, "Failed to generate JWT token for BankAccount %s", firstAccount.id)
-
-	var history bankaccount.TransactionHistory
-	_, err = client.InvokeActorMethodWithJWT(ctx, ActorMethodRequest{
-		ActorType: "BankAccount",
-		ActorID:   firstAccount.id,
-		Method:    "GetHistory",
-	}, bankToken, &history)
-	require.NoError(t, err)
-	assertTransactionHistorySuccessMulti(t, history, 2, "Should have at least account creation and deposit events")
 }
