@@ -20,11 +20,17 @@ const (
 	AccountEventEventTypeAccountCreated AccountEventEventType = "AccountCreated"
 	AccountEventEventTypeMoneyDeposited AccountEventEventType = "MoneyDeposited"
 	AccountEventEventTypeMoneyWithdrawn AccountEventEventType = "MoneyWithdrawn"
+	AccountEventEventTypeStateSnapshot  AccountEventEventType = "StateSnapshot"
 )
 
 // BankAccount demonstrates event sourcing pattern with external postgres event store.
 // This actor stores events using go-simple-eventstore/postgres for durability and audit trail,
 // while maintaining fast access through ephemeral in-memory state cache as long as the actor is activated.
+//
+// SNAPSHOT OPTIMIZATION:
+// The actor now supports periodic snapshots to optimize event replay performance.
+// Instead of replaying ALL events from the beginning, it can restore state from the latest snapshot
+// and only replay events since that snapshot, significantly improving performance for long-lived accounts.
 //
 // OPTIMIZATION BENEFITS:
 // 1. Fast Access: Operations use cached in-memory state instead of recomputing from events every time
@@ -32,6 +38,7 @@ const (
 // 3. External Durability: Events are persisted to postgres for durability and audit trail
 // 4. Efficiency: State is computed from events only once (lazy loading) when actor is first accessed
 // 5. Consistency: In-memory state is kept in sync with events as operations are performed
+// 6. Snapshot Optimization: Periodic snapshots reduce event replay time on actor activation
 //
 // COMPARISON WITH PREVIOUS IMPLEMENTATION:
 // - Before: Used Dapr StateManager for event storage
@@ -47,6 +54,9 @@ type BankAccount struct {
 	state    *BankAccountState
 	stateLoaded    bool  // Track if state has been loaded from events
 	accountExists  bool  // Track if account exists to avoid repeated checks
+	
+	// Snapshot configuration
+	snapshotFrequency int64 // Create snapshot every N events (default: 10)
 }
 
 // getCurrentVersion returns the current stream version from state, or 0 if no state exists
@@ -77,6 +87,18 @@ type MoneyWithdrawnEventData struct {
 	Timestamp   time.Time `json:"timestamp"`
 }
 
+// StateSnapshotEventData contains a complete snapshot of the account state
+type StateSnapshotEventData struct {
+	AccountId string    `json:"accountId"`
+	OwnerName string    `json:"ownerName"`
+	OwnerId   string    `json:"ownerId"`
+	Balance   float64   `json:"balance"`
+	IsActive  bool      `json:"isActive"`
+	CreatedAt time.Time `json:"createdAt"`
+	Version   int64     `json:"version"`
+	Timestamp time.Time `json:"timestamp"`
+}
+
 // NewBankAccount creates a new BankAccount actor instance with access to the provided event store.
 func NewBankAccount(eventStore eventstore.EventStore) *BankAccount {
 	if eventStore == nil {
@@ -84,7 +106,8 @@ func NewBankAccount(eventStore eventstore.EventStore) *BankAccount {
 	}
 	
 	return &BankAccount{
-		eventStore: eventStore,
+		eventStore:        eventStore,
+		snapshotFrequency: 10, // Default: create snapshot every 10 events
 	}
 }
 
@@ -419,7 +442,26 @@ func (b *BankAccount) appendEvent(ctx context.Context, eventType AccountEventEve
 	}
 	
 	// The event now has its version set by the event store
-	return &events[0], nil
+	appendedEvent := &events[0]
+	
+	// Check if we should create a snapshot (only for business events, not snapshots)
+	if eventType != AccountEventEventTypeStateSnapshot && 
+	   b.snapshotFrequency > 0 && 
+	   appendedEvent.Version%b.snapshotFrequency == 0 {
+		
+		// Create snapshot asynchronously to avoid affecting the main operation
+		go func() {
+			// Give a short time for the current operation to complete and update state
+			time.Sleep(100 * time.Millisecond)
+			
+			if err := b.createSnapshot(context.Background()); err != nil {
+				log.Printf("BankAccount %s: Failed to create automatic snapshot at version %d: %v", 
+					b.ID(), appendedEvent.Version, err)
+			}
+		}()
+	}
+	
+	return appendedEvent, nil
 }
 
 func (b *BankAccount) getAllEvents(ctx context.Context) ([]eventstore.Event, error) {
@@ -441,6 +483,68 @@ func (b *BankAccount) getAllEvents(ctx context.Context) ([]eventstore.Event, err
 	}
 	
 	return events, nil
+}
+
+// createSnapshot creates a snapshot of the current state and stores it as an event
+func (b *BankAccount) createSnapshot(ctx context.Context) error {
+	if b.state == nil || b.state.Data == nil {
+		return fmt.Errorf("cannot create snapshot: no state available")
+	}
+	
+	// Parse the CreatedAt timestamp back to time.Time for the snapshot
+	createdAt, err := time.Parse(time.RFC3339, b.state.Data.CreatedAt)
+	if err != nil {
+		// If parsing fails, use current time as fallback
+		createdAt = time.Now()
+	}
+	
+	snapshotData := StateSnapshotEventData{
+		AccountId: b.state.Data.AccountId,
+		OwnerName: b.state.Data.OwnerName,
+		OwnerId:   b.state.Data.OwnerId,
+		Balance:   b.state.Data.Balance,
+		IsActive:  b.state.Data.IsActive,
+		CreatedAt: createdAt,
+		Version:   b.state.Data.Version,
+		Timestamp: time.Now(),
+	}
+	
+	_, err = b.appendEvent(ctx, AccountEventEventTypeStateSnapshot, snapshotData)
+	if err != nil {
+		return fmt.Errorf("failed to create snapshot: %v", err)
+	}
+	
+	log.Printf("BankAccount %s: Created snapshot at version %d", b.ID(), b.state.Data.Version)
+	return nil
+}
+
+// findLatestSnapshot finds the most recent snapshot event using reverse loading
+func (b *BankAccount) findLatestSnapshot(ctx context.Context) (*eventstore.Event, error) {
+	if b.eventStore == nil {
+		return nil, fmt.Errorf("event store not configured")
+	}
+	
+	streamID := fmt.Sprintf("bankaccount-%s", b.ID())
+	
+	// Load events in reverse order to find the latest snapshot quickly
+	events, err := b.eventStore.Load(streamID, eventstore.LoadOptions{
+		ExclusiveStartVersion: 0, // Start from latest
+		Limit: 100, // Reasonable limit to avoid loading too many events
+		Desc:  true, // Reverse order (latest first)
+	})
+	
+	if err != nil {
+		return nil, err
+	}
+	
+	// Find the first (latest) snapshot event
+	for _, event := range events {
+		if AccountEventEventType(event.Type) == AccountEventEventTypeStateSnapshot {
+			return &event, nil
+		}
+	}
+	
+	return nil, nil // No snapshot found
 }
 
 // applyEvent applies a single event to the state in a centralized manner.
@@ -471,6 +575,19 @@ func (state *BankAccountStateData) applyEvent(event eventstore.Event) error {
 		}
 		state.Balance -= data.Amount
 		
+	case AccountEventEventTypeStateSnapshot:
+		// For snapshots, restore the complete state
+		var data StateSnapshotEventData
+		if err := json.Unmarshal(event.Data, &data); err != nil {
+			return fmt.Errorf("failed to parse StateSnapshot event: %v", err)
+		}
+		state.AccountId = data.AccountId
+		state.OwnerName = data.OwnerName
+		state.OwnerId = data.OwnerId
+		state.Balance = data.Balance
+		state.IsActive = data.IsActive
+		state.CreatedAt = data.CreatedAt.Format(time.RFC3339)
+		
 	default:
 		return fmt.Errorf("unknown event type: %s", event.Type)
 	}
@@ -483,34 +600,87 @@ func (state *BankAccountStateData) applyEvent(event eventstore.Event) error {
 }
 
 func (b *BankAccount) computeStateFromEvents(ctx context.Context) (*BankAccountState, error) {
-	events, err := b.getAllEvents(ctx)
+	if b.eventStore == nil {
+		return nil, fmt.Errorf("event store not configured")
+	}
+	
+	streamID := fmt.Sprintf("bankaccount-%s", b.ID())
+	
+	// Step 1: Try to find the latest snapshot
+	latestSnapshot, err := b.findLatestSnapshot(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to find latest snapshot: %v", err)
 	}
 	
-	if len(events) == 0 {
-		return nil, nil // Account doesn't exist
-	}
+	var state *BankAccountState
+	var startVersion int64 = 0
 	
-	// Initialize state with nested data structure
-	state := &BankAccountState{
-		Success: true,
-		Data: &BankAccountStateData{
-			AccountId: b.ID(),
-			Balance:   0,
-			IsActive:  true,
-		},
-	}
-	
-	// Apply all events in sequence using centralized event application logic
-	for _, event := range events {
-		if err := state.Data.applyEvent(event); err != nil {
-			return nil, fmt.Errorf("failed to apply event %s: %v", event.ID, err)
+	if latestSnapshot != nil {
+		// Step 2: Restore state from snapshot
+		state = &BankAccountState{
+			Success: true,
+			Data: &BankAccountStateData{
+				AccountId: b.ID(),
+				Balance:   0,
+				IsActive:  true,
+			},
+		}
+		
+		// Apply the snapshot to restore state
+		if err := state.Data.applyEvent(*latestSnapshot); err != nil {
+			return nil, fmt.Errorf("failed to apply snapshot event: %v", err)
+		}
+		
+		startVersion = latestSnapshot.Version
+		log.Printf("BankAccount %s: Restored state from snapshot at version %d", b.ID(), startVersion)
+	} else {
+		// No snapshot found, initialize empty state
+		state = &BankAccountState{
+			Success: true,
+			Data: &BankAccountStateData{
+				AccountId: b.ID(),
+				Balance:   0,
+				IsActive:  true,
+			},
 		}
 	}
 	
-	if len(events) > 0 {
+	// Step 3: Load and replay events after the snapshot
+	events, err := b.eventStore.Load(streamID, eventstore.LoadOptions{
+		ExclusiveStartVersion: startVersion, // Only load events after snapshot
+		Limit: 0, // No limit
+		Desc:  false, // Chronological order
+	})
+	
+	if err != nil {
+		return nil, fmt.Errorf("failed to load events after snapshot: %v", err)
+	}
+	
+	// If no events exist at all (including snapshot), account doesn't exist
+	if latestSnapshot == nil && len(events) == 0 {
+		return nil, nil
+	}
+	
+	// Step 4: Apply events after snapshot, skipping any additional snapshots
+	eventsApplied := 0
+	for _, event := range events {
+		// Skip snapshot events as they're used for state restoration, not state changes
+		if AccountEventEventType(event.Type) == AccountEventEventTypeStateSnapshot {
+			continue
+		}
+		
+		if err := state.Data.applyEvent(event); err != nil {
+			return nil, fmt.Errorf("failed to apply event %s: %v", event.ID, err)
+		}
+		eventsApplied++
+	}
+	
+	if latestSnapshot != nil {
+		log.Printf("BankAccount %s: Replayed %d events after snapshot (version %d -> %d)", 
+			b.ID(), eventsApplied, startVersion, state.Data.Version)
 	} else {
+		log.Printf("BankAccount %s: Replayed %d events from beginning (version 0 -> %d)", 
+			b.ID(), eventsApplied, state.Data.Version)
 	}
 	
 	return state, nil
