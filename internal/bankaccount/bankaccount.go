@@ -413,8 +413,8 @@ func (b *BankAccount) appendEvent(ctx context.Context, eventType AccountEventEve
 		return nil, err
 	}
 	
-	// Update stream version with the version returned by append
-	b.streamVersion = latestVersion
+	// Set the version on the event object from the eventstore
+	event.Version = latestVersion
 	
 	// The event now has its version set by the event store
 	return &event, nil
@@ -472,6 +472,10 @@ func (b *BankAccount) applyEventToState(state *BankAccountStateData, event event
 	default:
 		return fmt.Errorf("unknown event type: %s", event.Type)
 	}
+	
+	// Update stream version from the event's version to ensure consistency
+	// between state and last applied event
+	b.streamVersion = event.Version
 	
 	return nil
 }
