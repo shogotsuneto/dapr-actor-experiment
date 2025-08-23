@@ -47,7 +47,14 @@ type BankAccount struct {
 	state    *BankAccountState
 	stateLoaded    bool  // Track if state has been loaded from events
 	accountExists  bool  // Track if account exists to avoid repeated checks
-	streamVersion  int64 // Track current stream version for optimistic concurrency
+}
+
+// getCurrentVersion returns the current stream version from state, or 0 if no state exists
+func (b *BankAccount) getCurrentVersion() int64 {
+	if b.state != nil && b.state.Data != nil {
+		return b.state.Data.Version
+	}
+	return 0
 }
 
 // Internal event structures (not exposed in API)
@@ -217,9 +224,6 @@ func (b *BankAccount) CreateAccount(ctx context.Context, request CreateAccountRe
 		CreatedAt:      time.Now(),
 	}
 	
-	// Initialize stream version for new account
-	b.streamVersion = 0
-	
 	event, err := b.appendEvent(ctx, AccountEventEventTypeAccountCreated, eventData)
 	if err != nil {
 		return b.errorResponse(ErrorCodeInternalError, "Failed to create account", map[string]interface{}{
@@ -242,8 +246,6 @@ func (b *BankAccount) CreateAccount(ctx context.Context, request CreateAccountRe
 			"error": err.Error(),
 		}), nil
 	}
-	// Keep BankAccount's streamVersion in sync for eventstore operations
-	b.streamVersion = b.state.Data.Version
 	b.accountExists = true
 	
 	log.Printf("BankAccount %s: Account created by user %s for owner %s", b.ID(), userID, request.OwnerName)
@@ -296,8 +298,6 @@ func (b *BankAccount) Deposit(ctx context.Context, request DepositRequest) (*Ban
 			"error": err.Error(),
 		}), nil
 	}
-	// Keep BankAccount's streamVersion in sync for eventstore operations
-	b.streamVersion = b.state.Data.Version
 	
 	return b.successResponse(), nil
 }
@@ -356,8 +356,6 @@ func (b *BankAccount) Withdraw(ctx context.Context, request WithdrawRequest) (*B
 			"error": err.Error(),
 		}), nil
 	}
-	// Keep BankAccount's streamVersion in sync for eventstore operations
-	b.streamVersion = b.state.Data.Version
 	
 	return b.successResponse(), nil
 }
@@ -415,7 +413,7 @@ func (b *BankAccount) appendEvent(ctx context.Context, eventType AccountEventEve
 	// Append to event store using stream ID based on actor ID with version check
 	streamID := fmt.Sprintf("bankaccount-%s", b.ID())
 	events := []eventstore.Event{event}
-	_, err = b.eventStore.Append(streamID, events, int(b.streamVersion))
+	_, err = b.eventStore.Append(streamID, events, int(b.getCurrentVersion()))
 	if err != nil {
 		return nil, err
 	}
@@ -491,7 +489,6 @@ func (b *BankAccount) computeStateFromEvents(ctx context.Context) (*BankAccountS
 	}
 	
 	if len(events) == 0 {
-		b.streamVersion = 0 // No events yet
 		return nil, nil // Account doesn't exist
 	}
 	
@@ -512,11 +509,8 @@ func (b *BankAccount) computeStateFromEvents(ctx context.Context) (*BankAccountS
 		}
 	}
 	
-	// Keep BankAccount's streamVersion in sync for eventstore operations
 	if len(events) > 0 {
-		b.streamVersion = state.Data.Version
 	} else {
-		b.streamVersion = 0
 	}
 	
 	return state, nil
