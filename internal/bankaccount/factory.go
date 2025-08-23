@@ -6,15 +6,16 @@ package bankaccount
 import (
 	"fmt"
 	"github.com/dapr/go-sdk/actor"
+	"github.com/shogotsuneto/go-simple-eventstore"
 )
 
-// NewActorFactory creates a factory function for BankAccount with a cleaner API.
+// NewActorFactory creates a factory function for BankAccount with external dependencies using Closure pattern.
 // Returns a factory function compatible with Dapr's RegisterActorImplFactoryContext.
-// Usage: s.RegisterActorImplFactoryContext(bankaccount.NewActorFactory())
-func NewActorFactory() func() actor.ServerContext {
+// Usage: s.RegisterActorImplFactoryContext(bankaccount.NewActorFactory(eventStore))
+func NewActorFactory(eventStore eventstore.EventStore) func() actor.ServerContext {
 	return func() actor.ServerContext {
-		// Create a new BankAccount instance
-		impl := &BankAccount{}
+		// Create a new BankAccount instance with external dependencies
+		impl := NewBankAccount(eventStore)
 		
 		// Compile-time check ensures the implementation satisfies the schema
 		var _ BankAccountAPI = impl
