@@ -6,7 +6,7 @@ require (
 	github.com/dapr/go-sdk v1.12.0
 	github.com/go-chi/chi/v5 v5.1.0
 	github.com/google/uuid v1.6.0
-	github.com/shogotsuneto/go-simple-eventstore v0.0.5
+	github.com/shogotsuneto/go-simple-eventstore v0.0.6
 	github.com/stretchr/testify v1.10.0
 )
 

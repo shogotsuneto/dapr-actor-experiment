@@ -237,7 +237,7 @@ func (b *BankAccount) CreateAccount(ctx context.Context, request CreateAccountRe
 		},
 	}
 	
-	if err := b.applyEventToState(b.state.Data, *event, true); err != nil {
+	if err := b.applyEventToState(b.state.Data, *event); err != nil {
 		return b.errorResponse(ErrorCodeInternalError, "Failed to apply state change", map[string]interface{}{
 			"error": err.Error(),
 		}), nil
@@ -289,7 +289,7 @@ func (b *BankAccount) Deposit(ctx context.Context, request DepositRequest) (*Ban
 	}
 	
 	// Update in-memory state using centralized event application
-	if err := b.applyEventToState(b.state.Data, *event, true); err != nil {
+	if err := b.applyEventToState(b.state.Data, *event); err != nil {
 		return b.errorResponse(ErrorCodeInternalError, "Failed to apply state change", map[string]interface{}{
 			"error": err.Error(),
 		}), nil
@@ -347,7 +347,7 @@ func (b *BankAccount) Withdraw(ctx context.Context, request WithdrawRequest) (*B
 	}
 	
 	// Update in-memory state using centralized event application
-	if err := b.applyEventToState(b.state.Data, *event, true); err != nil {
+	if err := b.applyEventToState(b.state.Data, *event); err != nil {
 		return b.errorResponse(ErrorCodeInternalError, "Failed to apply state change", map[string]interface{}{
 			"error": err.Error(),
 		}), nil
@@ -408,12 +408,15 @@ func (b *BankAccount) appendEvent(ctx context.Context, eventType AccountEventEve
 	
 	// Append to event store using stream ID based on actor ID with version check
 	streamID := fmt.Sprintf("bankaccount-%s", b.ID())
-	err = b.eventStore.Append(streamID, []eventstore.Event{event}, b.streamVersion)
+	latestVersion, err := b.eventStore.Append(streamID, []eventstore.Event{event}, b.streamVersion)
 	if err != nil {
 		return nil, err
 	}
 	
-	// Stream version will be managed in applyEventToState when the event is applied
+	// Update stream version with the version returned by append
+	b.streamVersion = int(latestVersion)
+	
+	// The event now has its version set by the event store
 	return &event, nil
 }
 
@@ -440,8 +443,7 @@ func (b *BankAccount) getAllEvents(ctx context.Context) ([]eventstore.Event, err
 
 // applyEventToState applies a single event to the state in a centralized manner.
 // This provides unified event handling and reduces code duplication.
-// The updateVersion parameter controls whether to update the stream version.
-func (b *BankAccount) applyEventToState(state *BankAccountStateData, event eventstore.Event, updateVersion bool) error {
+func (b *BankAccount) applyEventToState(state *BankAccountStateData, event eventstore.Event) error {
 	switch AccountEventEventType(event.Type) {
 	case AccountEventEventTypeAccountCreated:
 		var data AccountCreatedEventData
@@ -471,16 +473,6 @@ func (b *BankAccount) applyEventToState(state *BankAccountStateData, event event
 		return fmt.Errorf("unknown event type: %s", event.Type)
 	}
 	
-	// Update stream version if requested and event has a version
-	if updateVersion {
-		if event.Version > 0 {
-			b.streamVersion = int(event.Version)
-		} else {
-			// For new events without a version, increment the current version
-			b.streamVersion++
-		}
-	}
-	
 	return nil
 }
 
@@ -507,7 +499,7 @@ func (b *BankAccount) computeStateFromEvents(ctx context.Context) (*BankAccountS
 	
 	// Apply all events in sequence using centralized event application logic
 	for _, event := range events {
-		if err := b.applyEventToState(state.Data, event, false); err != nil {
+		if err := b.applyEventToState(state.Data, event); err != nil {
 			return nil, fmt.Errorf("failed to apply event %s: %v", event.ID, err)
 		}
 	}
