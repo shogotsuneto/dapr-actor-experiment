@@ -81,17 +81,8 @@ make_request "POST" "http://localhost:3500/v1.0/actors/BankAccount/account-bob/m
 echo "  Bob's balance:" $(make_request "GET" "http://localhost:3500/v1.0/actors/BankAccount/account-bob/method/GetBalance" "" "$BOB_TOKEN" | jq -r '.data.balance')
 
 echo ""
-echo "Event Sourcing - Transaction Histories:"
-echo "--------------------------------------"
-echo "Alice's history:"
-make_request "GET" "http://localhost:3500/v1.0/actors/BankAccount/account-alice/method/GetHistory" "" "$ALICE_TOKEN" | jq '.data | length' | xargs -I {} echo "  {} transactions recorded"
-
-echo "Bob's history:"
-make_request "GET" "http://localhost:3500/v1.0/actors/BankAccount/account-bob/method/GetHistory" "" "$BOB_TOKEN" | jq '.data | length' | xargs -I {} echo "  {} transactions recorded"
-
-echo ""
 echo "✅ BankAccount tests completed!"
-echo "   • Event-sourced persistence with audit trail"
+echo "   • Event-sourced persistence"
 echo "   • Independent instances with isolated state"
 if [ "$USE_AUTH" = true ]; then
     echo "   • Authentication with ownership validation"
