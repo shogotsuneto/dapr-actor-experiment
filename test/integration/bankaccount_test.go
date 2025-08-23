@@ -51,8 +51,8 @@ func TestBankAccount(t *testing.T) {
 		testBankAccountEventSourcing(t, daprClient)
 	})
 
-	t.Run("TestBankAccountSnapshotOptimization", func(t *testing.T) {
-		testBankAccountSnapshotOptimization(t, daprClient)
+	t.Run("TestBankAccountAutomaticSnapshotCreation", func(t *testing.T) {
+		testBankAccountAutomaticSnapshotCreation(t, daprClient)
 	})
 
 	t.Run("TestBankAccountSnapshotPerformance", func(t *testing.T) {
@@ -309,7 +309,7 @@ func testBankAccountEventSourcing(t *testing.T, client *DaprClient) {
 	assertBankAccountSuccess(t, balance, expectedBalance, "Final balance should match event sourcing calculation")
 }
 
-func testBankAccountSnapshotOptimization(t *testing.T, client *DaprClient) {
+func testBankAccountAutomaticSnapshotCreation(t *testing.T, client *DaprClient) {
 	ctx := context.Background()
 	actorID := fmt.Sprintf("account-snapshot-test-%d", time.Now().UnixNano()%10000)
 
