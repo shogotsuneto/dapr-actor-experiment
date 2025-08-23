@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/dapr/go-sdk/actor"
 	"github.com/dapr/go-sdk/service/common"
 	daprd "github.com/dapr/go-sdk/service/http"
 	"github.com/go-chi/chi/v5"
@@ -118,9 +119,11 @@ func main() {
 	log.Printf("Registering %s with state-based pattern", counter.ActorTypeCounter)
 	s.RegisterActorImplFactoryContext(counter.NewActorFactory())
 	
-	// Register BankAccount using generated factory with external postgres event store (closure pattern)
+	// Register BankAccount using custom factory with external postgres event store
 	log.Printf("Registering %s with external postgres event store pattern", bankaccount.ActorTypeBankAccount)
-	s.RegisterActorImplFactoryContext(bankaccount.NewActorFactory(externalEventStore))
+	s.RegisterActorImplFactoryContext(func() actor.ServerContext {
+		return bankaccount.NewBankAccount(externalEventStore)
+	})
 	
 	// Add health and status endpoints
 	s.AddServiceInvocationHandler("/health", healthHandler)

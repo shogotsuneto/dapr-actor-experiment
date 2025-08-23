@@ -28,6 +28,8 @@ type BankAccountStateData struct {
 	OwnerId string `json:"ownerId"`
 	// Account owner name
 	OwnerName string `json:"ownerName"`
+	// Current stream version (last applied event version)
+	Version int64 `json:"version"`
 }
 
 // CreateAccountRequest Request to create a new bank account

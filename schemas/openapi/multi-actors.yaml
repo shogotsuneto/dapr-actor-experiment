@@ -306,6 +306,7 @@ components:
         - balance
         - isActive
         - createdAt
+        - version
       properties:
         accountId:
           type: string
@@ -333,6 +334,11 @@ components:
           format: date-time
           description: Account creation timestamp
           example: "2024-01-15T10:30:00Z"
+        version:
+          type: integer
+          format: int64
+          description: Current stream version (last applied event version)
+          example: 5
       additionalProperties: false
 
     CreateAccountRequest:
