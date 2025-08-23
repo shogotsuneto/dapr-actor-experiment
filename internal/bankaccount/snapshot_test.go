@@ -6,78 +6,17 @@ import (
 	"time"
 
 	"github.com/shogotsuneto/go-simple-eventstore"
+	"github.com/shogotsuneto/go-simple-eventstore/memory"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// MockEventStore provides a simple in-memory event store for testing
-type MockEventStore struct {
-	streams map[string][]eventstore.Event
-	version int64
-}
-
-func NewMockEventStore() *MockEventStore {
-	return &MockEventStore{
-		streams: make(map[string][]eventstore.Event),
-		version: 0,
-	}
-}
-
-func (m *MockEventStore) Append(streamID string, events []eventstore.Event, expectedVersion int) (int64, error) {
-	if _, exists := m.streams[streamID]; !exists {
-		m.streams[streamID] = make([]eventstore.Event, 0)
-	}
-	
-	for i := range events {
-		m.version++
-		events[i].Version = m.version
-		m.streams[streamID] = append(m.streams[streamID], events[i])
-	}
-	
-	return m.version, nil
-}
-
-func (m *MockEventStore) Load(streamID string, options eventstore.LoadOptions) ([]eventstore.Event, error) {
-	events, exists := m.streams[streamID]
-	if !exists {
-		return []eventstore.Event{}, nil
-	}
-	
-	// Filter events based on LoadOptions
-	var result []eventstore.Event
-	
-	if options.Desc {
-		// Reverse order
-		for i := len(events) - 1; i >= 0; i-- {
-			event := events[i]
-			if options.ExclusiveStartVersion == 0 || event.Version < options.ExclusiveStartVersion {
-				result = append(result, event)
-				if options.Limit > 0 && len(result) >= options.Limit {
-					break
-				}
-			}
-		}
-	} else {
-		// Forward order
-		for _, event := range events {
-			if event.Version > options.ExclusiveStartVersion {
-				result = append(result, event)
-				if options.Limit > 0 && len(result) >= options.Limit {
-					break
-				}
-			}
-		}
-	}
-	
-	return result, nil
-}
-
 func TestSnapshotCreationAndReplay(t *testing.T) {
 	ctx := context.Background()
-	mockStore := NewMockEventStore()
+	eventStore := memory.NewInMemoryEventStore()
 	
 	// Create actor with low snapshot frequency for testing
-	actor := NewBankAccount(mockStore)
+	actor := NewBankAccount(eventStore)
 	actor.SetID("test-account")
 	actor.snapshotFrequency = 3 // Create snapshot every 3 events
 	actor.state = &BankAccountState{
@@ -98,7 +37,7 @@ func TestSnapshotCreationAndReplay(t *testing.T) {
 	require.NoError(t, err, "Should be able to create snapshot")
 	
 	// Verify snapshot was stored
-	events, err := mockStore.Load("bankaccount-test-account", eventstore.LoadOptions{
+	events, err := eventStore.Load("bankaccount-test-account", eventstore.LoadOptions{
 		ExclusiveStartVersion: 0,
 		Limit: 0,
 		Desc:  false,
@@ -110,11 +49,11 @@ func TestSnapshotCreationAndReplay(t *testing.T) {
 
 func TestSnapshotBasedReplay(t *testing.T) {
 	ctx := context.Background()
-	mockStore := NewMockEventStore()
+	eventStore := memory.NewInMemoryEventStore()
 	
 	// Create test actor
-	actor := NewBankAccount(mockStore)
-	actor.SetID("test-account")
+	actor := NewBankAccount(eventStore)
+	actor.SetID("test-account-replay")
 	
 	// Simulate some events followed by a snapshot
 	// Event 1: Account created
@@ -126,6 +65,22 @@ func TestSnapshotBasedReplay(t *testing.T) {
 	})
 	require.NoError(t, err)
 	
+	// Apply the first event to the state so the version is tracked properly
+	actor.accountExists = true
+	actor.state = &BankAccountState{
+		Success: true,
+		Data: &BankAccountStateData{
+			AccountId: "test-account-replay",
+			OwnerName: "Test User",
+			OwnerId:   "test-user",
+			Balance:   100.0,
+			IsActive:  true,
+			CreatedAt: time.Now().Format(time.RFC3339),
+			Version:   1,
+		},
+	}
+	actor.stateLoaded = true
+	
 	// Event 2: Money deposited
 	_, err = actor.appendEvent(ctx, AccountEventEventTypeMoneyDeposited, MoneyDepositedEventData{
 		Amount:      50.0,
@@ -134,21 +89,16 @@ func TestSnapshotBasedReplay(t *testing.T) {
 	})
 	require.NoError(t, err)
 	
-	// Manually create a snapshot at this point (balance should be 150.0)
-	actor.state = &BankAccountState{
-		Success: true,
-		Data: &BankAccountStateData{
-			AccountId: "test-account",
-			OwnerName: "Test User", 
-			OwnerId:   "test-user",
-			Balance:   150.0,
-			IsActive:  true,
-			CreatedAt: time.Now().Format(time.RFC3339),
-			Version:   2,
-		},
-	}
+	// Update state to reflect the deposit
+	actor.state.Data.Balance = 150.0
+	actor.state.Data.Version = 2
+	
+	// Create a snapshot manually (balance should be 150.0)
 	err = actor.createSnapshot(ctx)
 	require.NoError(t, err)
+	
+	// Update state version to reflect snapshot creation
+	actor.state.Data.Version = 3
 	
 	// Event 3: Money withdrawn (after snapshot)
 	_, err = actor.appendEvent(ctx, AccountEventEventTypeMoneyWithdrawn, MoneyWithdrawnEventData{
@@ -178,10 +128,10 @@ func TestSnapshotBasedReplay(t *testing.T) {
 
 func TestFindLatestSnapshot(t *testing.T) {
 	ctx := context.Background()
-	mockStore := NewMockEventStore()
+	eventStore := memory.NewInMemoryEventStore()
 	
-	actor := NewBankAccount(mockStore)
-	actor.SetID("test-account")
+	actor := NewBankAccount(eventStore)
+	actor.SetID("test-account-find")
 	
 	// Initially no snapshot should be found
 	snapshot, err := actor.findLatestSnapshot(ctx)
@@ -206,7 +156,7 @@ func TestFindLatestSnapshot(t *testing.T) {
 	actor.state = &BankAccountState{
 		Success: true,
 		Data: &BankAccountStateData{
-			AccountId: "test-account",
+			AccountId: "test-account-find",
 			Balance:   100.0,
 			Version:   1,
 		},
