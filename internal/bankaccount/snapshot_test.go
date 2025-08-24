@@ -2,6 +2,7 @@ package bankaccount
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -279,6 +280,9 @@ func TestFindLatestSnapshot(t *testing.T) {
 	err = actor.createSnapshot(ctx)
 	require.NoError(t, err)
 
+	// Update state version to reflect snapshot creation (snapshot event added to stream)
+	actor.state.Data.Version = 2
+
 	// Clear calls and now should find the snapshot
 	trackedStore.ClearLoadCalls()
 
@@ -286,4 +290,83 @@ func TestFindLatestSnapshot(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, snapshot, "Should find the snapshot")
 	assert.Equal(t, string(AccountEventEventTypeStateSnapshot), snapshot.Type)
+
+	// Test multiple snapshots - should return the latest one
+	trackedStore.ClearLoadCalls()
+
+	// Create second snapshot with different state
+	// The stream now has: 1 event + 1 snapshot = version 2
+	// We need to update the state to reflect some changes first
+	_, err = actor.appendEvent(ctx, AccountEventEventTypeMoneyDeposited, MoneyDepositedEventData{
+		Amount:      50.0,
+		Description: "Another deposit",
+		Timestamp:   time.Now(),
+	})
+	require.NoError(t, err)
+
+	actor.state.Data.Balance = 150.0
+	actor.state.Data.Version = 3 // After the new deposit event
+	err = actor.createSnapshot(ctx)
+	require.NoError(t, err, "Should create second snapshot")
+
+	// Update state version after second snapshot creation
+	actor.state.Data.Version = 4
+
+	// Add more events  
+	_, err = actor.appendEvent(ctx, AccountEventEventTypeMoneyDeposited, MoneyDepositedEventData{
+		Amount:      50.0,
+		Description: "Third deposit",
+		Timestamp:   time.Now(),
+	})
+	require.NoError(t, err)
+
+	// Create third snapshot
+	actor.state.Data.Balance = 200.0
+	actor.state.Data.Version = 5 // After the third deposit event
+	err = actor.createSnapshot(ctx)
+	require.NoError(t, err, "Should create third snapshot")
+
+	// Clear calls and find latest snapshot
+	trackedStore.ClearLoadCalls()
+
+	latestSnapshot, err := actor.findLatestSnapshot(ctx)
+	require.NoError(t, err)
+	require.NotNil(t, latestSnapshot, "Should find the latest snapshot")
+	assert.Equal(t, string(AccountEventEventTypeStateSnapshot), latestSnapshot.Type)
+
+	// Verify it's the latest snapshot by checking the version
+	// The latest snapshot should have the highest version number
+	// Parse the snapshot data to verify it contains the latest state
+	var snapshotData StateSnapshotEventData
+	err = json.Unmarshal(latestSnapshot.Data, &snapshotData)
+	require.NoError(t, err, "Should parse snapshot data")
+	assert.Equal(t, int64(5), snapshotData.Version, "Should return snapshot with highest version (latest)")
+	assert.Equal(t, 200.0, snapshotData.Balance, "Should return snapshot with latest balance")
+
+	// Verify the Load call was made correctly
+	loadCalls = trackedStore.GetLoadCalls()
+	require.Len(t, loadCalls, 1, "Should have made one Load call for finding latest snapshot")
+
+	call = loadCalls[0]
+	assert.Equal(t, "bankaccount-test-account-find", call.StreamID)
+	assert.Equal(t, int64(0), call.Options.ExclusiveStartVersion)
+	assert.Equal(t, 100, call.Options.Limit)
+	assert.True(t, call.Options.Desc, "Should search in reverse order to find latest first")
+	require.NoError(t, call.Error)
+
+	// Verify that multiple snapshots were returned but the method picked the latest
+	snapshotCount := 0
+	var foundVersions []int64
+	for _, event := range call.Events {
+		if event.Type == string(AccountEventEventTypeStateSnapshot) {
+			snapshotCount++
+			// Parse each snapshot to track versions
+			var data StateSnapshotEventData
+			if err := json.Unmarshal(event.Data, &data); err == nil {
+				foundVersions = append(foundVersions, data.Version)
+			}
+		}
+	}
+	assert.GreaterOrEqual(t, snapshotCount, 2, "Should have found multiple snapshots in the stream")
+	assert.Contains(t, foundVersions, int64(5), "Should have found the latest snapshot version")
 }
