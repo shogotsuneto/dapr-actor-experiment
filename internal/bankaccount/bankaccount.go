@@ -51,6 +51,9 @@ type BankAccount struct {
 	// Reference to shared external event store (singleton)
 	eventStore eventstore.EventStore
 	
+	// Stream ID for this actor's events
+	streamID string
+	
 	// Ephemeral in-memory state for fast access (computed from events)
 	state    *BankAccountState
 	stateLoaded    bool  // Track if state has been loaded from events
@@ -60,6 +63,14 @@ type BankAccount struct {
 	
 	// Mutex to protect concurrent access to state field
 	mu sync.RWMutex
+}
+
+// getStreamID returns the stream ID for this actor, initializing it if needed
+func (b *BankAccount) getStreamID() string {
+	if b.streamID == "" {
+		b.streamID = fmt.Sprintf("bankaccount-%s", b.ID())
+	}
+	return b.streamID
 }
 
 // getCurrentVersion returns the current stream version from state, or 0 if no state exists
@@ -471,9 +482,8 @@ func (b *BankAccount) appendEvent(ctx context.Context, eventType AccountEventEve
 	}
 	
 	// Append to event store using stream ID based on actor ID with version check
-	streamID := fmt.Sprintf("bankaccount-%s", b.ID())
 	events := []eventstore.Event{event}
-	_, err = b.eventStore.Append(streamID, events, int(b.getCurrentVersion()))
+	_, err = b.eventStore.Append(b.getStreamID(), events, int(b.getCurrentVersion()))
 	if err != nil {
 		return nil, err
 	}
@@ -499,27 +509,6 @@ func (b *BankAccount) appendEvent(ctx context.Context, eventType AccountEventEve
 	}
 	
 	return appendedEvent, nil
-}
-
-func (b *BankAccount) getAllEvents(ctx context.Context) ([]eventstore.Event, error) {
-	if b.eventStore == nil {
-		return nil, fmt.Errorf("event store not configured")
-	}
-	
-	streamID := fmt.Sprintf("bankaccount-%s", b.ID())
-	
-	// Load all events from event store
-	events, err := b.eventStore.Load(streamID, eventstore.LoadOptions{
-		ExclusiveStartVersion: 0,
-		Limit: 0, // 0 = no limit
-		Desc:  false, // chronological order
-	})
-	
-	if err != nil {
-		return nil, err
-	}
-	
-	return events, nil
 }
 
 // createSnapshot creates a snapshot of the current state and stores it as an event
@@ -565,10 +554,8 @@ func (b *BankAccount) findLatestSnapshot(ctx context.Context) (*eventstore.Event
 		return nil, fmt.Errorf("event store not configured")
 	}
 	
-	streamID := fmt.Sprintf("bankaccount-%s", b.ID())
-	
 	// Load events in reverse order to find the latest snapshot quickly
-	events, err := b.eventStore.Load(streamID, eventstore.LoadOptions{
+	events, err := b.eventStore.Load(b.getStreamID(), eventstore.LoadOptions{
 		ExclusiveStartVersion: 0, // Start from latest
 		Limit: 100, // Reasonable limit to avoid loading too many events
 		Desc:  true, // Reverse order (latest first)
@@ -648,23 +635,13 @@ func (b *BankAccount) computeStateFromEvents(ctx context.Context) (*BankAccountS
 		return nil, fmt.Errorf("event store not configured")
 	}
 	
-	streamID := fmt.Sprintf("bankaccount-%s", b.ID())
-	
 	// Step 1: Try to restore state from snapshot
 	if err := b.restoreFromSnapshot(ctx); err != nil {
 		return nil, fmt.Errorf("failed to restore from snapshot: %v", err)
 	}
 	
-	// Get the starting version from the restored state
-	b.mu.RLock()
-	var startVersion int64 = 0
-	if b.state != nil {
-		startVersion = b.state.Data.Version
-	}
-	b.mu.RUnlock()
-	
 	// Step 2: Replay events after the snapshot
-	if err := b.replayEventsAfterVersion(ctx, streamID, startVersion); err != nil {
+	if err := b.replayEventsAfterVersion(ctx); err != nil {
 		return nil, fmt.Errorf("failed to replay events: %v", err)
 	}
 	
@@ -710,11 +687,19 @@ func (b *BankAccount) restoreFromSnapshot(ctx context.Context) error {
 	return nil
 }
 
-// replayEventsAfterVersion loads and replays events after the given version
+// replayEventsAfterVersion loads and replays events after the current state version
 // Applies events directly to b.state
-func (b *BankAccount) replayEventsAfterVersion(ctx context.Context, streamID string, startVersion int64) error {
+func (b *BankAccount) replayEventsAfterVersion(ctx context.Context) error {
+	// Get the starting version from the current state
+	b.mu.RLock()
+	var startVersion int64 = 0
+	if b.state != nil && b.state.Data != nil {
+		startVersion = b.state.Data.Version
+	}
+	b.mu.RUnlock()
+	
 	// Load events after the snapshot
-	events, err := b.eventStore.Load(streamID, eventstore.LoadOptions{
+	events, err := b.eventStore.Load(b.getStreamID(), eventstore.LoadOptions{
 		ExclusiveStartVersion: startVersion, // Only load events after snapshot
 		Limit: 0, // No limit
 		Desc:  false, // Chronological order
