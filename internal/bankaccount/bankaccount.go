@@ -198,15 +198,19 @@ func (b *BankAccount) successResponse() *BankAccountState {
 	defer b.mu.RUnlock()
 	
 	// Return successful response with data nested under Data field
+	return b.successResponseWithState(b.state.Data)
+}
+
+func (b *BankAccount) successResponseWithState(stateData *BankAccountStateData) *BankAccountState {
 	return &BankAccountState{
 		Success: true,
 		Data: &BankAccountStateData{
-			AccountId: b.state.Data.AccountId,
-			OwnerName: b.state.Data.OwnerName,
-			OwnerId:   b.state.Data.OwnerId,
-			Balance:   b.state.Data.Balance,
-			IsActive:  b.state.Data.IsActive,
-			CreatedAt: b.state.Data.CreatedAt,
+			AccountId: stateData.AccountId,
+			OwnerName: stateData.OwnerName,
+			OwnerId:   stateData.OwnerId,
+			Balance:   stateData.Balance,
+			IsActive:  stateData.IsActive,
+			CreatedAt: stateData.CreatedAt,
 		},
 		// Don't set Error field - omitempty will exclude it from JSON
 	}
@@ -275,6 +279,8 @@ func (b *BankAccount) CreateAccount(ctx context.Context, request CreateAccountRe
 	
 	// Initialize state and apply the event using centralized logic (protected by lock)
 	b.mu.Lock()
+	defer b.mu.Unlock()
+	
 	b.state = &BankAccountState{
 		Success: true,
 		Data: &BankAccountStateData{
@@ -285,15 +291,13 @@ func (b *BankAccount) CreateAccount(ctx context.Context, request CreateAccountRe
 	}
 	
 	if err := b.state.Data.applyEvent(*event); err != nil {
-		b.mu.Unlock()
 		return b.errorResponse(ErrorCodeInternalError, "Failed to apply state change", map[string]interface{}{
 			"error": err.Error(),
 		}), nil
 	}
-	b.mu.Unlock()
 	
 	log.Printf("BankAccount %s: Account created by user %s for owner %s", b.ID(), userID, request.OwnerName)
-	return b.successResponse(), nil
+	return b.successResponseWithState(b.state.Data), nil
 }
 
 func (b *BankAccount) Deposit(ctx context.Context, request DepositRequest) (*BankAccountState, error) {
@@ -338,15 +342,15 @@ func (b *BankAccount) Deposit(ctx context.Context, request DepositRequest) (*Ban
 	
 	// Update in-memory state using centralized event application (protected by lock)
 	b.mu.Lock()
+	defer b.mu.Unlock()
+	
 	if err := b.state.Data.applyEvent(*event); err != nil {
-		b.mu.Unlock()
 		return b.errorResponse(ErrorCodeInternalError, "Failed to apply state change", map[string]interface{}{
 			"error": err.Error(),
 		}), nil
 	}
-	b.mu.Unlock()
 	
-	return b.successResponse(), nil
+	return b.successResponseWithState(b.state.Data), nil
 }
 
 func (b *BankAccount) Withdraw(ctx context.Context, request WithdrawRequest) (*BankAccountState, error) {
@@ -405,15 +409,15 @@ func (b *BankAccount) Withdraw(ctx context.Context, request WithdrawRequest) (*B
 	
 	// Update in-memory state using centralized event application (protected by lock)
 	b.mu.Lock()
+	defer b.mu.Unlock()
+	
 	if err := b.state.Data.applyEvent(*event); err != nil {
-		b.mu.Unlock()
 		return b.errorResponse(ErrorCodeInternalError, "Failed to apply state change", map[string]interface{}{
 			"error": err.Error(),
 		}), nil
 	}
-	b.mu.Unlock()
 	
-	return b.successResponse(), nil
+	return b.successResponseWithState(b.state.Data), nil
 }
 
 func (b *BankAccount) GetBalance(ctx context.Context) (*BankAccountState, error) {
