@@ -650,46 +650,58 @@ func (b *BankAccount) computeStateFromEvents(ctx context.Context) (*BankAccountS
 	
 	streamID := fmt.Sprintf("bankaccount-%s", b.ID())
 	
-	// Step 1: Try to find the latest snapshot
-	latestSnapshot, err := b.findLatestSnapshot(ctx)
+	// Step 1: Try to restore state from snapshot
+	state, startVersion, err := b.restoreFromSnapshot(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to find latest snapshot: %v", err)
+		return nil, fmt.Errorf("failed to restore from snapshot: %v", err)
 	}
 	
-	var state *BankAccountState
+	// Step 2: Replay events after the snapshot
+	finalState, err := b.replayEventsAfterVersion(ctx, streamID, state, startVersion)
+	if err != nil {
+		return nil, fmt.Errorf("failed to replay events: %v", err)
+	}
+	
+	return finalState, nil
+}
+
+// restoreFromSnapshot finds the latest snapshot and restores state from it
+// Returns the initialized state and the version to start replaying from
+func (b *BankAccount) restoreFromSnapshot(ctx context.Context) (*BankAccountState, int64, error) {
+	latestSnapshot, err := b.findLatestSnapshot(ctx)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to find latest snapshot: %v", err)
+	}
+	
+	// Initialize empty state
+	state := &BankAccountState{
+		Success: true,
+		Data: &BankAccountStateData{
+			AccountId: b.ID(),
+			Balance:   0,
+			IsActive:  true,
+		},
+	}
+	
 	var startVersion int64 = 0
 	
 	if latestSnapshot != nil {
-		// Step 2: Restore state from snapshot
-		state = &BankAccountState{
-			Success: true,
-			Data: &BankAccountStateData{
-				AccountId: b.ID(),
-				Balance:   0,
-				IsActive:  true,
-			},
-		}
-		
-		// Apply the snapshot to restore state
+		// Apply the snapshot to restore state (this will set state.Data.Version correctly)
 		if err := state.Data.applyEvent(*latestSnapshot); err != nil {
-			return nil, fmt.Errorf("failed to apply snapshot event: %v", err)
+			return nil, 0, fmt.Errorf("failed to apply snapshot event: %v", err)
 		}
 		
+		// Use the snapshot event version for determining where to start loading events from
 		startVersion = latestSnapshot.Version
 		log.Printf("BankAccount %s: Restored state from snapshot at version %d", b.ID(), startVersion)
-	} else {
-		// No snapshot found, initialize empty state
-		state = &BankAccountState{
-			Success: true,
-			Data: &BankAccountStateData{
-				AccountId: b.ID(),
-				Balance:   0,
-				IsActive:  true,
-			},
-		}
 	}
 	
-	// Step 3: Load and replay events after the snapshot
+	return state, startVersion, nil
+}
+
+// replayEventsAfterVersion loads and replays events after the given version
+func (b *BankAccount) replayEventsAfterVersion(ctx context.Context, streamID string, state *BankAccountState, startVersion int64) (*BankAccountState, error) {
+	// Load events after the snapshot
 	events, err := b.eventStore.Load(streamID, eventstore.LoadOptions{
 		ExclusiveStartVersion: startVersion, // Only load events after snapshot
 		Limit: 0, // No limit
@@ -701,11 +713,11 @@ func (b *BankAccount) computeStateFromEvents(ctx context.Context) (*BankAccountS
 	}
 	
 	// If no events exist at all (including snapshot), account doesn't exist
-	if latestSnapshot == nil && len(events) == 0 {
+	if startVersion == 0 && len(events) == 0 {
 		return nil, nil
 	}
 	
-	// Step 4: Apply events after snapshot, skipping any additional snapshots
+	// Apply events after snapshot, skipping any additional snapshots
 	eventsApplied := 0
 	for _, event := range events {
 		// Skip snapshot events as they're used for state restoration, not state changes
@@ -719,7 +731,7 @@ func (b *BankAccount) computeStateFromEvents(ctx context.Context) (*BankAccountS
 		eventsApplied++
 	}
 	
-	if latestSnapshot != nil {
+	if startVersion > 0 {
 		log.Printf("BankAccount %s: Replayed %d events after snapshot (version %d -> %d)", 
 			b.ID(), eventsApplied, startVersion, state.Data.Version)
 	} else {
