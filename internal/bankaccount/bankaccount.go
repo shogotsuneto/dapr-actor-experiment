@@ -54,7 +54,6 @@ type BankAccount struct {
 	// Ephemeral in-memory state for fast access (computed from events)
 	state    *BankAccountState
 	stateLoaded    bool  // Track if state has been loaded from events
-	accountExists  bool  // Track if account exists to avoid repeated checks
 	
 	// Snapshot configuration
 	snapshotFrequency int64 // Create snapshot every N events (default: 10)
@@ -147,13 +146,11 @@ func (b *BankAccount) ensureStateLoaded(ctx context.Context) error {
 	
 	if state == nil {
 		// Account doesn't exist yet
-		b.accountExists = false
 		b.mu.Lock()
 		b.state = nil
 		b.mu.Unlock()
 	} else {
 		// Account exists, cache the computed state for fast access
-		b.accountExists = true
 		b.mu.Lock()
 		b.state = state
 		b.mu.Unlock()
@@ -172,7 +169,7 @@ func (b *BankAccount) checkOwnership(ctx context.Context) (string, error) {
 	
 	// For account creation, the actor ID should match the user ID (simplified ownership check)
 	// This means users can only create accounts that match their user ID
-	if !b.accountExists {
+	if b.state == nil {
 		if userID != b.ID() {
 			return "", fmt.Errorf("insufficient permissions: can only create accounts for yourself")
 		}
@@ -245,7 +242,7 @@ func (b *BankAccount) CreateAccount(ctx context.Context, request CreateAccountRe
 	}
 	
 	// Check if account already exists (fast in-memory check)
-	if b.accountExists {
+	if b.state != nil {
 		return b.errorResponse(ErrorCodeAccountAlreadyExists, "Account already exists", map[string]interface{}{
 			"accountId": b.ID(),
 		}), nil
@@ -295,8 +292,6 @@ func (b *BankAccount) CreateAccount(ctx context.Context, request CreateAccountRe
 	}
 	b.mu.Unlock()
 	
-	b.accountExists = true
-	
 	log.Printf("BankAccount %s: Account created by user %s for owner %s", b.ID(), userID, request.OwnerName)
 	return b.successResponse(), nil
 }
@@ -323,7 +318,7 @@ func (b *BankAccount) Deposit(ctx context.Context, request DepositRequest) (*Ban
 	}
 	
 	// Ensure account exists
-	if !b.accountExists {
+	if b.state == nil {
 		return b.errorResponse(ErrorCodeAccountNotFound, "Account does not exist - create account first", nil), nil
 	}
 	
@@ -376,7 +371,7 @@ func (b *BankAccount) Withdraw(ctx context.Context, request WithdrawRequest) (*B
 	}
 	
 	// Ensure account exists and check balance
-	if !b.accountExists {
+	if b.state == nil {
 		return b.errorResponse(ErrorCodeAccountNotFound, "Account does not exist - create account first", nil), nil
 	}
 	
@@ -436,7 +431,7 @@ func (b *BankAccount) GetBalance(ctx context.Context) (*BankAccountState, error)
 	}
 	
 	// Check if account exists
-	if !b.accountExists {
+	if b.state == nil {
 		return b.errorResponse(ErrorCodeAccountNotFound, "Account does not exist - create account first", nil), nil
 	}
 	

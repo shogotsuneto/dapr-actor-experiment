@@ -66,7 +66,6 @@ func TestSnapshotBasedReplay(t *testing.T) {
 	require.NoError(t, err)
 	
 	// Apply the first event to the state so the version is tracked properly
-	actor.accountExists = true
 	actor.state = &BankAccountState{
 		Success: true,
 		Data: &BankAccountStateData{
@@ -111,7 +110,6 @@ func TestSnapshotBasedReplay(t *testing.T) {
 	// Now test replay from snapshot
 	actor.state = nil
 	actor.stateLoaded = false
-	actor.accountExists = false
 	
 	state, err := actor.computeStateFromEvents(ctx)
 	require.NoError(t, err)
