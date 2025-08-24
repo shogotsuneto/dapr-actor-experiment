@@ -714,20 +714,22 @@ func (b *BankAccount) replayEventsAfterVersion(ctx context.Context) error {
 			continue
 		}
 
-		b.mu.Lock()
-		unlock := func() { b.mu.Unlock() }
-		defer func() { unlock() }() // ensure unlock is called
+		err = func() error {
+			b.mu.Lock()
+			defer b.mu.Unlock()
 
-		if err := b.state.Data.applyEvent(event); err != nil {
-			unlock()
-			unlock = func() {}
-			return fmt.Errorf("failed to apply event %s: %v", event.ID, err)
+			if err := b.state.Data.applyEvent(event); err != nil {
+				return fmt.Errorf("failed to apply event %s: %v", event.ID, err)
+			}
+
+			eventsApplied++
+			return nil
+		}()
+
+		if err != nil {
+			return err
 		}
 
-		eventsApplied++
-
-		unlock()
-		unlock = func() {}
 	}
 
 	b.mu.RLock()
