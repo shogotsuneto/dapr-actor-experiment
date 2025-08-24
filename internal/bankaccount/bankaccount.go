@@ -628,6 +628,9 @@ func (state *BankAccountStateData) applyEvent(event eventstore.Event) error {
 		state.Balance = data.Balance
 		state.IsActive = data.IsActive
 		state.CreatedAt = data.CreatedAt.Format(time.RFC3339)
+		// For snapshots, use the version of the snapshot data, not the snapshot event
+		state.Version = data.Version
+		return nil
 		
 	default:
 		return fmt.Errorf("unknown event type: %s", event.Type)
