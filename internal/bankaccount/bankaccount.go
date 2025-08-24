@@ -651,26 +651,37 @@ func (b *BankAccount) computeStateFromEvents(ctx context.Context) (*BankAccountS
 	streamID := fmt.Sprintf("bankaccount-%s", b.ID())
 	
 	// Step 1: Try to restore state from snapshot
-	state, startVersion, err := b.restoreFromSnapshot(ctx)
-	if err != nil {
+	if err := b.restoreFromSnapshot(ctx); err != nil {
 		return nil, fmt.Errorf("failed to restore from snapshot: %v", err)
 	}
 	
+	// Get the starting version from the restored state
+	b.mu.RLock()
+	var startVersion int64 = 0
+	if b.state != nil {
+		startVersion = b.state.Data.Version
+	}
+	b.mu.RUnlock()
+	
 	// Step 2: Replay events after the snapshot
-	finalState, err := b.replayEventsAfterVersion(ctx, streamID, state, startVersion)
-	if err != nil {
+	if err := b.replayEventsAfterVersion(ctx, streamID, startVersion); err != nil {
 		return nil, fmt.Errorf("failed to replay events: %v", err)
 	}
+	
+	// Return the final state
+	b.mu.RLock()
+	finalState := b.state
+	b.mu.RUnlock()
 	
 	return finalState, nil
 }
 
 // restoreFromSnapshot finds the latest snapshot and restores state from it
-// Returns the initialized state and the version to start replaying from
-func (b *BankAccount) restoreFromSnapshot(ctx context.Context) (*BankAccountState, int64, error) {
+// Sets b.state directly and returns error if any
+func (b *BankAccount) restoreFromSnapshot(ctx context.Context) error {
 	latestSnapshot, err := b.findLatestSnapshot(ctx)
 	if err != nil {
-		return nil, 0, fmt.Errorf("failed to find latest snapshot: %v", err)
+		return fmt.Errorf("failed to find latest snapshot: %v", err)
 	}
 	
 	// Initialize empty state
@@ -683,24 +694,25 @@ func (b *BankAccount) restoreFromSnapshot(ctx context.Context) (*BankAccountStat
 		},
 	}
 	
-	var startVersion int64 = 0
-	
 	if latestSnapshot != nil {
 		// Apply the snapshot to restore state (this will set state.Data.Version correctly)
 		if err := state.Data.applyEvent(*latestSnapshot); err != nil {
-			return nil, 0, fmt.Errorf("failed to apply snapshot event: %v", err)
+			return fmt.Errorf("failed to apply snapshot event: %v", err)
 		}
-		
-		// Use the current version of the BankAccountState for determining where to start loading events from
-		startVersion = state.Data.Version
-		log.Printf("BankAccount %s: Restored state from snapshot at version %d", b.ID(), startVersion)
+		log.Printf("BankAccount %s: Restored state from snapshot at version %d", b.ID(), state.Data.Version)
 	}
 	
-	return state, startVersion, nil
+	// Set the state with proper locking
+	b.mu.Lock()
+	b.state = state
+	b.mu.Unlock()
+	
+	return nil
 }
 
 // replayEventsAfterVersion loads and replays events after the given version
-func (b *BankAccount) replayEventsAfterVersion(ctx context.Context, streamID string, state *BankAccountState, startVersion int64) (*BankAccountState, error) {
+// Applies events directly to b.state
+func (b *BankAccount) replayEventsAfterVersion(ctx context.Context, streamID string, startVersion int64) error {
 	// Load events after the snapshot
 	events, err := b.eventStore.Load(streamID, eventstore.LoadOptions{
 		ExclusiveStartVersion: startVersion, // Only load events after snapshot
@@ -709,12 +721,15 @@ func (b *BankAccount) replayEventsAfterVersion(ctx context.Context, streamID str
 	})
 	
 	if err != nil {
-		return nil, fmt.Errorf("failed to load events after snapshot: %v", err)
+		return fmt.Errorf("failed to load events after snapshot: %v", err)
 	}
 	
 	// If no events exist at all (including snapshot), account doesn't exist
 	if startVersion == 0 && len(events) == 0 {
-		return nil, nil
+		b.mu.Lock()
+		b.state = nil
+		b.mu.Unlock()
+		return nil
 	}
 	
 	// Apply events after snapshot, skipping any additional snapshots
@@ -725,21 +740,28 @@ func (b *BankAccount) replayEventsAfterVersion(ctx context.Context, streamID str
 			continue
 		}
 		
-		if err := state.Data.applyEvent(event); err != nil {
-			return nil, fmt.Errorf("failed to apply event %s: %v", event.ID, err)
+		b.mu.Lock()
+		if err := b.state.Data.applyEvent(event); err != nil {
+			b.mu.Unlock()
+			return fmt.Errorf("failed to apply event %s: %v", event.ID, err)
 		}
+		b.mu.Unlock()
 		eventsApplied++
 	}
 	
+	b.mu.RLock()
+	currentVersion := b.state.Data.Version
+	b.mu.RUnlock()
+	
 	if startVersion > 0 {
 		log.Printf("BankAccount %s: Replayed %d events after snapshot (version %d -> %d)", 
-			b.ID(), eventsApplied, startVersion, state.Data.Version)
+			b.ID(), eventsApplied, startVersion, currentVersion)
 	} else {
 		log.Printf("BankAccount %s: Replayed %d events from beginning (version 0 -> %d)", 
-			b.ID(), eventsApplied, state.Data.Version)
+			b.ID(), eventsApplied, currentVersion)
 	}
 	
-	return state, nil
+	return nil
 }
 
 
