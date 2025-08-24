@@ -691,12 +691,7 @@ func (b *BankAccount) restoreFromSnapshot(ctx context.Context) error {
 // Applies events directly to b.state
 func (b *BankAccount) replayEventsAfterVersion(ctx context.Context) error {
 	// Get the starting version from the current state
-	b.mu.RLock()
-	var startVersion int64 = 0
-	if b.state != nil && b.state.Data != nil {
-		startVersion = b.state.Data.Version
-	}
-	b.mu.RUnlock()
+	startVersion := b.getCurrentVersion()
 	
 	// Load events after the snapshot
 	events, err := b.eventStore.Load(b.getStreamID(), eventstore.LoadOptions{
