@@ -213,7 +213,8 @@ func TestSnapshotBasedReplay(t *testing.T) {
 	// Second call should be for loading events after the snapshot
 	eventsCall := loadCalls[1]
 	assert.Equal(t, "bankaccount-test-account-replay", eventsCall.StreamID)
-	assert.Equal(t, snapshotVersion, eventsCall.Options.ExclusiveStartVersion, "Should start loading from snapshot version")
+	// Should start from the snapshot data version (2), not the snapshot event version (3)
+	assert.Equal(t, int64(2), eventsCall.Options.ExclusiveStartVersion, "Should start loading from snapshot data version")
 	assert.Equal(t, 0, eventsCall.Options.Limit) // No limit for event replay
 	assert.False(t, eventsCall.Options.Desc, "Should load events in chronological order")
 	require.NoError(t, eventsCall.Error)
