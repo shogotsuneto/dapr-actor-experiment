@@ -59,7 +59,7 @@ type BankAccount struct {
 	// Snapshot configuration
 	snapshotFrequency int64 // Create snapshot every N events (default: 10)
 	
-	// Mutex to protect concurrent access to state
+	// Mutex to protect concurrent access to state field
 	mu sync.RWMutex
 }
 
@@ -130,21 +130,9 @@ func (b *BankAccount) Type() string {
 // PERFORMANCE: This method implements lazy loading - state is computed from events
 // only once when the actor is first accessed, then cached for subsequent operations.
 func (b *BankAccount) ensureStateLoaded(ctx context.Context) error {
-	// First check if already loaded with read lock
-	b.mu.RLock()
+	// Check if already loaded (simple check without locking)
 	if b.stateLoaded {
-		b.mu.RUnlock()
 		return nil // State already loaded and cached - fast path!
-	}
-	b.mu.RUnlock()
-	
-	// Upgrade to write lock for state loading
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	
-	// Double-check pattern: another goroutine might have loaded while we waited
-	if b.stateLoaded {
-		return nil
 	}
 	
 	if b.eventStore == nil {
@@ -160,11 +148,15 @@ func (b *BankAccount) ensureStateLoaded(ctx context.Context) error {
 	if state == nil {
 		// Account doesn't exist yet
 		b.accountExists = false
+		b.mu.Lock()
 		b.state = nil
+		b.mu.Unlock()
 	} else {
 		// Account exists, cache the computed state for fast access
 		b.accountExists = true
+		b.mu.Lock()
 		b.state = state
+		b.mu.Unlock()
 	}
 	
 	b.stateLoaded = true
@@ -178,9 +170,6 @@ func (b *BankAccount) checkOwnership(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("authentication required")
 	}
 	
-	b.mu.RLock()
-	defer b.mu.RUnlock()
-	
 	// For account creation, the actor ID should match the user ID (simplified ownership check)
 	// This means users can only create accounts that match their user ID
 	if !b.accountExists {
@@ -191,7 +180,14 @@ func (b *BankAccount) checkOwnership(ctx context.Context) (string, error) {
 	}
 	
 	// For existing accounts, check against the stored owner ID
-	if b.state != nil && b.state.Data.OwnerId != userID {
+	b.mu.RLock()
+	var ownerID string
+	if b.state != nil && b.state.Data != nil {
+		ownerID = b.state.Data.OwnerId
+	}
+	b.mu.RUnlock()
+	
+	if ownerID != userID {
 		return "", fmt.Errorf("insufficient permissions: cannot access this account")
 	}
 	
@@ -249,11 +245,7 @@ func (b *BankAccount) CreateAccount(ctx context.Context, request CreateAccountRe
 	}
 	
 	// Check if account already exists (fast in-memory check)
-	b.mu.RLock()
-	accountExists := b.accountExists
-	b.mu.RUnlock()
-	
-	if accountExists {
+	if b.accountExists {
 		return b.errorResponse(ErrorCodeAccountAlreadyExists, "Account already exists", map[string]interface{}{
 			"accountId": b.ID(),
 		}), nil
@@ -301,8 +293,9 @@ func (b *BankAccount) CreateAccount(ctx context.Context, request CreateAccountRe
 			"error": err.Error(),
 		}), nil
 	}
-	b.accountExists = true
 	b.mu.Unlock()
+	
+	b.accountExists = true
 	
 	log.Printf("BankAccount %s: Account created by user %s for owner %s", b.ID(), userID, request.OwnerName)
 	return b.successResponse(), nil
@@ -330,11 +323,7 @@ func (b *BankAccount) Deposit(ctx context.Context, request DepositRequest) (*Ban
 	}
 	
 	// Ensure account exists
-	b.mu.RLock()
-	accountExists := b.accountExists
-	b.mu.RUnlock()
-	
-	if !accountExists {
+	if !b.accountExists {
 		return b.errorResponse(ErrorCodeAccountNotFound, "Account does not exist - create account first", nil), nil
 	}
 	
@@ -386,20 +375,18 @@ func (b *BankAccount) Withdraw(ctx context.Context, request WithdrawRequest) (*B
 		}), nil
 	}
 	
-	// Ensure account exists
+	// Ensure account exists and check balance
+	if !b.accountExists {
+		return b.errorResponse(ErrorCodeAccountNotFound, "Account does not exist - create account first", nil), nil
+	}
+	
+	// Check sufficient balance using fast in-memory state (protected by lock)
 	b.mu.RLock()
-	accountExists := b.accountExists
 	currentBalance := float64(0)
 	if b.state != nil && b.state.Data != nil {
 		currentBalance = b.state.Data.Balance
 	}
 	b.mu.RUnlock()
-	
-	if !accountExists {
-		return b.errorResponse(ErrorCodeAccountNotFound, "Account does not exist - create account first", nil), nil
-	}
-	
-	// Check sufficient balance using fast in-memory state
 	if currentBalance < request.Amount {
 		return b.errorResponse(ErrorCodeInsufficientFunds, fmt.Sprintf("Insufficient funds: balance %.2f, requested %.2f", currentBalance, request.Amount), map[string]interface{}{
 			"currentBalance":   currentBalance,
@@ -449,11 +436,7 @@ func (b *BankAccount) GetBalance(ctx context.Context) (*BankAccountState, error)
 	}
 	
 	// Check if account exists
-	b.mu.RLock()
-	accountExists := b.accountExists
-	b.mu.RUnlock()
-	
-	if !accountExists {
+	if !b.accountExists {
 		return b.errorResponse(ErrorCodeAccountNotFound, "Account does not exist - create account first", nil), nil
 	}
 	
