@@ -158,13 +158,13 @@ func (b *BankAccount) ensureStateLoaded(ctx context.Context) error {
 	if state == nil {
 		// Account doesn't exist yet
 		b.mu.Lock()
+		defer b.mu.Unlock()
 		b.state = nil
-		b.mu.Unlock()
 	} else {
 		// Account exists, cache the computed state for fast access
 		b.mu.Lock()
+		defer b.mu.Unlock()
 		b.state = state
-		b.mu.Unlock()
 	}
 	
 	b.stateLoaded = true
@@ -681,8 +681,8 @@ func (b *BankAccount) restoreFromSnapshot(ctx context.Context) error {
 	
 	// Set the state with proper locking
 	b.mu.Lock()
+	defer b.mu.Unlock()
 	b.state = state
-	b.mu.Unlock()
 	
 	return nil
 }
@@ -707,8 +707,8 @@ func (b *BankAccount) replayEventsAfterVersion(ctx context.Context) error {
 	// If no events exist at all (including snapshot), account doesn't exist
 	if startVersion == 0 && len(events) == 0 {
 		b.mu.Lock()
+		defer b.mu.Unlock()
 		b.state = nil
-		b.mu.Unlock()
 		return nil
 	}
 	
@@ -721,11 +721,14 @@ func (b *BankAccount) replayEventsAfterVersion(ctx context.Context) error {
 		}
 		
 		b.mu.Lock()
+		unlock := func() { b.mu.Unlock() }
+		defer func() { unlock() }()
+		
 		if err := b.state.Data.applyEvent(event); err != nil {
-			b.mu.Unlock()
+			unlock()
+			unlock = func() {}
 			return fmt.Errorf("failed to apply event %s: %v", event.ID, err)
 		}
-		b.mu.Unlock()
 		eventsApplied++
 	}
 	
