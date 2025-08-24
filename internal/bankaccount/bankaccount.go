@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"sync"
 	"time"
 
 	"github.com/dapr/go-sdk/actor"
@@ -57,10 +58,16 @@ type BankAccount struct {
 	
 	// Snapshot configuration
 	snapshotFrequency int64 // Create snapshot every N events (default: 10)
+	
+	// Mutex to protect concurrent access to state
+	mu sync.RWMutex
 }
 
 // getCurrentVersion returns the current stream version from state, or 0 if no state exists
 func (b *BankAccount) getCurrentVersion() int64 {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	
 	if b.state != nil && b.state.Data != nil {
 		return b.state.Data.Version
 	}
@@ -123,8 +130,21 @@ func (b *BankAccount) Type() string {
 // PERFORMANCE: This method implements lazy loading - state is computed from events
 // only once when the actor is first accessed, then cached for subsequent operations.
 func (b *BankAccount) ensureStateLoaded(ctx context.Context) error {
+	// First check if already loaded with read lock
+	b.mu.RLock()
 	if b.stateLoaded {
+		b.mu.RUnlock()
 		return nil // State already loaded and cached - fast path!
+	}
+	b.mu.RUnlock()
+	
+	// Upgrade to write lock for state loading
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	
+	// Double-check pattern: another goroutine might have loaded while we waited
+	if b.stateLoaded {
+		return nil
 	}
 	
 	if b.eventStore == nil {
@@ -158,6 +178,9 @@ func (b *BankAccount) checkOwnership(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("authentication required")
 	}
 	
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	
 	// For account creation, the actor ID should match the user ID (simplified ownership check)
 	// This means users can only create accounts that match their user ID
 	if !b.accountExists {
@@ -178,6 +201,9 @@ func (b *BankAccount) checkOwnership(ctx context.Context) (string, error) {
 // Helper methods for structured responses
 
 func (b *BankAccount) successResponse() *BankAccountState {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	
 	// Return successful response with data nested under Data field
 	return &BankAccountState{
 		Success: true,
@@ -223,7 +249,11 @@ func (b *BankAccount) CreateAccount(ctx context.Context, request CreateAccountRe
 	}
 	
 	// Check if account already exists (fast in-memory check)
-	if b.accountExists {
+	b.mu.RLock()
+	accountExists := b.accountExists
+	b.mu.RUnlock()
+	
+	if accountExists {
 		return b.errorResponse(ErrorCodeAccountAlreadyExists, "Account already exists", map[string]interface{}{
 			"accountId": b.ID(),
 		}), nil
@@ -254,7 +284,8 @@ func (b *BankAccount) CreateAccount(ctx context.Context, request CreateAccountRe
 		}), nil
 	}
 	
-	// Initialize state and apply the event using centralized logic
+	// Initialize state and apply the event using centralized logic (protected by lock)
+	b.mu.Lock()
 	b.state = &BankAccountState{
 		Success: true,
 		Data: &BankAccountStateData{
@@ -265,14 +296,16 @@ func (b *BankAccount) CreateAccount(ctx context.Context, request CreateAccountRe
 	}
 	
 	if err := b.state.Data.applyEvent(*event); err != nil {
+		b.mu.Unlock()
 		return b.errorResponse(ErrorCodeInternalError, "Failed to apply state change", map[string]interface{}{
 			"error": err.Error(),
 		}), nil
 	}
 	b.accountExists = true
+	b.mu.Unlock()
 	
 	log.Printf("BankAccount %s: Account created by user %s for owner %s", b.ID(), userID, request.OwnerName)
-	return b.state, nil
+	return b.successResponse(), nil
 }
 
 func (b *BankAccount) Deposit(ctx context.Context, request DepositRequest) (*BankAccountState, error) {
@@ -297,7 +330,11 @@ func (b *BankAccount) Deposit(ctx context.Context, request DepositRequest) (*Ban
 	}
 	
 	// Ensure account exists
-	if !b.accountExists {
+	b.mu.RLock()
+	accountExists := b.accountExists
+	b.mu.RUnlock()
+	
+	if !accountExists {
 		return b.errorResponse(ErrorCodeAccountNotFound, "Account does not exist - create account first", nil), nil
 	}
 	
@@ -315,12 +352,15 @@ func (b *BankAccount) Deposit(ctx context.Context, request DepositRequest) (*Ban
 		}), nil
 	}
 	
-	// Update in-memory state using centralized event application
+	// Update in-memory state using centralized event application (protected by lock)
+	b.mu.Lock()
 	if err := b.state.Data.applyEvent(*event); err != nil {
+		b.mu.Unlock()
 		return b.errorResponse(ErrorCodeInternalError, "Failed to apply state change", map[string]interface{}{
 			"error": err.Error(),
 		}), nil
 	}
+	b.mu.Unlock()
 	
 	return b.successResponse(), nil
 }
@@ -347,14 +387,22 @@ func (b *BankAccount) Withdraw(ctx context.Context, request WithdrawRequest) (*B
 	}
 	
 	// Ensure account exists
-	if !b.accountExists {
+	b.mu.RLock()
+	accountExists := b.accountExists
+	currentBalance := float64(0)
+	if b.state != nil && b.state.Data != nil {
+		currentBalance = b.state.Data.Balance
+	}
+	b.mu.RUnlock()
+	
+	if !accountExists {
 		return b.errorResponse(ErrorCodeAccountNotFound, "Account does not exist - create account first", nil), nil
 	}
 	
 	// Check sufficient balance using fast in-memory state
-	if b.state.Data.Balance < request.Amount {
-		return b.errorResponse(ErrorCodeInsufficientFunds, fmt.Sprintf("Insufficient funds: balance %.2f, requested %.2f", b.state.Data.Balance, request.Amount), map[string]interface{}{
-			"currentBalance":   b.state.Data.Balance,
+	if currentBalance < request.Amount {
+		return b.errorResponse(ErrorCodeInsufficientFunds, fmt.Sprintf("Insufficient funds: balance %.2f, requested %.2f", currentBalance, request.Amount), map[string]interface{}{
+			"currentBalance":   currentBalance,
 			"requestedAmount": request.Amount,
 		}), nil
 	}
@@ -373,12 +421,15 @@ func (b *BankAccount) Withdraw(ctx context.Context, request WithdrawRequest) (*B
 		}), nil
 	}
 	
-	// Update in-memory state using centralized event application
+	// Update in-memory state using centralized event application (protected by lock)
+	b.mu.Lock()
 	if err := b.state.Data.applyEvent(*event); err != nil {
+		b.mu.Unlock()
 		return b.errorResponse(ErrorCodeInternalError, "Failed to apply state change", map[string]interface{}{
 			"error": err.Error(),
 		}), nil
 	}
+	b.mu.Unlock()
 	
 	return b.successResponse(), nil
 }
@@ -398,7 +449,11 @@ func (b *BankAccount) GetBalance(ctx context.Context) (*BankAccountState, error)
 	}
 	
 	// Check if account exists
-	if !b.accountExists {
+	b.mu.RLock()
+	accountExists := b.accountExists
+	b.mu.RUnlock()
+	
+	if !accountExists {
 		return b.errorResponse(ErrorCodeAccountNotFound, "Account does not exist - create account first", nil), nil
 	}
 	
@@ -487,8 +542,21 @@ func (b *BankAccount) getAllEvents(ctx context.Context) ([]eventstore.Event, err
 
 // createSnapshot creates a snapshot of the current state and stores it as an event
 func (b *BankAccount) createSnapshot(ctx context.Context) error {
+	b.mu.RLock()
 	if b.state == nil || b.state.Data == nil {
+		b.mu.RUnlock()
 		return fmt.Errorf("cannot create snapshot: no state available")
+	}
+	
+	// Copy state data while holding the read lock
+	snapshotData := StateSnapshotEventData{
+		AccountId: b.state.Data.AccountId,
+		OwnerName: b.state.Data.OwnerName,
+		OwnerId:   b.state.Data.OwnerId,
+		Balance:   b.state.Data.Balance,
+		IsActive:  b.state.Data.IsActive,
+		Version:   b.state.Data.Version,
+		Timestamp: time.Now(),
 	}
 	
 	// Parse the CreatedAt timestamp back to time.Time for the snapshot
@@ -497,24 +565,15 @@ func (b *BankAccount) createSnapshot(ctx context.Context) error {
 		// If parsing fails, use current time as fallback
 		createdAt = time.Now()
 	}
-	
-	snapshotData := StateSnapshotEventData{
-		AccountId: b.state.Data.AccountId,
-		OwnerName: b.state.Data.OwnerName,
-		OwnerId:   b.state.Data.OwnerId,
-		Balance:   b.state.Data.Balance,
-		IsActive:  b.state.Data.IsActive,
-		CreatedAt: createdAt,
-		Version:   b.state.Data.Version,
-		Timestamp: time.Now(),
-	}
+	snapshotData.CreatedAt = createdAt
+	b.mu.RUnlock()
 	
 	_, err = b.appendEvent(ctx, AccountEventEventTypeStateSnapshot, snapshotData)
 	if err != nil {
 		return fmt.Errorf("failed to create snapshot: %v", err)
 	}
 	
-	log.Printf("BankAccount %s: Created snapshot at version %d", b.ID(), b.state.Data.Version)
+	log.Printf("BankAccount %s: Created snapshot at version %d", b.ID(), snapshotData.Version)
 	return nil
 }
 
