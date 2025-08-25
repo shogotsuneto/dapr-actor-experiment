@@ -69,17 +69,17 @@ func TestSnapshotCreationAndReplay(t *testing.T) {
 	actor := NewBankAccount(trackedStore)
 	actor.SetID("test-account")
 	actor.snapshotFrequency = 3 // Create snapshot every 3 events
-	actor.state = &BankAccountState{
-		Success: true,
-		Data: &BankAccountStateData{
-			AccountId: "test-account",
-			OwnerName: "Test User",
-			OwnerId:   "test-user",
-			Balance:   100.0,
-			IsActive:  true,
-			CreatedAt: time.Now().Format(time.RFC3339),
-			Version:   0,
-		},
+	
+	// Initialize state manager with test state
+	actor.stateManager = NewStateManager("test-account")
+	actor.stateManager.state = BankAccountStateV1{
+		AccountId: "test-account",
+		OwnerName: "Test User",
+		OwnerId:   "test-user",
+		Balance:   100.0,
+		IsActive:  true,
+		CreatedAt: time.Now().Format(time.RFC3339),
+		Version:   0,
 	}
 
 	// Test creating a snapshot
@@ -95,7 +95,7 @@ func TestSnapshotCreationAndReplay(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Len(t, events, 1, "Should have one snapshot event")
-	assert.Equal(t, string(AccountEventEventTypeStateSnapshot), events[0].Type)
+	assert.Equal(t, string(EventTypeStateSnapshotV1), events[0].Type)
 }
 
 func TestSnapshotBasedReplay(t *testing.T) {
@@ -109,66 +109,61 @@ func TestSnapshotBasedReplay(t *testing.T) {
 
 	// Simulate some events followed by a snapshot
 	// Event 1: Account created
-	_, err := actor.appendEvent(ctx, AccountEventEventTypeAccountCreated, AccountCreatedEventData{
+	event1 := AccountCreatedEventV1{
 		OwnerName:      "Test User",
 		OwnerId:        "test-user",
 		InitialDeposit: 100.0,
 		CreatedAt:      time.Now(),
-	})
+	}
+	_, err := actor.appendEvent(ctx, event1)
 	require.NoError(t, err)
 
-	// Apply the first event to the state so the version is tracked properly
-	actor.state = &BankAccountState{
-		Success: true,
-		Data: &BankAccountStateData{
-			AccountId: "test-account-replay",
-			OwnerName: "Test User",
-			OwnerId:   "test-user",
-			Balance:   100.0,
-			IsActive:  true,
-			CreatedAt: time.Now().Format(time.RFC3339),
-			Version:   1,
-		},
-	}
+	// Initialize state manager and apply the first event so the version is tracked properly
+	actor.stateManager = NewStateManager("test-account-replay")
+	err = actor.stateManager.Apply(event1)
+	require.NoError(t, err)
+	actor.stateManager.SetVersion(1)
 	actor.stateLoaded = true
 
 	// Event 2: Money deposited
-	_, err = actor.appendEvent(ctx, AccountEventEventTypeMoneyDeposited, MoneyDepositedEventData{
+	event2 := MoneyDepositedEventV1{
 		Amount:      50.0,
 		Description: "Test deposit",
 		Timestamp:   time.Now(),
-	})
+	}
+	_, err = actor.appendEvent(ctx, event2)
 	require.NoError(t, err)
 
 	// Update state to reflect the deposit
-	actor.state.Data.Balance = 150.0
-	actor.state.Data.Version = 2
+	err = actor.stateManager.Apply(event2)
+	require.NoError(t, err)
+	actor.stateManager.SetVersion(2)
 
 	// Create a snapshot manually (balance should be 150.0)
 	err = actor.createSnapshot(ctx)
 	require.NoError(t, err)
 
 	// Update state version to reflect snapshot creation
-	actor.state.Data.Version = 3
+	actor.stateManager.SetVersion(3)
 
 	// Event 3: Money withdrawn (after snapshot)
-	_, err = actor.appendEvent(ctx, AccountEventEventTypeMoneyWithdrawn, MoneyWithdrawnEventData{
+	event3 := MoneyWithdrawnEventV1{
 		Amount:      25.0,
 		Description: "Test withdrawal",
 		Timestamp:   time.Now(),
-	})
+	}
+	_, err = actor.appendEvent(ctx, event3)
 	require.NoError(t, err)
 
 	// Clear load calls and reset state to simulate actor reactivation
 	trackedStore.ClearLoadCalls()
-	actor.state = nil
+	actor.stateManager = nil
 	actor.stateLoaded = false
 
 	// Now test replay from snapshot - this should trigger Load calls
 	err = actor.computeStateFromEvents(ctx)
 	require.NoError(t, err)
-	require.NotNil(t, actor.state)
-	require.NotNil(t, actor.state.Data)
+	require.NotNil(t, actor.stateManager)
 
 	// Verify the Load calls made during state computation
 	loadCalls := trackedStore.GetLoadCalls()
@@ -186,7 +181,7 @@ func TestSnapshotBasedReplay(t *testing.T) {
 	snapshotFound := false
 	snapshotVersion := int64(0)
 	for _, event := range snapshotCall.Events {
-		if event.Type == string(AccountEventEventTypeStateSnapshot) {
+		if event.Type == string(EventTypeStateSnapshotV1) {
 			snapshotFound = true
 			snapshotVersion = event.Version
 			break
@@ -198,8 +193,8 @@ func TestSnapshotBasedReplay(t *testing.T) {
 	// Second call should be for loading events after the snapshot
 	eventsCall := loadCalls[1]
 	assert.Equal(t, "bankaccount-test-account-replay", eventsCall.StreamID)
-	// Should start from the snapshot data version (2), not the snapshot event version (3)
-	assert.Equal(t, int64(2), eventsCall.Options.ExclusiveStartVersion, "Should start loading from snapshot data version")
+	// Should start from the snapshot event version (3), not the snapshot data version (2)
+	assert.Equal(t, int64(3), eventsCall.Options.ExclusiveStartVersion, "Should start loading from snapshot event version")
 	assert.Equal(t, 0, eventsCall.Options.Limit) // No limit for event replay
 	assert.False(t, eventsCall.Options.Desc, "Should load events in chronological order")
 	require.NoError(t, eventsCall.Error)
@@ -207,7 +202,7 @@ func TestSnapshotBasedReplay(t *testing.T) {
 	// Should find the withdrawal event (version 4) after the snapshot
 	withdrawalFound := false
 	for _, event := range eventsCall.Events {
-		if event.Type == string(AccountEventEventTypeMoneyWithdrawn) {
+		if event.Type == string(EventTypeMoneyWithdrawnV1) {
 			withdrawalFound = true
 			assert.Equal(t, int64(4), event.Version, "Withdrawal should be at version 4")
 			break
@@ -217,11 +212,12 @@ func TestSnapshotBasedReplay(t *testing.T) {
 
 	// Verify final state is correct
 	// Balance should be 150.0 (from snapshot) - 25.0 (withdrawal) = 125.0
-	assert.Equal(t, 125.0, actor.state.Data.Balance, "Balance should reflect snapshot + events after snapshot")
-	assert.Equal(t, "Test User", actor.state.Data.OwnerName, "Owner name should be restored from snapshot")
-	assert.Equal(t, "test-user", actor.state.Data.OwnerId, "Owner ID should be restored from snapshot")
-	assert.True(t, actor.state.Data.IsActive, "Account should be active")
-	assert.Equal(t, int64(4), actor.state.Data.Version, "Version should reflect all events including snapshot")
+	finalState := actor.stateManager.GetState()
+	assert.Equal(t, 125.0, finalState.Balance, "Balance should reflect snapshot + events after snapshot")
+	assert.Equal(t, "Test User", finalState.OwnerName, "Owner name should be restored from snapshot")
+	assert.Equal(t, "test-user", finalState.OwnerId, "Owner ID should be restored from snapshot")
+	assert.True(t, finalState.IsActive, "Account should be active")
+	assert.Equal(t, int64(4), finalState.Version, "Version should reflect all events including snapshot")
 }
 
 func TestFindLatestSnapshot(t *testing.T) {
@@ -253,12 +249,13 @@ func TestFindLatestSnapshot(t *testing.T) {
 	trackedStore.ClearLoadCalls()
 
 	// Add some regular events
-	_, err = actor.appendEvent(ctx, AccountEventEventTypeAccountCreated, AccountCreatedEventData{
+	event1 := AccountCreatedEventV1{
 		OwnerName:      "Test User",
 		OwnerId:        "test-user",
 		InitialDeposit: 100.0,
 		CreatedAt:      time.Now(),
-	})
+	}
+	_, err = actor.appendEvent(ctx, event1)
 	require.NoError(t, err)
 
 	// Still no snapshot
@@ -269,19 +266,17 @@ func TestFindLatestSnapshot(t *testing.T) {
 	// Clear calls and create a snapshot
 	trackedStore.ClearLoadCalls()
 
-	actor.state = &BankAccountState{
-		Success: true,
-		Data: &BankAccountStateData{
-			AccountId: "test-account-find",
-			Balance:   100.0,
-			Version:   1,
-		},
+	actor.stateManager = NewStateManager("test-account-find")
+	actor.stateManager.state = BankAccountStateV1{
+		AccountId: "test-account-find",
+		Balance:   100.0,
+		Version:   1,
 	}
 	err = actor.createSnapshot(ctx)
 	require.NoError(t, err)
 
 	// Update state version to reflect snapshot creation (snapshot event added to stream)
-	actor.state.Data.Version = 2
+	actor.stateManager.SetVersion(2)
 
 	// Clear calls and now should find the snapshot
 	trackedStore.ClearLoadCalls()
@@ -289,7 +284,7 @@ func TestFindLatestSnapshot(t *testing.T) {
 	snapshot, err = actor.findLatestSnapshot(ctx)
 	require.NoError(t, err)
 	require.NotNil(t, snapshot, "Should find the snapshot")
-	assert.Equal(t, string(AccountEventEventTypeStateSnapshot), snapshot.Type)
+	assert.Equal(t, string(EventTypeStateSnapshotV1), snapshot.Type)
 
 	// Test multiple snapshots - should return the latest one
 	trackedStore.ClearLoadCalls()
@@ -297,32 +292,36 @@ func TestFindLatestSnapshot(t *testing.T) {
 	// Create second snapshot with different state
 	// The stream now has: 1 event + 1 snapshot = version 2
 	// We need to update the state to reflect some changes first
-	_, err = actor.appendEvent(ctx, AccountEventEventTypeMoneyDeposited, MoneyDepositedEventData{
+	event2 := MoneyDepositedEventV1{
 		Amount:      50.0,
 		Description: "Another deposit",
 		Timestamp:   time.Now(),
-	})
+	}
+	_, err = actor.appendEvent(ctx, event2)
 	require.NoError(t, err)
 
-	actor.state.Data.Balance = 150.0
-	actor.state.Data.Version = 3 // After the new deposit event
+	err = actor.stateManager.Apply(event2)
+	require.NoError(t, err)
+	actor.stateManager.SetVersion(3) // After the new deposit event
 	err = actor.createSnapshot(ctx)
 	require.NoError(t, err, "Should create second snapshot")
 
 	// Update state version after second snapshot creation
-	actor.state.Data.Version = 4
+	actor.stateManager.SetVersion(4)
 
 	// Add more events  
-	_, err = actor.appendEvent(ctx, AccountEventEventTypeMoneyDeposited, MoneyDepositedEventData{
+	event3 := MoneyDepositedEventV1{
 		Amount:      50.0,
 		Description: "Third deposit",
 		Timestamp:   time.Now(),
-	})
+	}
+	_, err = actor.appendEvent(ctx, event3)
 	require.NoError(t, err)
 
 	// Create third snapshot
-	actor.state.Data.Balance = 200.0
-	actor.state.Data.Version = 5 // After the third deposit event
+	err = actor.stateManager.Apply(event3)
+	require.NoError(t, err)
+	actor.stateManager.SetVersion(5) // After the third deposit event
 	err = actor.createSnapshot(ctx)
 	require.NoError(t, err, "Should create third snapshot")
 
@@ -332,12 +331,12 @@ func TestFindLatestSnapshot(t *testing.T) {
 	latestSnapshot, err := actor.findLatestSnapshot(ctx)
 	require.NoError(t, err)
 	require.NotNil(t, latestSnapshot, "Should find the latest snapshot")
-	assert.Equal(t, string(AccountEventEventTypeStateSnapshot), latestSnapshot.Type)
+	assert.Equal(t, string(EventTypeStateSnapshotV1), latestSnapshot.Type)
 
 	// Verify it's the latest snapshot by checking the version
 	// The latest snapshot should have the highest version number
 	// Parse the snapshot data to verify it contains the latest state
-	var snapshotData StateSnapshotEventData
+	var snapshotData StateSnapshotEventV1
 	err = json.Unmarshal(latestSnapshot.Data, &snapshotData)
 	require.NoError(t, err, "Should parse snapshot data")
 	assert.Equal(t, int64(5), snapshotData.Version, "Should return snapshot with highest version (latest)")
@@ -358,10 +357,10 @@ func TestFindLatestSnapshot(t *testing.T) {
 	snapshotCount := 0
 	var foundVersions []int64
 	for _, event := range call.Events {
-		if event.Type == string(AccountEventEventTypeStateSnapshot) {
+		if event.Type == string(EventTypeStateSnapshotV1) {
 			snapshotCount++
 			// Parse each snapshot to track versions
-			var data StateSnapshotEventData
+			var data StateSnapshotEventV1
 			if err := json.Unmarshal(event.Data, &data); err == nil {
 				foundVersions = append(foundVersions, data.Version)
 			}
