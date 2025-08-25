@@ -165,10 +165,10 @@ func TestSnapshotBasedReplay(t *testing.T) {
 	actor.stateLoaded = false
 
 	// Now test replay from snapshot - this should trigger Load calls
-	state, err := actor.computeStateFromEvents(ctx)
+	err = actor.computeStateFromEvents(ctx)
 	require.NoError(t, err)
-	require.NotNil(t, state)
-	require.NotNil(t, state.Data)
+	require.NotNil(t, actor.state)
+	require.NotNil(t, actor.state.Data)
 
 	// Verify the Load calls made during state computation
 	loadCalls := trackedStore.GetLoadCalls()
@@ -217,11 +217,11 @@ func TestSnapshotBasedReplay(t *testing.T) {
 
 	// Verify final state is correct
 	// Balance should be 150.0 (from snapshot) - 25.0 (withdrawal) = 125.0
-	assert.Equal(t, 125.0, state.Data.Balance, "Balance should reflect snapshot + events after snapshot")
-	assert.Equal(t, "Test User", state.Data.OwnerName, "Owner name should be restored from snapshot")
-	assert.Equal(t, "test-user", state.Data.OwnerId, "Owner ID should be restored from snapshot")
-	assert.True(t, state.Data.IsActive, "Account should be active")
-	assert.Equal(t, int64(4), state.Data.Version, "Version should reflect all events including snapshot")
+	assert.Equal(t, 125.0, actor.state.Data.Balance, "Balance should reflect snapshot + events after snapshot")
+	assert.Equal(t, "Test User", actor.state.Data.OwnerName, "Owner name should be restored from snapshot")
+	assert.Equal(t, "test-user", actor.state.Data.OwnerId, "Owner ID should be restored from snapshot")
+	assert.True(t, actor.state.Data.IsActive, "Account should be active")
+	assert.Equal(t, int64(4), actor.state.Data.Version, "Version should reflect all events including snapshot")
 }
 
 func TestFindLatestSnapshot(t *testing.T) {

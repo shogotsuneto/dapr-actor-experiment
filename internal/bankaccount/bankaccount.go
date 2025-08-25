@@ -148,21 +148,9 @@ func (b *BankAccount) ensureStateLoaded(ctx context.Context) error {
 	}
 
 	// Load state from event store for the first time (expensive operation)
-	state, err := b.computeStateFromEvents(ctx)
+	err := b.computeStateFromEvents(ctx)
 	if err != nil {
 		return err
-	}
-
-	if state == nil {
-		// Account doesn't exist yet
-		b.mu.Lock()
-		defer b.mu.Unlock()
-		b.state = nil
-	} else {
-		// Account exists, cache the computed state for fast access
-		b.mu.Lock()
-		defer b.mu.Unlock()
-		b.state = state
 	}
 
 	b.stateLoaded = true
@@ -624,27 +612,22 @@ func (state *BankAccountStateData) applyEvent(event eventstore.Event) error {
 	return nil
 }
 
-func (b *BankAccount) computeStateFromEvents(ctx context.Context) (*BankAccountState, error) {
+func (b *BankAccount) computeStateFromEvents(ctx context.Context) error {
 	if b.eventStore == nil {
-		return nil, fmt.Errorf("event store not configured")
+		return fmt.Errorf("event store not configured")
 	}
 
 	// Step 1: Try to restore state from snapshot
 	if err := b.restoreFromSnapshot(ctx); err != nil {
-		return nil, fmt.Errorf("failed to restore from snapshot: %v", err)
+		return fmt.Errorf("failed to restore from snapshot: %v", err)
 	}
 
 	// Step 2: Replay events after the snapshot
 	if err := b.replayEventsAfterVersion(ctx); err != nil {
-		return nil, fmt.Errorf("failed to replay events: %v", err)
+		return fmt.Errorf("failed to replay events: %v", err)
 	}
 
-	// Return the final state
-	b.mu.RLock()
-	finalState := b.state
-	b.mu.RUnlock()
-
-	return finalState, nil
+	return nil
 }
 
 // restoreFromSnapshot finds the latest snapshot and restores state from it
