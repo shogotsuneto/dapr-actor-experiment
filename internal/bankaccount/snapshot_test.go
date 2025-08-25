@@ -112,26 +112,19 @@ func TestSnapshotCreationAndReplay(t *testing.T) {
 	err = actor.createSnapshot(ctx)
 	require.NoError(t, err, "Should be able to create snapshot")
 
-	// Verify snapshot was stored by directly loading it (snapshot creation itself doesn't use Load)
-	// This verifies the snapshot was correctly stored in the event store
+	// Verify snapshot was stored by directly loading it from the snapshot stream
+	// This verifies the snapshot was correctly stored in the separate snapshot stream
 	var events []eventstore.Event
-	events, err = trackedStore.Load("bankaccount-test-account", eventstore.LoadOptions{
+	events, err = trackedStore.Load("bankaccount-test-account-snapshots", eventstore.LoadOptions{
 		ExclusiveStartVersion: 0,
 		Limit:                 0,
 		Desc:                  false,
 	})
 	require.NoError(t, err)
 	
-	// Filter to only snapshot events
-	var snapshotEvents []eventstore.Event
-	for _, event := range events {
-		if event.Type == string(EventTypeStateSnapshotV1) {
-			snapshotEvents = append(snapshotEvents, event)
-		}
-	}
-	
-	require.Len(t, snapshotEvents, 1, "Should have one snapshot event")
-	assert.Equal(t, string(EventTypeStateSnapshotV1), snapshotEvents[0].Type)
+	// All events in the snapshot stream should be snapshot events
+	require.Len(t, events, 1, "Should have one snapshot event in snapshot stream")
+	assert.Equal(t, string(EventTypeStateSnapshotV1), events[0].Type)
 }
 
 func TestSnapshotBasedReplay(t *testing.T) {
@@ -207,9 +200,9 @@ func TestSnapshotBasedReplay(t *testing.T) {
 	loadCalls := trackedStore.GetLoadCalls()
 	require.Len(t, loadCalls, 2, "Should have made exactly two Load calls: one for snapshot discovery, one for events after snapshot")
 
-	// First call should be for finding the latest snapshot (reverse order)
+	// First call should be for finding the latest snapshot (reverse order) from the snapshot stream
 	snapshotCall := loadCalls[0]
-	assert.Equal(t, "bankaccount-test-account-replay", snapshotCall.StreamID)
+	assert.Equal(t, "bankaccount-test-account-replay-snapshots", snapshotCall.StreamID)
 	assert.Equal(t, int64(0), snapshotCall.Options.ExclusiveStartVersion)
 	assert.Equal(t, 100, snapshotCall.Options.Limit) // Limited search for snapshots
 	assert.True(t, snapshotCall.Options.Desc, "Should load in reverse order to find latest snapshot")
@@ -226,7 +219,7 @@ func TestSnapshotBasedReplay(t *testing.T) {
 		}
 	}
 	assert.True(t, snapshotFound, "Should have found the snapshot event in the Load call")
-	assert.Equal(t, int64(3), snapshotVersion, "Snapshot should be at version 3")
+	assert.Equal(t, int64(1), snapshotVersion, "Snapshot should be at version 1 in snapshot stream")
 
 	// Second call should be for loading events after the snapshot
 	eventsCall := loadCalls[1]
@@ -238,12 +231,12 @@ func TestSnapshotBasedReplay(t *testing.T) {
 	assert.False(t, eventsCall.Options.Desc, "Should load events in chronological order")
 	require.NoError(t, eventsCall.Error)
 
-	// Should find the withdrawal event (version 4) after the snapshot
+	// Should find the withdrawal event (version 3) after the snapshot
 	withdrawalFound := false
 	for _, event := range eventsCall.Events {
 		if event.Type == string(EventTypeMoneyWithdrawnV1) {
 			withdrawalFound = true
-			assert.Equal(t, int64(4), event.Version, "Withdrawal should be at version 4")
+			assert.Equal(t, int64(3), event.Version, "Withdrawal should be at version 3 in business stream")
 			break
 		}
 	}
@@ -256,7 +249,7 @@ func TestSnapshotBasedReplay(t *testing.T) {
 	assert.Equal(t, "Test User", finalState.OwnerName, "Owner name should be restored from snapshot")
 	assert.Equal(t, "test-user", finalState.OwnerId, "Owner ID should be restored from snapshot")
 	assert.True(t, finalState.IsActive, "Account should be active")
-	assert.Equal(t, int64(4), finalState.Version, "Version should reflect all events including snapshot")
+	assert.Equal(t, int64(3), finalState.Version, "Version should reflect last business event version")
 }
 
 func TestFindLatestSnapshot(t *testing.T) {
@@ -277,7 +270,7 @@ func TestFindLatestSnapshot(t *testing.T) {
 	require.Len(t, loadCalls, 1, "Should have made one Load call to search for snapshots")
 
 	call := loadCalls[0]
-	assert.Equal(t, "bankaccount-test-account-find", call.StreamID)
+	assert.Equal(t, "bankaccount-test-account-find-snapshots", call.StreamID)
 	assert.Equal(t, int64(0), call.Options.ExclusiveStartVersion)
 	assert.Equal(t, 100, call.Options.Limit)
 	assert.True(t, call.Options.Desc, "Should search in reverse order")
@@ -376,7 +369,7 @@ func TestFindLatestSnapshot(t *testing.T) {
 	var snapshotData StateSnapshotEventV1
 	err = json.Unmarshal(latestSnapshot.Data, &snapshotData)
 	require.NoError(t, err, "Should parse snapshot data")
-	assert.Equal(t, int64(5), snapshotData.Version, "Should return snapshot with highest version (latest)")
+	assert.Equal(t, int64(3), snapshotData.Version, "Should return snapshot with highest data version (latest)")
 	assert.Equal(t, 200.0, snapshotData.Balance, "Should return snapshot with latest balance")
 
 	// Verify the Load call was made correctly
@@ -384,7 +377,7 @@ func TestFindLatestSnapshot(t *testing.T) {
 	require.Len(t, loadCalls, 1, "Should have made one Load call for finding latest snapshot")
 
 	call = loadCalls[0]
-	assert.Equal(t, "bankaccount-test-account-find", call.StreamID)
+	assert.Equal(t, "bankaccount-test-account-find-snapshots", call.StreamID)
 	assert.Equal(t, int64(0), call.Options.ExclusiveStartVersion)
 	assert.Equal(t, 100, call.Options.Limit)
 	assert.True(t, call.Options.Desc, "Should search in reverse order to find latest first")
@@ -403,6 +396,6 @@ func TestFindLatestSnapshot(t *testing.T) {
 			}
 		}
 	}
-	assert.GreaterOrEqual(t, snapshotCount, 2, "Should have found multiple snapshots in the stream")
-	assert.Contains(t, foundVersions, int64(5), "Should have found the latest snapshot version")
+	assert.GreaterOrEqual(t, snapshotCount, 2, "Should have found multiple snapshots in the snapshot stream")
+	assert.Contains(t, foundVersions, int64(3), "Should have found the latest snapshot data version")
 }
