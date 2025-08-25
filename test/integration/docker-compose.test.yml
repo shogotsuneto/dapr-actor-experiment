@@ -24,7 +24,15 @@ services:
       - KEY_COUNT=2
       - KEY_IDS=key-1,key-2
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/health"]
+      test:
+        [
+          "CMD",
+          "wget",
+          "--quiet",
+          "--tries=1",
+          "--spider",
+          "http://localhost:3000/health",
+        ]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -82,21 +90,31 @@ services:
       placement:
         condition: service_started
 
-  # Dapr sidecar for actor service  
+  # Dapr sidecar for actor service
   actor-service-dapr:
     image: daprio/daprd:1.14.4
-    command: [
-      "./daprd",
-      "-app-id", "actor-service",
-      "-app-port", "8080",
-      "-app-channel-address", "actor-service",
-      "-dapr-http-port", "3500",
-      "-dapr-grpc-port", "50001",
-      "-placement-host-address", "placement:50006",
-      "-resources-path", "/components",
-      "-config", "/config/dapr-config-bearer.yaml",
-      "-log-level", "info"
-    ]
+    command:
+      [
+        "./daprd",
+        "-app-id",
+        "actor-service",
+        "-app-port",
+        "8080",
+        "-app-channel-address",
+        "actor-service",
+        "-dapr-http-port",
+        "3500",
+        "-dapr-grpc-port",
+        "50001",
+        "-placement-host-address",
+        "placement:50006",
+        "-resources-path",
+        "/components",
+        "-config",
+        "/config/dapr-config-bearer.yaml",
+        "-log-level",
+        "info",
+      ]
     volumes:
       - "../../components:/components"
       - "../../configs:/config"
@@ -115,7 +133,7 @@ services:
 
   # Test runner container for running tests inside Docker
   test-runner:
-    image: golang:1.24
+    image: golang:1.25
     working_dir: /app
     volumes:
       - ../..:/app

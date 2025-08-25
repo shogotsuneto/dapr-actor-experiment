@@ -1,12 +1,13 @@
 module github.com/shogotsuneto/dapr-actor-experiment
 
-go 1.24.4
+go 1.24.6
 
 require (
 	github.com/dapr/go-sdk v1.12.0
 	github.com/go-chi/chi/v5 v5.1.0
 	github.com/google/uuid v1.6.0
 	github.com/lib/pq v1.10.9
+	github.com/shogotsuneto/go-eventsourced v0.0.1
 	github.com/shogotsuneto/go-simple-eventstore v0.0.6
 	github.com/stretchr/testify v1.10.0
 )
