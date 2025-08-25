@@ -105,7 +105,6 @@ func (s *BankAccountStateV1) Apply(event eventsourced.Event) error {
 		s.IsActive = e.IsActive
 		s.CreatedAt = e.CreatedAt.Format(time.RFC3339)
 		s.Version = e.Version
-		return nil
 
 	default:
 		return fmt.Errorf("unknown event type: %T", event)
@@ -160,11 +159,11 @@ func (lsm *LockedStateManager) GetState() *BankAccountStateV1 {
 func (lsm *LockedStateManager) SetVersion(version int64) {
 	lsm.mu.Lock()
 	defer lsm.mu.Unlock()
-	
+
 	// Get current state, modify version, and reapply
 	current := lsm.es.GetState()
 	current.Version = version
-	
+
 	// Replace the internal state by creating a new LockedES with the updated state
 	lsm.es = locked.New(current)
 }
