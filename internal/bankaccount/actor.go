@@ -543,8 +543,9 @@ func (b *BankAccount) restoreFromSnapshot(ctx context.Context) error {
 			return fmt.Errorf("failed to apply snapshot event: %v", err)
 		}
 		
-		b.stateManager.SetVersion(latestSnapshot.Version)
-		log.Printf("BankAccount %s: Restored state from snapshot at version %d", b.ID(), latestSnapshot.Version)
+		// Don't override the version - let the Apply method set the data version from the snapshot
+		dataVersion := b.stateManager.GetState().Version
+		log.Printf("BankAccount %s: Restored state from snapshot at data version %d (event version %d)", b.ID(), dataVersion, latestSnapshot.Version)
 	}
 
 	return nil
