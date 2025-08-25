@@ -32,7 +32,8 @@ type BankAccount struct {
 
 	// Locked state manager using go-eventsourced/locked library
 	stateManager *locked.LockedES[*BankAccountStateV1]
-	stateLoaded  bool // Track if state has been loaded from events
+	stateLoaded  bool  // Track if state has been loaded from events
+	streamVersion int64 // Track the current stream version (includes snapshots)
 
 	// Snapshot configuration
 	snapshotFrequency int64 // Create snapshot every N events (default: 10)
@@ -415,13 +416,16 @@ func (b *BankAccount) appendEvent(ctx context.Context, event eventsourced.Event)
 
 	// Append to event store using stream ID based on actor ID with version check
 	events := []eventstore.Event{storeEvent}
-	_, err = b.eventStore.Append(b.getStreamID(), events, int(b.getCurrentVersion()))
+	_, err = b.eventStore.Append(b.getStreamID(), events, int(b.streamVersion))
 	if err != nil {
 		return nil, err
 	}
 
 	// The event now has its version set by the event store
 	appendedEvent := &events[0]
+	
+	// Update our tracked stream version
+	b.streamVersion = appendedEvent.Version
 
 	// Check if we should create a snapshot (only for business events, not snapshots)
 	if event.Type() != string(EventTypeStateSnapshotV1) &&
@@ -544,6 +548,9 @@ func (b *BankAccount) restoreFromSnapshot(ctx context.Context) error {
 	}
 
 	if latestSnapshot != nil {
+		// Update stream version to the snapshot event version
+		b.streamVersion = latestSnapshot.Version
+		
 		// Convert and apply the snapshot to restore state
 		domainEvent, err := ConvertFromEventStore(*latestSnapshot)
 		if err != nil {
@@ -588,6 +595,9 @@ func (b *BankAccount) replayEventsAfterVersion(ctx context.Context) error {
 	// Apply events after snapshot, skipping any additional snapshots
 	eventsApplied := 0
 	for _, event := range events {
+		// Update stream version for all events (including snapshots)
+		b.streamVersion = event.Version
+		
 		// Skip snapshot events as they're used for state restoration, not state changes
 		if EventTypeV1(event.Type) == EventTypeStateSnapshotV1 {
 			continue

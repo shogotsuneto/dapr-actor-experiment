@@ -107,6 +107,9 @@ func TestSnapshotCreationAndReplay(t *testing.T) {
 	
 	_, err = trackedStore.Append("bankaccount-test-account", []eventstore.Event{storeEvent}, 0)
 	require.NoError(t, err)
+	
+	// Update the actor's stream version to match the actual stream
+	actor.streamVersion = 1
 
 	// Test creating a snapshot
 	err = actor.createSnapshot(ctx)
