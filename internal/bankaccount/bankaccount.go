@@ -27,7 +27,7 @@ type AccountCreatedEventV1 struct {
 	OwnerId        string    `json:"ownerId"`
 	InitialDeposit float64   `json:"initialDeposit"`
 	CreatedAt      time.Time `json:"createdAt"`
-	Version        int64     `json:"version"`
+	Version        int64     `json:"-"`
 }
 
 func (e AccountCreatedEventV1) Type() string { return string(EventTypeAccountCreatedV1) }
@@ -37,7 +37,7 @@ type MoneyDepositedEventV1 struct {
 	Amount      float64   `json:"amount"`
 	Description string    `json:"description"`
 	Timestamp   time.Time `json:"timestamp"`
-	Version     int64     `json:"version"`
+	Version     int64     `json:"-"`
 }
 
 func (e MoneyDepositedEventV1) Type() string { return string(EventTypeMoneyDepositedV1) }
@@ -47,7 +47,7 @@ type MoneyWithdrawnEventV1 struct {
 	Amount      float64   `json:"amount"`
 	Description string    `json:"description"`
 	Timestamp   time.Time `json:"timestamp"`
-	Version     int64     `json:"version"`
+	Version     int64     `json:"-"`
 }
 
 func (e MoneyWithdrawnEventV1) Type() string { return string(EventTypeMoneyWithdrawnV1) }
