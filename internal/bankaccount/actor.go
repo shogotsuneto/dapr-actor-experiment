@@ -620,6 +620,8 @@ func ConvertFromEventStore(event eventstore.Event) (eventsourced.Event, error) {
 		if err := json.Unmarshal(event.Data, &data); err != nil {
 			return nil, fmt.Errorf("failed to parse AccountCreatedV1 event: %v", err)
 		}
+		// For business events, version comes from eventstore event version
+		data.Version = event.Version
 		return data, nil
 
 	case EventTypeMoneyDepositedV1:
@@ -627,6 +629,8 @@ func ConvertFromEventStore(event eventstore.Event) (eventsourced.Event, error) {
 		if err := json.Unmarshal(event.Data, &data); err != nil {
 			return nil, fmt.Errorf("failed to parse MoneyDepositedV1 event: %v", err)
 		}
+		// For business events, version comes from eventstore event version
+		data.Version = event.Version
 		return data, nil
 
 	case EventTypeMoneyWithdrawnV1:
@@ -634,6 +638,8 @@ func ConvertFromEventStore(event eventstore.Event) (eventsourced.Event, error) {
 		if err := json.Unmarshal(event.Data, &data); err != nil {
 			return nil, fmt.Errorf("failed to parse MoneyWithdrawnV1 event: %v", err)
 		}
+		// For business events, version comes from eventstore event version
+		data.Version = event.Version
 		return data, nil
 
 	case EventTypeStateSnapshotV1:
@@ -641,6 +647,8 @@ func ConvertFromEventStore(event eventstore.Event) (eventsourced.Event, error) {
 		if err := json.Unmarshal(event.Data, &data); err != nil {
 			return nil, fmt.Errorf("failed to parse StateSnapshotV1 event: %v", err)
 		}
+		// For snapshot events, version comes from the snapshot data (state version at snapshot time)
+		// data.Version is already set from the JSON, no need to override
 		return data, nil
 
 	default:
