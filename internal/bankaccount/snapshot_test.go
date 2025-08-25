@@ -70,7 +70,7 @@ func TestSnapshotCreationAndReplay(t *testing.T) {
 	actor := NewBankAccount(trackedStore)
 	actor.SetID("test-account")
 	actor.snapshotFrequency = 3 // Create snapshot every 3 events
-	
+
 	// Initialize state manager and set up test state through proper event application
 	zero := &BankAccountStateV1{
 		AccountId: "test-account",
@@ -78,7 +78,7 @@ func TestSnapshotCreationAndReplay(t *testing.T) {
 		IsActive:  true,
 	}
 	actor.stateManager = locked.New(zero)
-	
+
 	// Apply an AccountCreated event to set up initial state
 	createEvent := AccountCreatedEventV1{
 		OwnerName:      "Test User",
@@ -87,13 +87,13 @@ func TestSnapshotCreationAndReplay(t *testing.T) {
 		CreatedAt:      time.Now(),
 		Version:        1, // Set version for the event
 	}
-	
+
 	require.NoError(t, actor.stateManager.Apply(createEvent))
-	
+
 	// Also append the event to the event store to maintain consistency
 	eventBytes, err := json.Marshal(createEvent)
 	require.NoError(t, err)
-	
+
 	storeEvent := eventstore.Event{
 		ID:        "test-event-1",
 		Type:      createEvent.Type(),
@@ -104,10 +104,10 @@ func TestSnapshotCreationAndReplay(t *testing.T) {
 			"actorId":   "test-account",
 		},
 	}
-	
+
 	_, err = trackedStore.Append("bankaccount-test-account", []eventstore.Event{storeEvent}, 0)
 	require.NoError(t, err)
-	
+
 	// Test creating a snapshot
 	err = actor.createSnapshot(ctx)
 	require.NoError(t, err, "Should be able to create snapshot")
@@ -121,7 +121,7 @@ func TestSnapshotCreationAndReplay(t *testing.T) {
 		Desc:                  false,
 	})
 	require.NoError(t, err)
-	
+
 	// All events in the snapshot stream should be snapshot events
 	require.Len(t, events, 1, "Should have one snapshot event in snapshot stream")
 	assert.Equal(t, string(EventTypeStateSnapshotV1), events[0].Type)
@@ -204,7 +204,7 @@ func TestSnapshotBasedReplay(t *testing.T) {
 	snapshotCall := loadCalls[0]
 	assert.Equal(t, "bankaccount-test-account-replay-snapshots", snapshotCall.StreamID)
 	assert.Equal(t, int64(0), snapshotCall.Options.ExclusiveStartVersion)
-	assert.Equal(t, 100, snapshotCall.Options.Limit) // Limited search for snapshots
+	assert.Equal(t, 1, snapshotCall.Options.Limit) // Limited search for snapshots
 	assert.True(t, snapshotCall.Options.Desc, "Should load in reverse order to find latest snapshot")
 	require.NoError(t, snapshotCall.Error)
 
@@ -272,7 +272,7 @@ func TestFindLatestSnapshot(t *testing.T) {
 	call := loadCalls[0]
 	assert.Equal(t, "bankaccount-test-account-find-snapshots", call.StreamID)
 	assert.Equal(t, int64(0), call.Options.ExclusiveStartVersion)
-	assert.Equal(t, 100, call.Options.Limit)
+	assert.Equal(t, 1, call.Options.Limit)
 	assert.True(t, call.Options.Desc, "Should search in reverse order")
 	require.NoError(t, call.Error)
 	assert.Empty(t, call.Events, "Should find no events when stream is empty")
@@ -304,7 +304,7 @@ func TestFindLatestSnapshot(t *testing.T) {
 		IsActive:  true,
 	}
 	actor.stateManager = locked.New(zero)
-	
+
 	// Load the events that were already appended and apply them to sync the state manager
 	err = actor.computeStateFromEvents(ctx)
 	require.NoError(t, err)
@@ -339,7 +339,7 @@ func TestFindLatestSnapshot(t *testing.T) {
 	err = actor.createSnapshot(ctx)
 	require.NoError(t, err, "Should create second snapshot")
 
-	// Add more events  
+	// Add more events
 	event3 := MoneyDepositedEventV1{
 		Amount:      50.0,
 		Description: "Third deposit",
@@ -379,7 +379,7 @@ func TestFindLatestSnapshot(t *testing.T) {
 	call = loadCalls[0]
 	assert.Equal(t, "bankaccount-test-account-find-snapshots", call.StreamID)
 	assert.Equal(t, int64(0), call.Options.ExclusiveStartVersion)
-	assert.Equal(t, 100, call.Options.Limit)
+	assert.Equal(t, 1, call.Options.Limit)
 	assert.True(t, call.Options.Desc, "Should search in reverse order to find latest first")
 	require.NoError(t, call.Error)
 
@@ -396,6 +396,6 @@ func TestFindLatestSnapshot(t *testing.T) {
 			}
 		}
 	}
-	assert.GreaterOrEqual(t, snapshotCount, 2, "Should have found multiple snapshots in the snapshot stream")
+	assert.Equal(t, snapshotCount, 1, "Should have retrieved only one snapshot")
 	assert.Contains(t, foundVersions, int64(3), "Should have found the latest snapshot data version")
 }

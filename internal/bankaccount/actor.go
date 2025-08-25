@@ -18,8 +18,8 @@ import (
 // BankAccount demonstrates event sourcing pattern with external postgres event store.
 // This actor stores events using go-simple-eventstore/postgres for durability and audit trail,
 // while maintaining fast access through ephemeral in-memory state cache as long as the actor is activated.
-// 
-// State management is now handled by LockedStateManager using the go-eventsourced/locked library for 
+//
+// State management is now handled by LockedStateManager using the go-eventsourced/locked library for
 // proper separation of concerns and thread-safe operations.
 type BankAccount struct {
 	actor.ServerImplBaseCtx
@@ -335,7 +335,7 @@ func (b *BankAccount) Withdraw(ctx context.Context, request WithdrawRequest) (*B
 	// Check sufficient balance using fast in-memory state
 	currentState := b.stateManager.GetState()
 	currentBalance := currentState.Balance
-	
+
 	if currentBalance < request.Amount {
 		return b.errorResponse(ErrorCodeInsufficientFunds, fmt.Sprintf("Insufficient funds: balance %.2f, requested %.2f", currentBalance, request.Amount), map[string]interface{}{
 			"currentBalance":  currentBalance,
@@ -418,16 +418,7 @@ func (b *BankAccount) appendEvent(ctx context.Context, event eventsourced.Event)
 		},
 	}
 
-	// Get current stream version for optimistic concurrency control
-	currentEvents, err := b.eventStore.Load(b.getStreamID(), eventstore.LoadOptions{
-		Limit: 1,
-		Desc:  true, // Get the latest event
-	})
-	
-	currentStreamVersion := int64(0)
-	if err == nil && len(currentEvents) > 0 {
-		currentStreamVersion = currentEvents[0].Version
-	}
+	currentStreamVersion := b.getCurrentVersion()
 
 	// Append to event store using stream ID based on actor ID with version check
 	events := []eventstore.Event{storeEvent}
@@ -488,7 +479,7 @@ func (b *BankAccount) appendSnapshotEvent(ctx context.Context, event eventsource
 		Limit: 1,
 		Desc:  true, // Get the latest snapshot
 	})
-	
+
 	currentStreamVersion := int64(0)
 	if err == nil && len(currentEvents) > 0 {
 		currentStreamVersion = currentEvents[0].Version
@@ -553,7 +544,7 @@ func (b *BankAccount) findLatestSnapshot(ctx context.Context) (*eventstore.Event
 	// Load events in reverse order from the snapshot stream to find the latest snapshot quickly
 	events, err := b.eventStore.Load(b.getSnapshotStreamID(), eventstore.LoadOptions{
 		ExclusiveStartVersion: 0,    // Start from latest
-		Limit:                 100,  // Reasonable limit to avoid loading too many events
+		Limit:                 1,    // Reasonable limit to avoid loading too many events
 		Desc:                  true, // Reverse order (latest first)
 	})
 
@@ -613,11 +604,11 @@ func (b *BankAccount) restoreFromSnapshot(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("failed to convert snapshot event: %v", err)
 		}
-		
+
 		if err := b.stateManager.Apply(domainEvent); err != nil {
 			return fmt.Errorf("failed to apply snapshot event: %v", err)
 		}
-		
+
 		// Don't override the version - let the Apply method set the data version from the snapshot
 		dataVersion := b.stateManager.GetState().Version
 		log.Printf("BankAccount %s: Restored state from snapshot at data version %d (event version %d)", b.ID(), dataVersion, latestSnapshot.Version)
@@ -670,10 +661,7 @@ func (b *BankAccount) replayEventsAfterVersion(ctx context.Context) error {
 		eventsApplied++
 	}
 
-	currentVersion := int64(0)
-	if b.stateManager != nil {
-		currentVersion = b.stateManager.GetState().Version
-	}
+	currentVersion := b.getCurrentVersion()
 
 	if startVersion > 0 {
 		log.Printf("BankAccount %s: Replayed %d events after snapshot (version %d -> %d)",
@@ -685,6 +673,7 @@ func (b *BankAccount) replayEventsAfterVersion(ctx context.Context) error {
 
 	return nil
 }
+
 // ConvertFromEventStore converts an eventstore.Event to our domain event
 func ConvertFromEventStore(event eventstore.Event) (eventsourced.Event, error) {
 	switch EventTypeV1(event.Type) {
