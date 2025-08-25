@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"sync"
 	"time"
 
 	"github.com/dapr/go-sdk/actor"
@@ -19,8 +18,8 @@ import (
 // This actor stores events using go-simple-eventstore/postgres for durability and audit trail,
 // while maintaining fast access through ephemeral in-memory state cache as long as the actor is activated.
 // 
-// State management is now handled by StateManager using the go-eventsourced library for 
-// proper separation of concerns between actor logic and event sourcing.
+// State management is now handled by LockedStateManager using the go-eventsourced/locked library for 
+// proper separation of concerns and thread-safe operations.
 type BankAccount struct {
 	actor.ServerImplBaseCtx
 
@@ -30,15 +29,12 @@ type BankAccount struct {
 	// Stream ID for this actor's events
 	streamID string
 
-	// State manager using go-eventsourced library
-	stateManager *StateManager
+	// Locked state manager using go-eventsourced/locked library
+	stateManager *LockedStateManager
 	stateLoaded  bool // Track if state has been loaded from events
 
 	// Snapshot configuration
 	snapshotFrequency int64 // Create snapshot every N events (default: 10)
-
-	// Mutex to protect concurrent access to state field
-	mu sync.RWMutex
 }
 
 // getStreamID returns the stream ID for this actor, initializing it if needed
@@ -51,9 +47,6 @@ func (b *BankAccount) getStreamID() string {
 
 // getCurrentVersion returns the current stream version from state, or 0 if no state exists
 func (b *BankAccount) getCurrentVersion() int64 {
-	b.mu.RLock()
-	defer b.mu.RUnlock()
-
 	if b.stateManager != nil {
 		return b.stateManager.GetState().Version
 	}
@@ -118,10 +111,8 @@ func (b *BankAccount) checkOwnership(ctx context.Context) (string, error) {
 	}
 
 	// For existing accounts, check against the stored owner ID
-	b.mu.RLock()
 	state := b.stateManager.GetState()
 	ownerID := state.OwnerId
-	b.mu.RUnlock()
 
 	if ownerID != userID {
 		return "", fmt.Errorf("insufficient permissions: cannot access this account")
@@ -133,16 +124,13 @@ func (b *BankAccount) checkOwnership(ctx context.Context) (string, error) {
 // Helper methods for structured responses
 
 func (b *BankAccount) successResponse() *BankAccountState {
-	b.mu.RLock()
-	defer b.mu.RUnlock()
-
 	if b.stateManager == nil {
 		return &BankAccountState{Success: false}
 	}
 
 	// Get current state from state manager
 	currentState := b.stateManager.GetState()
-	return b.successResponseWithStateV1(currentState)
+	return b.successResponseWithStateV1(*currentState)
 }
 
 func (b *BankAccount) successResponseWithStateV1(stateData BankAccountStateV1) *BankAccountState {
@@ -236,12 +224,9 @@ func (b *BankAccount) CreateAccount(ctx context.Context, request CreateAccountRe
 		}), nil
 	}
 
-	// Initialize state manager and apply the event using centralized logic (protected by lock)
-	b.mu.Lock()
-	defer b.mu.Unlock()
-
+	// Initialize state manager and apply the event using centralized logic
 	if b.stateManager == nil {
-		b.stateManager = NewStateManager(b.ID())
+		b.stateManager = NewLockedStateManager(b.ID())
 	}
 
 	if err := b.stateManager.Apply(eventData); err != nil {
@@ -254,7 +239,7 @@ func (b *BankAccount) CreateAccount(ctx context.Context, request CreateAccountRe
 	b.stateManager.SetVersion(event.Version)
 
 	log.Printf("BankAccount %s: Account created by user %s for owner %s", b.ID(), userID, request.OwnerName)
-	return b.successResponseWithStateV1(b.stateManager.GetState()), nil
+	return b.successResponseWithStateV1(*b.stateManager.GetState()), nil
 }
 
 func (b *BankAccount) Deposit(ctx context.Context, request DepositRequest) (*BankAccountState, error) {
@@ -297,10 +282,7 @@ func (b *BankAccount) Deposit(ctx context.Context, request DepositRequest) (*Ban
 		}), nil
 	}
 
-	// Update in-memory state using centralized event application (protected by lock)
-	b.mu.Lock()
-	defer b.mu.Unlock()
-
+	// Update in-memory state using centralized event application
 	if err := b.stateManager.Apply(eventData); err != nil {
 		return b.errorResponse(ErrorCodeInternalError, "Failed to apply state change", map[string]interface{}{
 			"error": err.Error(),
@@ -310,7 +292,7 @@ func (b *BankAccount) Deposit(ctx context.Context, request DepositRequest) (*Ban
 	// Set version from the appended event
 	b.stateManager.SetVersion(event.Version)
 
-	return b.successResponseWithStateV1(b.stateManager.GetState()), nil
+	return b.successResponseWithStateV1(*b.stateManager.GetState()), nil
 }
 
 func (b *BankAccount) Withdraw(ctx context.Context, request WithdrawRequest) (*BankAccountState, error) {
@@ -339,11 +321,9 @@ func (b *BankAccount) Withdraw(ctx context.Context, request WithdrawRequest) (*B
 		return b.errorResponse(ErrorCodeAccountNotFound, "Account does not exist - create account first", nil), nil
 	}
 
-	// Check sufficient balance using fast in-memory state (protected by lock)
-	b.mu.RLock()
+	// Check sufficient balance using fast in-memory state
 	currentState := b.stateManager.GetState()
 	currentBalance := currentState.Balance
-	b.mu.RUnlock()
 	
 	if currentBalance < request.Amount {
 		return b.errorResponse(ErrorCodeInsufficientFunds, fmt.Sprintf("Insufficient funds: balance %.2f, requested %.2f", currentBalance, request.Amount), map[string]interface{}{
@@ -366,10 +346,7 @@ func (b *BankAccount) Withdraw(ctx context.Context, request WithdrawRequest) (*B
 		}), nil
 	}
 
-	// Update in-memory state using centralized event application (protected by lock)
-	b.mu.Lock()
-	defer b.mu.Unlock()
-
+	// Update in-memory state using centralized event application
 	if err := b.stateManager.Apply(eventData); err != nil {
 		return b.errorResponse(ErrorCodeInternalError, "Failed to apply state change", map[string]interface{}{
 			"error": err.Error(),
@@ -379,7 +356,7 @@ func (b *BankAccount) Withdraw(ctx context.Context, request WithdrawRequest) (*B
 	// Set version from the appended event
 	b.stateManager.SetVersion(event.Version)
 
-	return b.successResponseWithStateV1(b.stateManager.GetState()), nil
+	return b.successResponseWithStateV1(*b.stateManager.GetState()), nil
 }
 
 func (b *BankAccount) GetBalance(ctx context.Context) (*BankAccountState, error) {
@@ -462,15 +439,12 @@ func (b *BankAccount) appendEvent(ctx context.Context, event eventsourced.Event)
 
 // createSnapshot creates a snapshot of the current state and stores it as an event
 func (b *BankAccount) createSnapshot(ctx context.Context) error {
-	b.mu.RLock()
 	if b.stateManager == nil {
-		b.mu.RUnlock()
 		return fmt.Errorf("cannot create snapshot: no state available")
 	}
 
-	// Get current state while holding the read lock
+	// Get current state
 	currentState := b.stateManager.GetState()
-	b.mu.RUnlock()
 
 	// Parse the CreatedAt timestamp back to time.Time for the snapshot
 	createdAt, err := time.Parse(time.RFC3339, currentState.CreatedAt)
@@ -554,11 +528,8 @@ func (b *BankAccount) restoreFromSnapshot(ctx context.Context) error {
 	}
 
 	// Initialize state manager
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	
 	if b.stateManager == nil {
-		b.stateManager = NewStateManager(b.ID())
+		b.stateManager = NewLockedStateManager(b.ID())
 	}
 
 	if latestSnapshot != nil {
@@ -598,8 +569,6 @@ func (b *BankAccount) replayEventsAfterVersion(ctx context.Context) error {
 
 	// If no events exist at all (including snapshot), account doesn't exist
 	if startVersion == 0 && len(events) == 0 {
-		b.mu.Lock()
-		defer b.mu.Unlock()
 		b.stateManager = nil
 		return nil
 	}
@@ -618,31 +587,19 @@ func (b *BankAccount) replayEventsAfterVersion(ctx context.Context) error {
 			return fmt.Errorf("failed to convert event %s: %v", event.ID, err)
 		}
 
-		err = func() error {
-			b.mu.Lock()
-			defer b.mu.Unlock()
-
-			if err := b.stateManager.Apply(domainEvent); err != nil {
-				return fmt.Errorf("failed to apply event %s: %v", event.ID, err)
-			}
-
-			// Update version from the event
-			b.stateManager.SetVersion(event.Version)
-			eventsApplied++
-			return nil
-		}()
-
-		if err != nil {
-			return err
+		if err := b.stateManager.Apply(domainEvent); err != nil {
+			return fmt.Errorf("failed to apply event %s: %v", event.ID, err)
 		}
+
+		// Update version from the event
+		b.stateManager.SetVersion(event.Version)
+		eventsApplied++
 	}
 
-	b.mu.RLock()
 	currentVersion := int64(0)
 	if b.stateManager != nil {
 		currentVersion = b.stateManager.GetState().Version
 	}
-	b.mu.RUnlock()
 
 	if startVersion > 0 {
 		log.Printf("BankAccount %s: Replayed %d events after snapshot (version %d -> %d)",

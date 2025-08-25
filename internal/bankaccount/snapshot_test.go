@@ -70,32 +70,62 @@ func TestSnapshotCreationAndReplay(t *testing.T) {
 	actor.SetID("test-account")
 	actor.snapshotFrequency = 3 // Create snapshot every 3 events
 	
-	// Initialize state manager with test state
-	actor.stateManager = NewStateManager("test-account")
-	actor.stateManager.state = BankAccountStateV1{
-		AccountId: "test-account",
-		OwnerName: "Test User",
-		OwnerId:   "test-user",
-		Balance:   100.0,
-		IsActive:  true,
-		CreatedAt: time.Now().Format(time.RFC3339),
-		Version:   0,
+	// Initialize state manager and set up test state through proper event application
+	actor.stateManager = NewLockedStateManager("test-account")
+	
+	// Apply an AccountCreated event to set up initial state
+	createEvent := AccountCreatedEventV1{
+		OwnerName:      "Test User",
+		OwnerId:        "test-user",
+		InitialDeposit: 100.0,
+		CreatedAt:      time.Now(),
 	}
+	
+	require.NoError(t, actor.stateManager.Apply(createEvent))
+	
+	// Also append the event to the event store to maintain consistency
+	eventBytes, err := json.Marshal(createEvent)
+	require.NoError(t, err)
+	
+	storeEvent := eventstore.Event{
+		ID:        "test-event-1",
+		Type:      createEvent.Type(),
+		Data:      eventBytes,
+		Timestamp: time.Now(),
+		Metadata: map[string]string{
+			"actorType": ActorTypeBankAccount,
+			"actorId":   "test-account",
+		},
+	}
+	
+	_, err = trackedStore.Append("bankaccount-test-account", []eventstore.Event{storeEvent}, 0)
+	require.NoError(t, err)
+	actor.stateManager.SetVersion(1)
 
 	// Test creating a snapshot
-	err := actor.createSnapshot(ctx)
+	err = actor.createSnapshot(ctx)
 	require.NoError(t, err, "Should be able to create snapshot")
 
 	// Verify snapshot was stored by directly loading it (snapshot creation itself doesn't use Load)
 	// This verifies the snapshot was correctly stored in the event store
-	events, err := trackedStore.Load("bankaccount-test-account", eventstore.LoadOptions{
+	var events []eventstore.Event
+	events, err = trackedStore.Load("bankaccount-test-account", eventstore.LoadOptions{
 		ExclusiveStartVersion: 0,
 		Limit:                 0,
 		Desc:                  false,
 	})
 	require.NoError(t, err)
-	require.Len(t, events, 1, "Should have one snapshot event")
-	assert.Equal(t, string(EventTypeStateSnapshotV1), events[0].Type)
+	
+	// Filter to only snapshot events
+	var snapshotEvents []eventstore.Event
+	for _, event := range events {
+		if event.Type == string(EventTypeStateSnapshotV1) {
+			snapshotEvents = append(snapshotEvents, event)
+		}
+	}
+	
+	require.Len(t, snapshotEvents, 1, "Should have one snapshot event")
+	assert.Equal(t, string(EventTypeStateSnapshotV1), snapshotEvents[0].Type)
 }
 
 func TestSnapshotBasedReplay(t *testing.T) {
@@ -119,7 +149,7 @@ func TestSnapshotBasedReplay(t *testing.T) {
 	require.NoError(t, err)
 
 	// Initialize state manager and apply the first event so the version is tracked properly
-	actor.stateManager = NewStateManager("test-account-replay")
+	actor.stateManager = NewLockedStateManager("test-account-replay")
 	err = actor.stateManager.Apply(event1)
 	require.NoError(t, err)
 	actor.stateManager.SetVersion(1)
@@ -266,12 +296,11 @@ func TestFindLatestSnapshot(t *testing.T) {
 	// Clear calls and create a snapshot
 	trackedStore.ClearLoadCalls()
 
-	actor.stateManager = NewStateManager("test-account-find")
-	actor.stateManager.state = BankAccountStateV1{
-		AccountId: "test-account-find",
-		Balance:   100.0,
-		Version:   1,
-	}
+	actor.stateManager = NewLockedStateManager("test-account-find")
+	
+	// Load the events that were already appended and apply them to sync the state manager
+	err = actor.computeStateFromEvents(ctx)
+	require.NoError(t, err)
 	err = actor.createSnapshot(ctx)
 	require.NoError(t, err)
 

@@ -3,9 +3,11 @@ package bankaccount
 import (
 	"encoding/json"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/shogotsuneto/go-eventsourced"
+	"github.com/shogotsuneto/go-eventsourced/locked"
 	eventstore "github.com/shogotsuneto/go-simple-eventstore"
 )
 
@@ -109,8 +111,8 @@ func (s *BankAccountStateV1) Apply(event eventsourced.Event) error {
 }
 
 // Clone implements the eventsourced.State interface
-func (s *BankAccountStateV1) Clone() BankAccountStateV1 {
-	return BankAccountStateV1{
+func (s *BankAccountStateV1) Clone() *BankAccountStateV1 {
+	return &BankAccountStateV1{
 		AccountId: s.AccountId,
 		OwnerName: s.OwnerName,
 		OwnerId:   s.OwnerId,
@@ -121,35 +123,46 @@ func (s *BankAccountStateV1) Clone() BankAccountStateV1 {
 	}
 }
 
-// StateManager manages the event sourced state for bank accounts
-type StateManager struct {
-	state BankAccountStateV1
+// LockedStateManager wraps the locked.LockedES with version management for event sourcing
+type LockedStateManager struct {
+	es *locked.LockedES[*BankAccountStateV1]
+	mu sync.RWMutex // For version-specific operations only
 }
 
-// NewStateManager creates a new state manager
-func NewStateManager(accountId string) *StateManager {
-	return &StateManager{
-		state: BankAccountStateV1{
-			AccountId: accountId,
-			Balance:   0,
-			IsActive:  true,
-		},
+// NewLockedStateManager creates a new locked state manager
+func NewLockedStateManager(accountId string) *LockedStateManager {
+	zero := &BankAccountStateV1{
+		AccountId: accountId,
+		Balance:   0,
+		IsActive:  true,
+	}
+	return &LockedStateManager{
+		es: locked.New(zero),
 	}
 }
 
 // Apply implements the eventsourced.EventApplier interface
-func (sm *StateManager) Apply(event eventsourced.Event) error {
-	return sm.state.Apply(event)
+func (lsm *LockedStateManager) Apply(event eventsourced.Event) error {
+	return lsm.es.Apply(event)
 }
 
 // GetState implements the eventsourced.StateGetter interface
-func (sm *StateManager) GetState() BankAccountStateV1 {
-	return sm.state.Clone()
+func (lsm *LockedStateManager) GetState() *BankAccountStateV1 {
+	return lsm.es.GetState()
 }
 
 // SetVersion sets the version on the internal state
-func (sm *StateManager) SetVersion(version int64) {
-	sm.state.Version = version
+// This requires additional locking since LockedES doesn't expose direct state mutation
+func (lsm *LockedStateManager) SetVersion(version int64) {
+	lsm.mu.Lock()
+	defer lsm.mu.Unlock()
+	
+	// Get current state, modify version, and reapply
+	current := lsm.es.GetState()
+	current.Version = version
+	
+	// Replace the internal state by creating a new LockedES with the updated state
+	lsm.es = locked.New(current)
 }
 
 // ConvertFromEventStore converts an eventstore.Event to our domain event
