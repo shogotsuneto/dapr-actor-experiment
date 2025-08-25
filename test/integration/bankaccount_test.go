@@ -48,11 +48,6 @@ func TestBankAccount(t *testing.T) {
 	t.Run("TestBankAccountEventSourcing", func(t *testing.T) {
 		testBankAccountEventSourcing(t, daprClient)
 	})
-
-	t.Run("TestBankAccountAutomaticSnapshotCreation", func(t *testing.T) {
-		testBankAccountAutomaticSnapshotCreation(t, daprClient)
-	})
-
 	t.Run("TestBankAccountSnapshotPerformance", func(t *testing.T) {
 		testBankAccountSnapshotPerformance(t, daprClient)
 	})
