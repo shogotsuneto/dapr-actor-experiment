@@ -611,3 +611,38 @@ func (b *BankAccount) replayEventsAfterVersion(ctx context.Context) error {
 
 	return nil
 }
+// ConvertFromEventStore converts an eventstore.Event to our domain event
+func ConvertFromEventStore(event eventstore.Event) (eventsourced.Event, error) {
+	switch EventTypeV1(event.Type) {
+	case EventTypeAccountCreatedV1:
+		var data AccountCreatedEventV1
+		if err := json.Unmarshal(event.Data, &data); err != nil {
+			return nil, fmt.Errorf("failed to parse AccountCreatedV1 event: %v", err)
+		}
+		return data, nil
+
+	case EventTypeMoneyDepositedV1:
+		var data MoneyDepositedEventV1
+		if err := json.Unmarshal(event.Data, &data); err != nil {
+			return nil, fmt.Errorf("failed to parse MoneyDepositedV1 event: %v", err)
+		}
+		return data, nil
+
+	case EventTypeMoneyWithdrawnV1:
+		var data MoneyWithdrawnEventV1
+		if err := json.Unmarshal(event.Data, &data); err != nil {
+			return nil, fmt.Errorf("failed to parse MoneyWithdrawnV1 event: %v", err)
+		}
+		return data, nil
+
+	case EventTypeStateSnapshotV1:
+		var data StateSnapshotEventV1
+		if err := json.Unmarshal(event.Data, &data); err != nil {
+			return nil, fmt.Errorf("failed to parse StateSnapshotV1 event: %v", err)
+		}
+		return data, nil
+
+	default:
+		return nil, fmt.Errorf("unknown event type: %s", event.Type)
+	}
+}
