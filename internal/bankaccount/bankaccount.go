@@ -86,12 +86,15 @@ func (s *BankAccountStateV1) Apply(event eventsourced.Event) error {
 		s.Balance = e.InitialDeposit
 		s.CreatedAt = e.CreatedAt.Format(time.RFC3339)
 		s.IsActive = true
+		s.Version = e.Version
 
 	case MoneyDepositedEventV1:
 		s.Balance += e.Amount
+		s.Version = e.Version
 
 	case MoneyWithdrawnEventV1:
 		s.Balance -= e.Amount
+		s.Version = e.Version
 
 	case StateSnapshotEventV1:
 		// For snapshots, restore the complete state
