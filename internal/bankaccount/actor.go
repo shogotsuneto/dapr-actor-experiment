@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/shogotsuneto/dapr-actor-experiment/internal/auth"
 	"github.com/shogotsuneto/go-eventsourced"
+	"github.com/shogotsuneto/go-eventsourced/locked"
 	eventstore "github.com/shogotsuneto/go-simple-eventstore"
 )
 
@@ -30,7 +31,7 @@ type BankAccount struct {
 	streamID string
 
 	// Locked state manager using go-eventsourced/locked library
-	stateManager *LockedStateManager
+	stateManager *locked.LockedES[*BankAccountStateV1]
 	stateLoaded  bool // Track if state has been loaded from events
 
 	// Snapshot configuration
@@ -224,9 +225,17 @@ func (b *BankAccount) CreateAccount(ctx context.Context, request CreateAccountRe
 		}), nil
 	}
 
+	// Set version on the event data for Apply
+	eventData.Version = event.Version
+
 	// Initialize state manager and apply the event using centralized logic
 	if b.stateManager == nil {
-		b.stateManager = NewLockedStateManager(b.ID())
+		zero := &BankAccountStateV1{
+			AccountId: b.ID(),
+			Balance:   0,
+			IsActive:  true,
+		}
+		b.stateManager = locked.New(zero)
 	}
 
 	if err := b.stateManager.Apply(eventData); err != nil {
@@ -234,9 +243,6 @@ func (b *BankAccount) CreateAccount(ctx context.Context, request CreateAccountRe
 			"error": err.Error(),
 		}), nil
 	}
-
-	// Set version from the appended event
-	b.stateManager.SetVersion(event.Version)
 
 	log.Printf("BankAccount %s: Account created by user %s for owner %s", b.ID(), userID, request.OwnerName)
 	return b.successResponseWithStateV1(*b.stateManager.GetState()), nil
@@ -282,15 +288,15 @@ func (b *BankAccount) Deposit(ctx context.Context, request DepositRequest) (*Ban
 		}), nil
 	}
 
+	// Set version on the event data for Apply
+	eventData.Version = event.Version
+
 	// Update in-memory state using centralized event application
 	if err := b.stateManager.Apply(eventData); err != nil {
 		return b.errorResponse(ErrorCodeInternalError, "Failed to apply state change", map[string]interface{}{
 			"error": err.Error(),
 		}), nil
 	}
-
-	// Set version from the appended event
-	b.stateManager.SetVersion(event.Version)
 
 	return b.successResponseWithStateV1(*b.stateManager.GetState()), nil
 }
@@ -346,15 +352,15 @@ func (b *BankAccount) Withdraw(ctx context.Context, request WithdrawRequest) (*B
 		}), nil
 	}
 
+	// Set version on the event data for Apply
+	eventData.Version = event.Version
+
 	// Update in-memory state using centralized event application
 	if err := b.stateManager.Apply(eventData); err != nil {
 		return b.errorResponse(ErrorCodeInternalError, "Failed to apply state change", map[string]interface{}{
 			"error": err.Error(),
 		}), nil
 	}
-
-	// Set version from the appended event
-	b.stateManager.SetVersion(event.Version)
 
 	return b.successResponseWithStateV1(*b.stateManager.GetState()), nil
 }
@@ -529,7 +535,12 @@ func (b *BankAccount) restoreFromSnapshot(ctx context.Context) error {
 
 	// Initialize state manager
 	if b.stateManager == nil {
-		b.stateManager = NewLockedStateManager(b.ID())
+		zero := &BankAccountStateV1{
+			AccountId: b.ID(),
+			Balance:   0,
+			IsActive:  true,
+		}
+		b.stateManager = locked.New(zero)
 	}
 
 	if latestSnapshot != nil {
@@ -592,8 +603,6 @@ func (b *BankAccount) replayEventsAfterVersion(ctx context.Context) error {
 			return fmt.Errorf("failed to apply event %s: %v", event.ID, err)
 		}
 
-		// Update version from the event
-		b.stateManager.SetVersion(event.Version)
 		eventsApplied++
 	}
 

@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/shogotsuneto/go-eventsourced/locked"
 	eventstore "github.com/shogotsuneto/go-simple-eventstore"
 	"github.com/shogotsuneto/go-simple-eventstore/memory"
 	"github.com/stretchr/testify/assert"
@@ -71,7 +72,12 @@ func TestSnapshotCreationAndReplay(t *testing.T) {
 	actor.snapshotFrequency = 3 // Create snapshot every 3 events
 	
 	// Initialize state manager and set up test state through proper event application
-	actor.stateManager = NewLockedStateManager("test-account")
+	zero := &BankAccountStateV1{
+		AccountId: "test-account",
+		Balance:   0,
+		IsActive:  true,
+	}
+	actor.stateManager = locked.New(zero)
 	
 	// Apply an AccountCreated event to set up initial state
 	createEvent := AccountCreatedEventV1{
@@ -79,6 +85,7 @@ func TestSnapshotCreationAndReplay(t *testing.T) {
 		OwnerId:        "test-user",
 		InitialDeposit: 100.0,
 		CreatedAt:      time.Now(),
+		Version:        1, // Set version for the event
 	}
 	
 	require.NoError(t, actor.stateManager.Apply(createEvent))
@@ -100,7 +107,6 @@ func TestSnapshotCreationAndReplay(t *testing.T) {
 	
 	_, err = trackedStore.Append("bankaccount-test-account", []eventstore.Event{storeEvent}, 0)
 	require.NoError(t, err)
-	actor.stateManager.SetVersion(1)
 
 	// Test creating a snapshot
 	err = actor.createSnapshot(ctx)
@@ -145,14 +151,19 @@ func TestSnapshotBasedReplay(t *testing.T) {
 		InitialDeposit: 100.0,
 		CreatedAt:      time.Now(),
 	}
-	_, err := actor.appendEvent(ctx, event1)
+	appendedEvent1, err := actor.appendEvent(ctx, event1)
 	require.NoError(t, err)
 
 	// Initialize state manager and apply the first event so the version is tracked properly
-	actor.stateManager = NewLockedStateManager("test-account-replay")
+	zero := &BankAccountStateV1{
+		AccountId: "test-account-replay",
+		Balance:   0,
+		IsActive:  true,
+	}
+	actor.stateManager = locked.New(zero)
+	event1.Version = appendedEvent1.Version // Use the actual version from eventstore
 	err = actor.stateManager.Apply(event1)
 	require.NoError(t, err)
-	actor.stateManager.SetVersion(1)
 	actor.stateLoaded = true
 
 	// Event 2: Money deposited
@@ -161,20 +172,17 @@ func TestSnapshotBasedReplay(t *testing.T) {
 		Description: "Test deposit",
 		Timestamp:   time.Now(),
 	}
-	_, err = actor.appendEvent(ctx, event2)
+	appendedEvent2, err := actor.appendEvent(ctx, event2)
 	require.NoError(t, err)
 
 	// Update state to reflect the deposit
+	event2.Version = appendedEvent2.Version // Use the actual version from eventstore
 	err = actor.stateManager.Apply(event2)
 	require.NoError(t, err)
-	actor.stateManager.SetVersion(2)
 
 	// Create a snapshot manually (balance should be 150.0)
 	err = actor.createSnapshot(ctx)
 	require.NoError(t, err)
-
-	// Update state version to reflect snapshot creation
-	actor.stateManager.SetVersion(3)
 
 	// Event 3: Money withdrawn (after snapshot)
 	event3 := MoneyWithdrawnEventV1{
@@ -297,16 +305,18 @@ func TestFindLatestSnapshot(t *testing.T) {
 	// Clear calls and create a snapshot
 	trackedStore.ClearLoadCalls()
 
-	actor.stateManager = NewLockedStateManager("test-account-find")
+	zero := &BankAccountStateV1{
+		AccountId: "test-account-find",
+		Balance:   0,
+		IsActive:  true,
+	}
+	actor.stateManager = locked.New(zero)
 	
 	// Load the events that were already appended and apply them to sync the state manager
 	err = actor.computeStateFromEvents(ctx)
 	require.NoError(t, err)
 	err = actor.createSnapshot(ctx)
 	require.NoError(t, err)
-
-	// Update state version to reflect snapshot creation (snapshot event added to stream)
-	actor.stateManager.SetVersion(2)
 
 	// Clear calls and now should find the snapshot
 	trackedStore.ClearLoadCalls()
@@ -327,17 +337,14 @@ func TestFindLatestSnapshot(t *testing.T) {
 		Description: "Another deposit",
 		Timestamp:   time.Now(),
 	}
-	_, err = actor.appendEvent(ctx, event2)
+	appendedEvent2, err := actor.appendEvent(ctx, event2)
 	require.NoError(t, err)
 
+	event2.Version = appendedEvent2.Version // Use the actual version from eventstore
 	err = actor.stateManager.Apply(event2)
 	require.NoError(t, err)
-	actor.stateManager.SetVersion(3) // After the new deposit event
 	err = actor.createSnapshot(ctx)
 	require.NoError(t, err, "Should create second snapshot")
-
-	// Update state version after second snapshot creation
-	actor.stateManager.SetVersion(4)
 
 	// Add more events  
 	event3 := MoneyDepositedEventV1{
@@ -345,13 +352,13 @@ func TestFindLatestSnapshot(t *testing.T) {
 		Description: "Third deposit",
 		Timestamp:   time.Now(),
 	}
-	_, err = actor.appendEvent(ctx, event3)
+	appendedEvent3, err := actor.appendEvent(ctx, event3)
 	require.NoError(t, err)
 
 	// Create third snapshot
+	event3.Version = appendedEvent3.Version // Use the actual version from eventstore
 	err = actor.stateManager.Apply(event3)
 	require.NoError(t, err)
-	actor.stateManager.SetVersion(5) // After the third deposit event
 	err = actor.createSnapshot(ctx)
 	require.NoError(t, err, "Should create third snapshot")
 
