@@ -26,8 +26,6 @@ func assertBankAccountSuccessWithOwner(t *testing.T, state bankaccount.BankAccou
 	assert.Equal(t, expectedOwner, state.Data.OwnerName, "Owner name should match")
 }
 
-
-
 func TestBankAccount(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
@@ -49,6 +47,9 @@ func TestBankAccount(t *testing.T) {
 
 	t.Run("TestBankAccountEventSourcing", func(t *testing.T) {
 		testBankAccountEventSourcing(t, daprClient)
+	})
+	t.Run("TestBankAccountSnapshotPerformance", func(t *testing.T) {
+		testBankAccountSnapshotPerformance(t, daprClient)
 	})
 }
 
@@ -133,10 +134,10 @@ func testBankAccountStateIsolation(t *testing.T, client *DaprClient) {
 
 	// Test scenario similar to the shell script test-bank-account-actor.sh
 	testAccounts := []struct {
-		actorID        string
-		ownerName      string
-		initialDeposit float64
-		operations     []Operation
+		actorID         string
+		ownerName       string
+		initialDeposit  float64
+		operations      []Operation
 		expectedBalance float64
 	}{
 		{
@@ -299,6 +300,109 @@ func testBankAccountEventSourcing(t *testing.T, client *DaprClient) {
 	require.NoError(t, err)
 	expectedBalance := 1000.0 + 500.0 - 200.0 + 300.0 - 100.0 // 1500.0
 	assertBankAccountSuccess(t, balance, expectedBalance, "Final balance should match event sourcing calculation")
+}
+
+func testBankAccountSnapshotPerformance(t *testing.T, client *DaprClient) {
+	ctx := context.Background()
+	actorID := fmt.Sprintf("account-perf-test-%d", time.Now().UnixNano()%10000)
+
+	// Generate JWT token for authenticated operations
+	userToken, err := generateTestToken(actorID, "perf-test-user", "perf@example.com", []string{"user"}, 1*time.Hour)
+	require.NoError(t, err, "Failed to generate JWT token for testing")
+
+	// Test 1: Create account
+	var createResult interface{}
+	_, err = client.InvokeActorMethodWithJWT(ctx, ActorMethodRequest{
+		ActorType: "BankAccount",
+		ActorID:   actorID,
+		Method:    "CreateAccount",
+		Data: bankaccount.CreateAccountRequest{
+			OwnerName:      "Performance Test User",
+			InitialDeposit: 1000.0,
+		},
+	}, userToken, &createResult)
+	require.NoError(t, err, "Account creation should succeed")
+
+	// Test 2: Create exactly enough transactions to trigger multiple snapshots
+	// Default snapshot frequency is 10, so we'll create 25 transactions total to get 2 snapshots
+	numOperations := 24 // Plus account creation = 25 total events
+	expectedBalance := 1000.0
+
+	for i := 0; i < numOperations; i++ {
+		var result interface{}
+		if i%2 == 0 {
+			// Deposit
+			amount := 100.0
+			expectedBalance += amount
+			_, err = client.InvokeActorMethodWithJWT(ctx, ActorMethodRequest{
+				ActorType: "BankAccount",
+				ActorID:   actorID,
+				Method:    "Deposit",
+				Data: bankaccount.DepositRequest{
+					Amount:      amount,
+					Description: fmt.Sprintf("Perf test deposit %d", i),
+				},
+			}, userToken, &result)
+		} else {
+			// Withdraw
+			amount := 50.0
+			expectedBalance -= amount
+			_, err = client.InvokeActorMethodWithJWT(ctx, ActorMethodRequest{
+				ActorType: "BankAccount",
+				ActorID:   actorID,
+				Method:    "Withdraw",
+				Data: bankaccount.WithdrawRequest{
+					Amount:      amount,
+					Description: fmt.Sprintf("Perf test withdrawal %d", i),
+				},
+			}, userToken, &result)
+		}
+		require.NoError(t, err, "Operation %d should succeed", i)
+	}
+
+	// Test 3: Verify balance consistency after many operations with snapshots
+	var balance bankaccount.BankAccountState
+	_, err = client.InvokeActorMethodWithJWT(ctx, ActorMethodRequest{
+		ActorType: "BankAccount",
+		ActorID:   actorID,
+		Method:    "GetBalance",
+	}, userToken, &balance)
+	require.NoError(t, err)
+	assertBankAccountSuccess(t, balance, expectedBalance, "Balance should be correct after many operations with multiple snapshots")
+
+	// Test 4: Test rapid sequence of operations to ensure snapshots don't interfere with normal operations
+	start := time.Now()
+	rapidOps := 5
+	for i := 0; i < rapidOps; i++ {
+		var result interface{}
+		_, err = client.InvokeActorMethodWithJWT(ctx, ActorMethodRequest{
+			ActorType: "BankAccount",
+			ActorID:   actorID,
+			Method:    "Deposit",
+			Data: bankaccount.DepositRequest{
+				Amount:      10.0,
+				Description: fmt.Sprintf("Rapid op %d", i),
+			},
+		}, userToken, &result)
+		require.NoError(t, err, "Rapid operation %d should succeed", i)
+		expectedBalance += 10.0
+	}
+	elapsed := time.Since(start)
+
+	// Verify operations complete in reasonable time (should be fast due to snapshots)
+	assert.Less(t, elapsed, 5*time.Second, "Rapid operations should complete quickly with snapshot optimization")
+
+	// Test 5: Final balance verification
+	_, err = client.InvokeActorMethodWithJWT(ctx, ActorMethodRequest{
+		ActorType: "BankAccount",
+		ActorID:   actorID,
+		Method:    "GetBalance",
+	}, userToken, &balance)
+	require.NoError(t, err)
+	assertBankAccountSuccess(t, balance, expectedBalance, "Final balance should be correct after performance test")
+
+	t.Logf("Performance test completed: %d total operations in %.2f seconds with snapshot optimization",
+		numOperations+rapidOps, elapsed.Seconds())
 }
 
 // Operation represents a bank account operation
