@@ -422,7 +422,7 @@ func (b *BankAccount) appendEvent(ctx context.Context, event eventsourced.Event)
 
 	// Append to event store using stream ID based on actor ID with version check
 	events := []eventstore.Event{storeEvent}
-	_, err = b.eventStore.Append(b.getStreamID(), events, int(currentStreamVersion))
+	_, err = b.eventStore.Append(b.getStreamID(), events, currentStreamVersion)
 	if err != nil {
 		return nil, err
 	}
@@ -487,7 +487,7 @@ func (b *BankAccount) appendSnapshotEvent(ctx context.Context, event eventsource
 
 	// Append to snapshot stream using separate stream ID
 	events := []eventstore.Event{storeEvent}
-	_, err = b.eventStore.Append(b.getSnapshotStreamID(), events, int(currentStreamVersion))
+	_, err = b.eventStore.Append(b.getSnapshotStreamID(), events, currentStreamVersion)
 	if err != nil {
 		return nil, err
 	}
