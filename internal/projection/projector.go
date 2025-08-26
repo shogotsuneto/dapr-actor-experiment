@@ -27,20 +27,22 @@ type TransactionProjection struct {
 
 // Projector handles event projection from bankaccount events to transactions table
 type Projector struct {
-	db               *sql.DB
-	eventsTableName  string
-	lastProcessedID  int64
-	batchSize        int
+	db                   *sql.DB
+	eventsTableName      string
+	processedEvents      map[string]bool // Track processed event IDs to ensure idempotency
+	lastProcessedTime    time.Time
+	pollingInterval      time.Duration
 }
 
 // NewProjector creates a new projector instance
-func NewProjector(db *sql.DB, eventsTableName string) *Projector {
+func NewProjector(db *sql.DB, eventsTableName string, pollingInterval time.Duration) (*Projector, error) {
 	return &Projector{
 		db:               db,
 		eventsTableName:  eventsTableName,
-		lastProcessedID:  0,
-		batchSize:        100,
-	}
+		processedEvents:  make(map[string]bool),
+		lastProcessedTime: time.Time{}, // Start from beginning
+		pollingInterval:  pollingInterval,
+	}, nil
 }
 
 // InitSchema initializes the transactions table schema
@@ -78,83 +80,160 @@ CREATE INDEX IF NOT EXISTS idx_transactions_amount ON transactions(amount);`
 	return nil
 }
 
-// ProcessEvents processes new events from the event store and projects them to transactions table
-func (p *Projector) ProcessEvents() error {
-	// Query for new events since last processed
-	query := fmt.Sprintf(`
-		SELECT id, stream_id, version, event_type, event_data, metadata, timestamp 
-		FROM %s 
-		WHERE id > $1 
-		ORDER BY id 
-		LIMIT $2`, p.eventsTableName)
+// StartProjection starts the event projection process
+func (p *Projector) StartProjection() error {
+	log.Println("Starting event projection...")
 
-	rows, err := p.db.Query(query, p.lastProcessedID, p.batchSize)
+	// Load already processed events to avoid reprocessing
+	if err := p.loadProcessedEventIDs(); err != nil {
+		log.Printf("Warning: Could not load processed events, starting fresh: %v", err)
+	}
+
+	// Load last processed timestamp for resumption
+	if err := p.loadLastProcessedTime(); err != nil {
+		log.Printf("Warning: Could not load last processed time, starting from beginning: %v", err)
+	}
+
+	log.Printf("Starting projection from timestamp: %v", p.lastProcessedTime)
+
+	// Start processing events in a goroutine with polling
+	go p.processEventsPeriodically()
+
+	log.Println("Event projection started successfully")
+	return nil
+}
+
+// processEventsPeriodically processes events periodically using timestamp-based querying
+func (p *Projector) processEventsPeriodically() {
+	log.Println("Started periodic event processing...")
+	
+	// Process immediately, then periodically
+	if err := p.processNewEvents(); err != nil {
+		log.Printf("Error in initial event processing: %v", err)
+	}
+
+	ticker := time.NewTicker(p.pollingInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			if err := p.processNewEvents(); err != nil {
+				log.Printf("Error processing events: %v", err)
+			}
+		}
+	}
+}
+
+// processNewEvents processes new events from the timestamp where we left off
+func (p *Projector) processNewEvents() error {
+	// Query for events newer than our last processed time
+	// This mimics the approach used by PostgresEventConsumer but includes stream_id
+	query := fmt.Sprintf(`
+		SELECT event_id, event_type, event_data, metadata, timestamp, version, stream_id
+		FROM %s 
+		WHERE timestamp >= $1 
+		ORDER BY timestamp ASC, id ASC 
+		LIMIT 100`, p.eventsTableName)
+
+	rows, err := p.db.Query(query, p.lastProcessedTime)
 	if err != nil {
 		return fmt.Errorf("failed to query events: %v", err)
 	}
 	defer rows.Close()
 
 	eventsProcessed := 0
-	var maxProcessedID int64
+	var latestTimestamp time.Time
 
 	for rows.Next() {
-		var eventID int64
-		var streamID string
-		var version int64
-		var eventType string
+		var eventID, eventType, streamID string
 		var eventData []byte
-		var metadata []byte
+		var metadataJSON []byte
 		var timestamp time.Time
+		var version int64
 
-		err := rows.Scan(&eventID, &streamID, &version, &eventType, &eventData, &metadata, &timestamp)
+		err := rows.Scan(&eventID, &eventType, &eventData, &metadataJSON, &timestamp, &version, &streamID)
 		if err != nil {
 			return fmt.Errorf("failed to scan event row: %v", err)
 		}
 
-		// Parse metadata to get account info
-		var meta map[string]interface{}
-		if err := json.Unmarshal(metadata, &meta); err != nil {
-			log.Printf("Warning: Failed to parse metadata for event %d: %v", eventID, err)
+		// Check if we've already processed this event (idempotency)
+		if p.processedEvents[eventID] {
+			log.Printf("Event %s already processed, skipping", eventID)
 			continue
 		}
 
-		actorID, ok := meta["actorId"].(string)
-		if !ok {
-			log.Printf("Warning: No actorId found in metadata for event %d", eventID)
+		// Parse metadata
+		var metadata map[string]string
+		if metadataJSON != nil {
+			if err := json.Unmarshal(metadataJSON, &metadata); err != nil {
+				log.Printf("Warning: Failed to parse metadata for event %s: %v", eventID, err)
+				continue
+			}
+		}
+
+		// Extract account ID from stream ID (format: bankaccount-<accountId>)
+		accountID := extractAccountIDFromStreamID(streamID)
+		if accountID == "" {
+			log.Printf("Warning: Could not extract account ID from stream %s", streamID)
 			continue
 		}
 
 		// Project the event based on type
-		transaction, err := p.projectEvent(actorID, version, eventType, eventData, timestamp)
+		transaction, err := p.projectEvent(accountID, version, eventType, eventData, timestamp)
 		if err != nil {
-			log.Printf("Warning: Failed to project event %d: %v", eventID, err)
+			log.Printf("Warning: Failed to project event %s: %v", eventID, err)
 			continue
 		}
 
-		// Insert transaction into projection table
+		// Insert transaction into projection table if not nil
 		if transaction != nil {
 			err = p.insertTransaction(transaction)
 			if err != nil {
 				// Check if it's a duplicate key error (event already processed)
 				if pqErr, ok := err.(*pq.Error); ok && pqErr.Code == "23505" {
-					log.Printf("Event already projected: account_id=%s, version=%d", transaction.AccountID, transaction.EventVersion)
+					log.Printf("Transaction already exists for account_id=%s, version=%d", transaction.AccountID, transaction.EventVersion)
 				} else {
 					return fmt.Errorf("failed to insert transaction: %v", err)
 				}
 			}
 		}
 
+		// Mark event as processed
+		p.processedEvents[eventID] = true
+		if err := p.recordProcessedEventID(eventID); err != nil {
+			log.Printf("Warning: Failed to record processed event ID %s: %v", eventID, err)
+		}
+
 		eventsProcessed++
-		maxProcessedID = eventID
+		latestTimestamp = timestamp
+		
+		log.Printf("Successfully processed event: ID=%s, Type=%s, Account=%s", eventID, eventType, accountID)
 	}
 
-	// Update last processed ID
+	// Update last processed timestamp
 	if eventsProcessed > 0 {
-		p.lastProcessedID = maxProcessedID
-		log.Printf("Processed %d events, last ID: %d", eventsProcessed, maxProcessedID)
+		p.lastProcessedTime = latestTimestamp
+		if err := p.saveLastProcessedTime(); err != nil {
+			log.Printf("Warning: Failed to save last processed time: %v", err)
+		}
+		log.Printf("Processed %d events, last timestamp: %v", eventsProcessed, latestTimestamp)
 	}
 
 	return rows.Err()
+}
+
+// extractAccountIDFromStreamID extracts account ID from stream ID like "bankaccount-<accountId>"
+func extractAccountIDFromStreamID(streamID string) string {
+	const prefix = "bankaccount-"
+	if len(streamID) > len(prefix) && streamID[:len(prefix)] == prefix {
+		accountID := streamID[len(prefix):]
+		// Ensure it's not a snapshot stream
+		if len(accountID) > 0 && accountID[len(accountID)-10:] != "-snapshots" {
+			return accountID
+		}
+	}
+	return ""
 }
 
 // projectEvent converts an event store event into a transaction projection
@@ -266,25 +345,103 @@ func (p *Projector) insertTransaction(tx *TransactionProjection) error {
 	return err
 }
 
-// GetLastProcessedEventID returns the last processed event ID for resumption
-func (p *Projector) GetLastProcessedEventID() (int64, error) {
-	// Get the highest event ID that corresponds to events already projected
-	query := `
-		SELECT COALESCE(MAX(e.id), 0) 
-		FROM ` + p.eventsTableName + ` e
-		INNER JOIN transactions t ON e.stream_id = t.account_id AND e.version = t.event_version
-	`
-	
-	var lastID int64
-	err := p.db.QueryRow(query).Scan(&lastID)
-	if err != nil {
-		return 0, fmt.Errorf("failed to get last processed event ID: %v", err)
-	}
-
-	return lastID, nil
+// Close closes the projector and cleans up resources
+func (p *Projector) Close() error {
+	log.Println("Closing projector...")
+	log.Println("Projector closed successfully")
+	return nil
 }
 
-// SetLastProcessedEventID sets the last processed event ID
-func (p *Projector) SetLastProcessedEventID(id int64) {
-	p.lastProcessedID = id
+// loadLastProcessedTime loads the last processed timestamp for resumption
+func (p *Projector) loadLastProcessedTime() error {
+	// Create table to track last processed time if it doesn't exist
+	createTableQuery := `
+		CREATE TABLE IF NOT EXISTS projection_checkpoint (
+			id INTEGER PRIMARY KEY DEFAULT 1,
+			last_processed_time TIMESTAMPTZ NOT NULL DEFAULT '1970-01-01T00:00:00Z',
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			CONSTRAINT single_row CHECK (id = 1)
+		);
+	`
+	
+	if _, err := p.db.Exec(createTableQuery); err != nil {
+		return fmt.Errorf("failed to create projection_checkpoint table: %v", err)
+	}
+
+	// Insert default row if it doesn't exist
+	insertDefaultQuery := `
+		INSERT INTO projection_checkpoint (id, last_processed_time) 
+		VALUES (1, '1970-01-01T00:00:00Z') 
+		ON CONFLICT (id) DO NOTHING
+	`
+	
+	if _, err := p.db.Exec(insertDefaultQuery); err != nil {
+		return fmt.Errorf("failed to insert default checkpoint: %v", err)
+	}
+
+	// Load the last processed time
+	var lastTime time.Time
+	err := p.db.QueryRow("SELECT last_processed_time FROM projection_checkpoint WHERE id = 1").Scan(&lastTime)
+	if err != nil {
+		return fmt.Errorf("failed to query last processed time: %v", err)
+	}
+
+	p.lastProcessedTime = lastTime
+	log.Printf("Loaded last processed time: %v", lastTime)
+	return nil
+}
+
+// saveLastProcessedTime saves the last processed timestamp
+func (p *Projector) saveLastProcessedTime() error {
+	query := `
+		UPDATE projection_checkpoint 
+		SET last_processed_time = $1, updated_at = CURRENT_TIMESTAMP 
+		WHERE id = 1
+	`
+	_, err := p.db.Exec(query, p.lastProcessedTime)
+	return err
+}
+
+// loadProcessedEventIDs loads previously processed event IDs from the database for idempotency
+func (p *Projector) loadProcessedEventIDs() error {
+	// Create a table to track processed events if it doesn't exist
+	createTableQuery := `
+		CREATE TABLE IF NOT EXISTS processed_events (
+			event_id VARCHAR(255) PRIMARY KEY,
+			processed_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+		);
+	`
+	
+	if _, err := p.db.Exec(createTableQuery); err != nil {
+		return fmt.Errorf("failed to create processed_events table: %v", err)
+	}
+
+	// Load recent processed event IDs (last 24 hours to keep memory usage reasonable)
+	// We rely on timestamp-based resumption as the primary mechanism
+	cutoffTime := time.Now().Add(-24 * time.Hour)
+	rows, err := p.db.Query("SELECT event_id FROM processed_events WHERE processed_at > $1", cutoffTime)
+	if err != nil {
+		return fmt.Errorf("failed to query recent processed events: %v", err)
+	}
+	defer rows.Close()
+
+	count := 0
+	for rows.Next() {
+		var eventID string
+		if err := rows.Scan(&eventID); err != nil {
+			return fmt.Errorf("failed to scan processed event ID: %v", err)
+		}
+		p.processedEvents[eventID] = true
+		count++
+	}
+
+	log.Printf("Loaded %d recent processed event IDs for idempotency", count)
+	return rows.Err()
+}
+
+// recordProcessedEventID records an event ID as processed for idempotency
+func (p *Projector) recordProcessedEventID(eventID string) error {
+	query := "INSERT INTO processed_events (event_id) VALUES ($1) ON CONFLICT (event_id) DO NOTHING"
+	_, err := p.db.Exec(query, eventID)
+	return err
 }
