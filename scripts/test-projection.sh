@@ -24,7 +24,7 @@ if ! curl -s http://localhost:8080/health > /dev/null; then
     exit 1
 fi
 
-# Check query server
+# Check query server  
 if ! curl -s http://localhost:8081/health > /dev/null; then
     echo -e "${RED}❌ Query server not ready at http://localhost:8081${NC}"
     exit 1
@@ -83,33 +83,33 @@ echo "============="
 
 # Query 1: Show all transactions
 echo -e "\n${BLUE}1. All Transactions:${NC}"
-curl -s -X POST http://localhost:8081/query \
+curl -s -X POST http://localhost:8081/query/all_transactions \
   -H "Content-Type: application/json" \
-  -d '{"sql": "SELECT id, account_id, owner_name, transaction_type, amount, description, transaction_timestamp FROM transactions ORDER BY transaction_timestamp DESC"}' | jq '.'
+  -d '{"limit": 50}' | jq '.'
 
 # Query 2: Transaction summary by type
 echo -e "\n${BLUE}2. Transaction Summary by Type:${NC}"
-curl -s -X POST http://localhost:8081/query \
+curl -s -X POST http://localhost:8081/query/transaction_type_summary \
   -H "Content-Type: application/json" \
-  -d '{"sql": "SELECT transaction_type, COUNT(*) as count, SUM(amount) as total_amount FROM transactions GROUP BY transaction_type ORDER BY count DESC"}' | jq '.'
+  -d '{}' | jq '.'
 
 # Query 3: Account balances
 echo -e "\n${BLUE}3. Account Balances (calculated from transactions):${NC}"
-curl -s -X POST http://localhost:8081/query \
+curl -s -X POST http://localhost:8081/query/account_balances \
   -H "Content-Type: application/json" \
-  -d '{"sql": "SELECT account_id, owner_name, SUM(CASE WHEN transaction_type IN ('"'"'account_created'"'"', '"'"'deposit'"'"') THEN amount ELSE -amount END) as balance FROM transactions GROUP BY account_id, owner_name ORDER BY balance DESC"}' | jq '.'
+  -d '{}' | jq '.'
 
 # Query 4: Recent activity
 echo -e "\n${BLUE}4. Recent Activity (last 5 transactions):${NC}"
-curl -s -X POST http://localhost:8081/query \
+curl -s -X POST http://localhost:8081/query/recent_transactions \
   -H "Content-Type: application/json" \
-  -d '{"sql": "SELECT account_id, transaction_type, amount, description, transaction_timestamp FROM transactions ORDER BY transaction_timestamp DESC LIMIT 5"}' | jq '.'
+  -d '{"limit": 5}' | jq '.'
 
 echo -e "\n${GREEN}✅ Projection demo completed!${NC}"
 echo ""
 echo "You can now:"
-echo "  • Visit http://localhost:8081 for the web query interface"
-echo "  • Use the /query endpoint with custom SQL queries"
-echo "  • Check /examples endpoint for more query examples"
+echo "  • Use the REST API endpoints like POST /query/recent_transactions"
+echo "  • Check GET /queries endpoint for available query names"
+echo "  • Example: curl -X POST http://localhost:8081/query/account_balances -d '{}'"
 echo ""
 echo "The projection continuously monitors bankaccount events and updates the transactions table."

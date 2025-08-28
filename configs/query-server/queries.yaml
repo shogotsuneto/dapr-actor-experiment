@@ -1,0 +1,65 @@
+# Queries configuration for BankAccount transactions
+# This file defines the available queries for the transactions projection table
+
+queries:
+  # Get the most recent transactions
+  recent_transactions:
+    sql: "SELECT * FROM transactions ORDER BY transaction_timestamp DESC LIMIT :limit"
+    params:
+      - name: limit
+        type: int
+
+  # Get all transactions (with optional limit)
+  all_transactions:
+    sql: "SELECT * FROM transactions ORDER BY transaction_timestamp DESC LIMIT :limit"
+    params:
+      - name: limit
+        type: int
+
+  # Calculate account balances (sum all transactions per account)
+  account_balances:
+    sql: "SELECT account_id, owner_name, SUM(CASE WHEN transaction_type IN ('account_created', 'deposit') THEN amount ELSE -amount END) as balance FROM transactions GROUP BY account_id, owner_name ORDER BY balance DESC"
+    params: []
+
+  # Get transactions for a specific account
+  account_transactions:
+    sql: "SELECT * FROM transactions WHERE account_id = :account_id ORDER BY transaction_timestamp DESC"
+    params:
+      - name: account_id
+        type: string
+
+  # Get transactions by type
+  transactions_by_type:
+    sql: "SELECT transaction_type, COUNT(*) as count, SUM(amount) as total_amount FROM transactions WHERE transaction_type = :transaction_type GROUP BY transaction_type"
+    params:
+      - name: transaction_type
+        type: string
+
+  # Get all transaction type summary
+  transaction_type_summary:
+    sql: "SELECT transaction_type, COUNT(*) as count, SUM(amount) as total_amount FROM transactions GROUP BY transaction_type ORDER BY count DESC"
+    params: []
+
+  # Get daily transaction volume
+  daily_volume:
+    sql: "SELECT DATE(transaction_timestamp) as date, COUNT(*) as transactions, SUM(amount) as volume FROM transactions GROUP BY DATE(transaction_timestamp) ORDER BY date DESC"
+    params: []
+
+  # Find large transactions (over a specified amount)
+  large_transactions:
+    sql: "SELECT * FROM transactions WHERE amount > :min_amount ORDER BY amount DESC"
+    params:
+      - name: min_amount
+        type: float
+
+  # Get transactions by owner
+  transactions_by_owner:
+    sql: "SELECT * FROM transactions WHERE owner_id = :owner_id ORDER BY transaction_timestamp DESC"
+    params:
+      - name: owner_id
+        type: string
+
+  # Count total transactions
+  transaction_count:
+    sql: "SELECT COUNT(*) as total_transactions FROM transactions"
+    params: []

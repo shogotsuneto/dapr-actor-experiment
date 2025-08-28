@@ -12,8 +12,6 @@ build:
 	@go build -o bin/client ./cmd/client
 	@echo "Building projector..."
 	@go build -o bin/projector ./cmd/projector
-	@echo "Building query-server..."
-	@go build -o bin/query-server ./cmd/query-server
 
 # Clean build artifacts
 clean:
