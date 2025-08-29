@@ -14,7 +14,7 @@ import (
 )
 
 func main() {
-	log.Println("Starting BankAccount Events Projector using PostgresEventConsumer...")
+	log.Println("Starting BankAccount Events Projector using cursor-based consumer...")
 
 	// Configure postgres connection using environment variables with defaults
 	connectionString := getEnvWithDefault("POSTGRES_CONNECTION_STRING", "postgres://postgres:postgres@postgres:5432/eventstore?sslmode=disable")
@@ -47,7 +47,7 @@ func main() {
 	log.Println("Database connection established")
 
 	// Create projector
-	projector, err := projection.NewProjector(db, eventsTableName, pollingInterval)
+	projector, err := projection.NewProjector(db, eventsTableName, connectionString, pollingInterval)
 	if err != nil {
 		log.Fatalf("Failed to create projector: %v", err)
 	}

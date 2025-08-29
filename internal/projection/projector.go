@@ -1,14 +1,18 @@
 package projection
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
+	"strconv"
 	"time"
 
 	"github.com/lib/pq"
 	"github.com/shogotsuneto/dapr-actor-experiment/internal/bankaccount"
+	"github.com/shogotsuneto/go-simple-eventstore"
+	"github.com/shogotsuneto/go-simple-eventstore/postgres"
 )
 
 // TransactionProjection represents a projected transaction record
@@ -25,23 +29,40 @@ type TransactionProjection struct {
 	CreatedAt              time.Time `json:"createdAt" db:"created_at"`
 }
 
-// Projector handles event projection from bankaccount events to transactions table
+// Projector handles event projection from bankaccount events to transactions table using cursor-based consumer
 type Projector struct {
 	db                   *sql.DB
-	eventsTableName      string
+	consumer             *postgres.PostgresEventConsumer
 	processedEvents      map[string]bool // Track processed event IDs to ensure idempotency
-	lastProcessedTime    time.Time
+	currentCursor        eventstore.Cursor // Current cursor position
 	pollingInterval      time.Duration
+	ctx                  context.Context
+	cancel               context.CancelFunc
 }
 
-// NewProjector creates a new projector instance
-func NewProjector(db *sql.DB, eventsTableName string, pollingInterval time.Duration) (*Projector, error) {
+// NewProjector creates a new projector instance with cursor-based consumer
+func NewProjector(db *sql.DB, eventsTableName, connectionString string, pollingInterval time.Duration) (*Projector, error) {
+	// Create PostgresEventConsumer
+	config := postgres.Config{
+		ConnectionString: connectionString,
+		TableName:        eventsTableName,
+	}
+
+	consumer, err := postgres.NewPostgresEventConsumer(config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create event consumer: %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+
 	return &Projector{
-		db:               db,
-		eventsTableName:  eventsTableName,
-		processedEvents:  make(map[string]bool),
-		lastProcessedTime: time.Time{}, // Start from beginning
-		pollingInterval:  pollingInterval,
+		db:              db,
+		consumer:        consumer,
+		processedEvents: make(map[string]bool),
+		currentCursor:   nil, // Start from beginning
+		pollingInterval: pollingInterval,
+		ctx:             ctx,
+		cancel:          cancel,
 	}, nil
 }
 
@@ -80,32 +101,32 @@ CREATE INDEX IF NOT EXISTS idx_transactions_amount ON transactions(amount);`
 	return nil
 }
 
-// StartProjection starts the event projection process
+// StartProjection starts the event projection process using cursor-based consumer
 func (p *Projector) StartProjection() error {
-	log.Println("Starting event projection...")
+	log.Println("Starting cursor-based event projection...")
 
 	// Load already processed events to avoid reprocessing
 	if err := p.loadProcessedEventIDs(); err != nil {
 		log.Printf("Warning: Could not load processed events, starting fresh: %v", err)
 	}
 
-	// Load last processed timestamp for resumption
-	if err := p.loadLastProcessedTime(); err != nil {
-		log.Printf("Warning: Could not load last processed time, starting from beginning: %v", err)
+	// Load last cursor position for resumption
+	if err := p.loadLastCursor(); err != nil {
+		log.Printf("Warning: Could not load last cursor, starting from beginning: %v", err)
 	}
 
-	log.Printf("Starting projection from timestamp: %v", p.lastProcessedTime)
+	log.Printf("Starting projection from cursor position (length: %d bytes)", len(p.currentCursor))
 
 	// Start processing events in a goroutine with polling
 	go p.processEventsPeriodically()
 
-	log.Println("Event projection started successfully")
+	log.Println("Cursor-based event projection started successfully")
 	return nil
 }
 
-// processEventsPeriodically processes events periodically using timestamp-based querying
+// processEventsPeriodically processes events periodically using cursor-based fetching
 func (p *Projector) processEventsPeriodically() {
-	log.Println("Started periodic event processing...")
+	log.Println("Started periodic cursor-based event processing...")
 	
 	// Process immediately, then periodically
 	if err := p.processNewEvents(); err != nil {
@@ -121,68 +142,68 @@ func (p *Projector) processEventsPeriodically() {
 			if err := p.processNewEvents(); err != nil {
 				log.Printf("Error processing events: %v", err)
 			}
+		case <-p.ctx.Done():
+			log.Println("Context cancelled, stopping event processing")
+			return
 		}
 	}
 }
 
-// processNewEvents processes new events from the timestamp where we left off
+// processNewEvents processes new events using cursor-based consumer
 func (p *Projector) processNewEvents() error {
-	// Query for events newer than our last processed time
-	// This mimics the approach used by PostgresEventConsumer but includes stream_id
-	query := fmt.Sprintf(`
-		SELECT event_id, event_type, event_data, metadata, timestamp, version, stream_id
-		FROM %s 
-		WHERE timestamp >= $1 
-		ORDER BY timestamp ASC, id ASC 
-		LIMIT 100`, p.eventsTableName)
+	const batchSize = 100
 
-	rows, err := p.db.Query(query, p.lastProcessedTime)
+	// Fetch events from current cursor position
+	batch, nextCursor, err := p.consumer.Fetch(p.ctx, p.currentCursor, batchSize)
 	if err != nil {
-		return fmt.Errorf("failed to query events: %v", err)
+		return fmt.Errorf("failed to fetch events: %v", err)
 	}
-	defer rows.Close()
+
+	if len(batch) == 0 {
+		// No new events
+		return nil
+	}
 
 	eventsProcessed := 0
-	var latestTimestamp time.Time
 
-	for rows.Next() {
-		var eventID, eventType, streamID string
-		var eventData []byte
-		var metadataJSON []byte
-		var timestamp time.Time
-		var version int64
-
-		err := rows.Scan(&eventID, &eventType, &eventData, &metadataJSON, &timestamp, &version, &streamID)
-		if err != nil {
-			return fmt.Errorf("failed to scan event row: %v", err)
-		}
-
+	for _, envelope := range batch {
 		// Check if we've already processed this event (idempotency)
-		if p.processedEvents[eventID] {
-			log.Printf("Event %s already processed, skipping", eventID)
+		if envelope.EventID != "" && p.processedEvents[envelope.EventID] {
+			log.Printf("Event %s already processed, skipping", envelope.EventID)
 			continue
-		}
-
-		// Parse metadata
-		var metadata map[string]string
-		if metadataJSON != nil {
-			if err := json.Unmarshal(metadataJSON, &metadata); err != nil {
-				log.Printf("Warning: Failed to parse metadata for event %s: %v", eventID, err)
-				continue
-			}
 		}
 
 		// Extract account ID from stream ID (format: bankaccount-<accountId>)
-		accountID := extractAccountIDFromStreamID(streamID)
+		accountID := extractAccountIDFromStreamID(envelope.StreamID)
 		if accountID == "" {
-			log.Printf("Warning: Could not extract account ID from stream %s", streamID)
+			log.Printf("Warning: Could not extract account ID from stream %s", envelope.StreamID)
 			continue
 		}
 
-		// Project the event based on type
-		transaction, err := p.projectEvent(accountID, version, eventType, eventData, timestamp)
+		// Parse metadata (if present) - handle gracefully if not valid JSON
+		var metadata map[string]string
+		if envelope.Metadata != nil && len(envelope.Metadata) > 0 {
+			if err := json.Unmarshal(envelope.Metadata, &metadata); err != nil {
+				// Not all metadata may be JSON, log and continue
+				log.Printf("Debug: Metadata not JSON for event %s: %v", envelope.EventID, string(envelope.Metadata))
+			}
+		}
+
+		// Project the event based on type - extract version from metadata if available
+		version := int64(1) // Default version
+		if metadata != nil {
+			if versionStr, exists := metadata["version"]; exists {
+				if parsedVersion, err := strconv.ParseInt(versionStr, 10, 64); err == nil {
+					version = parsedVersion
+				}
+			}
+		}
+		
+		log.Printf("Debug: Processing event ID=%s, Type=%s, Account=%s, Version=%d", envelope.EventID, envelope.Type, accountID, version)
+		
+		transaction, err := p.projectEvent(accountID, version, envelope.Type, envelope.Data, envelope.CommitTime)
 		if err != nil {
-			log.Printf("Warning: Failed to project event %s: %v", eventID, err)
+			log.Printf("Warning: Failed to project event %s: %v", envelope.EventID, err)
 			continue
 		}
 
@@ -200,27 +221,34 @@ func (p *Projector) processNewEvents() error {
 		}
 
 		// Mark event as processed
-		p.processedEvents[eventID] = true
-		if err := p.recordProcessedEventID(eventID); err != nil {
-			log.Printf("Warning: Failed to record processed event ID %s: %v", eventID, err)
+		if envelope.EventID != "" {
+			p.processedEvents[envelope.EventID] = true
+			if err := p.recordProcessedEventID(envelope.EventID); err != nil {
+				log.Printf("Warning: Failed to record processed event ID %s: %v", envelope.EventID, err)
+			}
 		}
 
 		eventsProcessed++
-		latestTimestamp = timestamp
 		
-		log.Printf("Successfully processed event: ID=%s, Type=%s, Account=%s", eventID, eventType, accountID)
+		log.Printf("Successfully processed event: ID=%s, Type=%s, Account=%s", envelope.EventID, envelope.Type, accountID)
 	}
 
-	// Update last processed timestamp
+	// Update cursor position and commit
 	if eventsProcessed > 0 {
-		p.lastProcessedTime = latestTimestamp
-		if err := p.saveLastProcessedTime(); err != nil {
-			log.Printf("Warning: Failed to save last processed time: %v", err)
+		p.currentCursor = nextCursor
+		if err := p.saveLastCursor(); err != nil {
+			log.Printf("Warning: Failed to save last cursor: %v", err)
 		}
-		log.Printf("Processed %d events, last timestamp: %v", eventsProcessed, latestTimestamp)
+		
+		// Commit the cursor position
+		if err := p.consumer.Commit(p.ctx, p.currentCursor); err != nil {
+			log.Printf("Warning: Failed to commit cursor: %v", err)
+		}
+		
+		log.Printf("Processed %d events, cursor advanced (%d bytes)", eventsProcessed, len(p.currentCursor))
 	}
 
-	return rows.Err()
+	return nil
 }
 
 // extractAccountIDFromStreamID extracts account ID from stream ID like "bankaccount-<accountId>"
@@ -348,17 +376,18 @@ func (p *Projector) insertTransaction(tx *TransactionProjection) error {
 // Close closes the projector and cleans up resources
 func (p *Projector) Close() error {
 	log.Println("Closing projector...")
+	p.cancel() // Cancel the context to stop the background goroutine
 	log.Println("Projector closed successfully")
 	return nil
 }
 
-// loadLastProcessedTime loads the last processed timestamp for resumption
-func (p *Projector) loadLastProcessedTime() error {
-	// Create table to track last processed time if it doesn't exist
+// loadLastCursor loads the last cursor position for resumption
+func (p *Projector) loadLastCursor() error {
+	// Create table to track last cursor position if it doesn't exist
 	createTableQuery := `
 		CREATE TABLE IF NOT EXISTS projection_checkpoint (
 			id INTEGER PRIMARY KEY DEFAULT 1,
-			last_processed_time TIMESTAMPTZ NOT NULL DEFAULT '1970-01-01T00:00:00Z',
+			last_cursor BYTEA,
 			updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			CONSTRAINT single_row CHECK (id = 1)
 		);
@@ -370,8 +399,8 @@ func (p *Projector) loadLastProcessedTime() error {
 
 	// Insert default row if it doesn't exist
 	insertDefaultQuery := `
-		INSERT INTO projection_checkpoint (id, last_processed_time) 
-		VALUES (1, '1970-01-01T00:00:00Z') 
+		INSERT INTO projection_checkpoint (id, last_cursor) 
+		VALUES (1, NULL) 
 		ON CONFLICT (id) DO NOTHING
 	`
 	
@@ -379,26 +408,26 @@ func (p *Projector) loadLastProcessedTime() error {
 		return fmt.Errorf("failed to insert default checkpoint: %v", err)
 	}
 
-	// Load the last processed time
-	var lastTime time.Time
-	err := p.db.QueryRow("SELECT last_processed_time FROM projection_checkpoint WHERE id = 1").Scan(&lastTime)
+	// Load the last cursor position
+	var cursor []byte
+	err := p.db.QueryRow("SELECT last_cursor FROM projection_checkpoint WHERE id = 1").Scan(&cursor)
 	if err != nil {
-		return fmt.Errorf("failed to query last processed time: %v", err)
+		return fmt.Errorf("failed to query last cursor: %v", err)
 	}
 
-	p.lastProcessedTime = lastTime
-	log.Printf("Loaded last processed time: %v", lastTime)
+	p.currentCursor = eventstore.Cursor(cursor)
+	log.Printf("Loaded last cursor (%d bytes)", len(p.currentCursor))
 	return nil
 }
 
-// saveLastProcessedTime saves the last processed timestamp
-func (p *Projector) saveLastProcessedTime() error {
+// saveLastCursor saves the last cursor position
+func (p *Projector) saveLastCursor() error {
 	query := `
 		UPDATE projection_checkpoint 
-		SET last_processed_time = $1, updated_at = CURRENT_TIMESTAMP 
+		SET last_cursor = $1, updated_at = CURRENT_TIMESTAMP 
 		WHERE id = 1
 	`
-	_, err := p.db.Exec(query, p.lastProcessedTime)
+	_, err := p.db.Exec(query, []byte(p.currentCursor))
 	return err
 }
 
