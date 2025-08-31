@@ -195,15 +195,7 @@ curl -X POST http://localhost:8081/query/my_transaction_summary \
   -d '{}'
 ```
 
-### 5. Get Specific Account Transactions (Authenticated, User Must Own Account)
-```bash
-curl -X POST http://localhost:8081/query/my_account_transactions \
-  -H "Authorization: Bearer $ALICE_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"account_id": "account-demo-alice"}'
-```
-
-### 6. Unauthenticated Request (Will Fail)
+### 5. Unauthenticated Request (Will Fail)
 ```bash
 # This will return 401 Unauthorized
 curl -X POST http://localhost:8081/query/my_transactions \
@@ -228,10 +220,7 @@ List all available account holder queries.
   "queries": [
     "my_transactions",
     "my_account_balance", 
-    "my_recent_transactions",
-    "my_account_transactions",
-    "my_transaction_summary",
-    "my_transaction_count"
+    "my_transaction_summary"
   ]
 }
 ```
@@ -241,7 +230,7 @@ Execute an account holder query. The JWT `sub` claim automatically becomes the `
 
 **Request Example:**
 ```bash
-curl -X POST http://localhost:8081/query/my_recent_transactions \
+curl -X POST http://localhost:8081/query/my_transactions \
   -H "Authorization: Bearer $ALICE_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"limit": 5}'
@@ -289,10 +278,7 @@ The simple-query-server provides these secure, account holder-specific queries:
 
 - **`my_transactions`**: Get the authenticated user's transactions with limit parameter
 - **`my_account_balance`**: Calculate balance for the authenticated user's accounts  
-- **`my_recent_transactions`**: Get the authenticated user's most recent transactions
-- **`my_account_transactions`**: Get transactions for a specific account (only if owned by authenticated user)
 - **`my_transaction_summary`**: Count and sum transactions by type for the authenticated user
-- **`my_transaction_count`**: Get total number of transactions for the authenticated user
 
 All queries automatically filter results by the authenticated user's ID (`user_id` from JWT `sub` claim).
 

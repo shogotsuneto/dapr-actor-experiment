@@ -18,34 +18,9 @@ queries:
       - name: user_id
         type: string
 
-  # Get recent transactions for the authenticated user
-  my_recent_transactions:
-    sql: "SELECT * FROM transactions WHERE owner_id = :user_id ORDER BY transaction_timestamp DESC LIMIT :limit"
-    params:
-      - name: user_id
-        type: string
-      - name: limit
-        type: int
-
-  # Get transactions for a specific account (only if owned by authenticated user)
-  my_account_transactions:
-    sql: "SELECT * FROM transactions WHERE account_id = :account_id AND owner_id = :user_id ORDER BY transaction_timestamp DESC"
-    params:
-      - name: account_id
-        type: string
-      - name: user_id
-        type: string
-
   # Get transaction summary by type for the authenticated user
   my_transaction_summary:
     sql: "SELECT transaction_type, COUNT(*) as count, SUM(amount) as total_amount FROM transactions WHERE owner_id = :user_id GROUP BY transaction_type ORDER BY count DESC"
-    params:
-      - name: user_id
-        type: string
-
-  # Count transactions for the authenticated user
-  my_transaction_count:
-    sql: "SELECT COUNT(*) as total_transactions FROM transactions WHERE owner_id = :user_id"
     params:
       - name: user_id
         type: string

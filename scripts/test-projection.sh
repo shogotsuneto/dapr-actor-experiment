@@ -125,15 +125,9 @@ curl -s -X POST http://localhost:8081/query/my_account_balance \
   -H "Content-Type: application/json" \
   -d '{}' | jq '.'
 
-# Demonstrate security: Alice cannot see Bob's data
+# Demonstrate security
 echo -e "\n${YELLOW}Security Demonstration:${NC}"
 echo "======================="
-
-echo -e "\n→ Alice trying to access Bob's account (should show no results):"
-curl -s -X POST http://localhost:8081/query/my_account_transactions \
-  -H "Authorization: Bearer $ALICE_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"account_id": "account-demo-bob"}' | jq '.'
 
 echo -e "\n→ Request without JWT token (should fail with 401):"
 curl -s -X POST http://localhost:8081/query/my_transactions \
@@ -151,7 +145,4 @@ echo ""
 echo "Available authenticated queries:"
 echo "  • POST /query/my_transactions - Get user's transactions"
 echo "  • POST /query/my_account_balance - Get user's account balance"
-echo "  • POST /query/my_recent_transactions - Get user's recent activity"
-echo "  • POST /query/my_account_transactions - Get specific account transactions (user must own account)"
 echo "  • POST /query/my_transaction_summary - Get user's transaction summary"
-echo "  • POST /query/my_transaction_count - Get user's transaction count"
