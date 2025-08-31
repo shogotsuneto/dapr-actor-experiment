@@ -1,12 +1,12 @@
 #!/bin/bash
 
-# BankAccount Transactions Projection Demo
-# This script demonstrates the projection functionality
+# BankAccount Transactions Projection Demo with JWT Authentication
+# This script demonstrates the projection functionality with account holder authentication
 
 set -e
 
-echo "BankAccount Transactions Projection Demo"
-echo "======================================="
+echo "BankAccount Transactions Projection Demo with JWT Authentication"
+echo "==============================================================="
 
 # Colors for output
 RED='\033[0;31m'
@@ -30,12 +30,18 @@ if ! curl -s http://localhost:8081/health > /dev/null; then
     exit 1
 fi
 
+# Check JWKS Mock API
+if ! curl -s http://localhost:3000/health > /dev/null; then
+    echo -e "${RED}❌ JWKS Mock API not ready at http://localhost:3000${NC}"
+    exit 1
+fi
+
 echo -e "${GREEN}✅ Services ready${NC}"
 
 # Generate JWT tokens for different users
 echo -e "\n${BLUE}Generating JWT tokens...${NC}"
-ALICE_TOKEN=$(curl -s http://localhost:3000/generate-token -H "Content-Type: application/json" -d '{"sub": "account-demo-alice", "name": "Alice Demo", "exp_minutes": 60}' | jq -r '.token')
-BOB_TOKEN=$(curl -s http://localhost:3000/generate-token -H "Content-Type: application/json" -d '{"sub": "account-demo-bob", "name": "Bob Demo", "exp_minutes": 60}' | jq -r '.token')
+ALICE_TOKEN=$(curl -s http://localhost:3000/generate-token -H "Content-Type: application/json" -d '{"claims": {"sub": "account-demo-alice", "name": "Alice Demo"}, "exp_minutes": 60}' | jq -r '.token')
+BOB_TOKEN=$(curl -s http://localhost:3000/generate-token -H "Content-Type: application/json" -d '{"claims": {"sub": "account-demo-bob", "name": "Bob Demo"}, "exp_minutes": 60}' | jq -r '.token')
 
 echo -e "${GREEN}✅ JWT tokens generated${NC}"
 
@@ -78,38 +84,74 @@ echo -e "${GREEN}✅ Test transactions created${NC}"
 echo -e "\n${BLUE}Waiting for projector to process events (15 seconds)...${NC}"
 sleep 15
 
-echo -e "\n${YELLOW}Demo Queries:${NC}"
-echo "============="
+echo -e "\n${YELLOW}Account Holder Queries (JWT Authentication Required):${NC}"
+echo "======================================================"
 
-# Query 1: Show all transactions
-echo -e "\n${BLUE}1. All Transactions:${NC}"
-curl -s -X POST http://localhost:8081/query/all_transactions \
+# Alice's queries (using Alice's token)
+echo -e "\n${BLUE}Alice's Account Data:${NC}"
+echo "--------------------"
+
+echo -e "\n→ Alice's Transactions:"
+curl -s -X POST http://localhost:8081/query/my_transactions \
+  -H "Authorization: Bearer $ALICE_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"limit": 50}' | jq '.'
+  -d '{"limit": 10}' | jq '.'
 
-# Query 2: Transaction summary by type
-echo -e "\n${BLUE}2. Transaction Summary by Type:${NC}"
-curl -s -X POST http://localhost:8081/query/transaction_type_summary \
-  -H "Content-Type: application/json" \
-  -d '{}' | jq '.'
-
-# Query 3: Account balances
-echo -e "\n${BLUE}3. Account Balances (calculated from transactions):${NC}"
-curl -s -X POST http://localhost:8081/query/account_balances \
+echo -e "\n→ Alice's Account Balance:"
+curl -s -X POST http://localhost:8081/query/my_account_balance \
+  -H "Authorization: Bearer $ALICE_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{}' | jq '.'
 
-# Query 4: Recent activity
-echo -e "\n${BLUE}4. Recent Activity (last 5 transactions):${NC}"
-curl -s -X POST http://localhost:8081/query/recent_transactions \
+echo -e "\n→ Alice's Transaction Summary:"
+curl -s -X POST http://localhost:8081/query/my_transaction_summary \
+  -H "Authorization: Bearer $ALICE_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"limit": 5}' | jq '.'
+  -d '{}' | jq '.'
 
-echo -e "\n${GREEN}✅ Projection demo completed!${NC}"
+# Bob's queries (using Bob's token)
+echo -e "\n${BLUE}Bob's Account Data:${NC}"
+echo "------------------"
+
+echo -e "\n→ Bob's Transactions:"
+curl -s -X POST http://localhost:8081/query/my_transactions \
+  -H "Authorization: Bearer $BOB_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"limit": 10}' | jq '.'
+
+echo -e "\n→ Bob's Account Balance:"
+curl -s -X POST http://localhost:8081/query/my_account_balance \
+  -H "Authorization: Bearer $BOB_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{}' | jq '.'
+
+# Demonstrate security: Alice cannot see Bob's data
+echo -e "\n${YELLOW}Security Demonstration:${NC}"
+echo "======================="
+
+echo -e "\n→ Alice trying to access Bob's account (should show no results):"
+curl -s -X POST http://localhost:8081/query/my_account_transactions \
+  -H "Authorization: Bearer $ALICE_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"account_id": "account-demo-bob"}' | jq '.'
+
+echo -e "\n→ Request without JWT token (should fail with 401):"
+curl -s -X POST http://localhost:8081/query/my_transactions \
+  -H "Content-Type: application/json" \
+  -d '{"limit": 5}' || echo -e "${RED}❌ Unauthorized (expected)${NC}"
+
+echo -e "\n${GREEN}✅ JWT Authentication and Security Demo completed!${NC}"
 echo ""
-echo "You can now:"
-echo "  • Use the REST API endpoints like POST /query/recent_transactions"
-echo "  • Check GET /queries endpoint for available query names"
-echo "  • Example: curl -X POST http://localhost:8081/query/account_balances -d '{}'"
+echo "Summary:"
+echo "  • Account holders can only query their own transaction data"
+echo "  • JWT authentication is required for all query endpoints"
+echo "  • The 'sub' claim from JWT is mapped to 'user_id' parameter in SQL"
+echo "  • Cross-account access is prevented by user_id filtering"
 echo ""
-echo "The projection continuously monitors bankaccount events and updates the transactions table."
+echo "Available authenticated queries:"
+echo "  • POST /query/my_transactions - Get user's transactions"
+echo "  • POST /query/my_account_balance - Get user's account balance"
+echo "  • POST /query/my_recent_transactions - Get user's recent activity"
+echo "  • POST /query/my_account_transactions - Get specific account transactions (user must own account)"
+echo "  • POST /query/my_transaction_summary - Get user's transaction summary"
+echo "  • POST /query/my_transaction_count - Get user's transaction count"

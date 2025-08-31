@@ -1,13 +1,13 @@
-# BankAccount Transactions Projection
+# BankAccount Transactions Projection with JWT Authentication
 
-This document explains the BankAccount transactions projection feature that demonstrates how to query list-like data from the event store.
+This document explains the BankAccount transactions projection feature that demonstrates how account holders can securely query their own transaction data using JWT authentication.
 
 ## Overview
 
 The projection system consists of two main components:
 
 1. **Projector Worker** (`cmd/projector`) - Continuously reads events from `bankaccount_events` and projects them to a `transactions` table
-2. **Simple Query Server** ([shogotsuneto/simple-query-server](https://github.com/shogotsuneto/simple-query-server)) - Provides predefined query endpoints with parameter validation
+2. **Simple Query Server with JWT Authentication** ([shogotsuneto/simple-query-server v0.0.2](https://github.com/shogotsuneto/simple-query-server)) - Provides secure, account holder-specific query endpoints
 
 ## Architecture
 
@@ -26,13 +26,26 @@ The projection system consists of two main components:
                                                 └─────────────────┘
                                                           │
                                                           ▼
-                                                ┌─────────────────┐
-                                                │ Simple Query    │
-                                                │     Server      │
-                                                │ (REST API with  │
-                                                │predefined queries)│
-                                                └─────────────────┘
+┌─────────────────┐    ┌─────────────────┐              ┌─────────────────┐
+│   JWKS Mock     │───▶│   JWT Token     │───────────── │ Simple Query    │
+│     API         │    │ Authentication  │              │     Server      │
+│  (Token Gen)    │    │   Middleware    │              │ (Account Holder │
+└─────────────────┘    └─────────────────┘              │   Queries Only) │
+                                                         └─────────────────┘
 ```
+
+## Security Model
+
+### JWT Authentication
+- **Required Authentication**: All query endpoints require valid JWT tokens
+- **Account Holder Access**: Users can only query their own transaction data
+- **JWKS Verification**: Tokens are verified using the JWKS Mock API endpoint
+- **Claim Mapping**: The JWT `sub` claim is mapped to `user_id` SQL parameter for data filtering
+
+### Access Control
+- Queries are automatically filtered by the authenticated user's ID (`user_id` from JWT `sub` claim)
+- Cross-account access is prevented by SQL-level filtering
+- No administrative or global queries are available to regular users
 
 ## Transactions Table Schema
 
@@ -119,88 +132,117 @@ type: "postgres"
 dsn: "postgres://postgres:postgres@postgres:5432/eventstore?sslmode=disable"
 ```
 
+**Server Configuration** (`server.yaml`):
+```yaml
+middleware:
+  - type: "bearer-jwks"
+    config:
+      jwks_url: "http://jwks-mock-api:3000/.well-known/jwks.json"
+      required: true                                              
+      fallback_ttl: "10m"                                         
+      enable_health_check: true                                   
+      claims_mapping:                                             
+        sub: "user_id"                                            
+        name: "user_name"                                         
+      issuer: "http://jwks-mock-api:3000"                        
+      audience: "dapr-actor-service"                             
+```
+
 **Queries Configuration** (`queries.yaml`):
 ```yaml
 queries:
-  recent_transactions:
-    sql: "SELECT * FROM transactions ORDER BY transaction_timestamp DESC LIMIT :limit"
+  my_transactions:
+    sql: "SELECT * FROM transactions WHERE owner_id = :user_id ORDER BY transaction_timestamp DESC LIMIT :limit"
     params:
+      - name: user_id
+        type: string
       - name: limit
         type: int
-  # ... additional predefined queries
+  # ... additional account holder queries
 ```
 
 ## Usage Examples
 
-### 1. List Available Queries
+### 1. Generate JWT Token
 ```bash
-curl http://localhost:8081/queries
+# Generate token for Alice
+ALICE_TOKEN=$(curl -s http://localhost:3000/generate-token \
+  -H "Content-Type: application/json" \
+  -d '{"sub": "account-demo-alice", "name": "Alice Demo", "exp_minutes": 60}' | jq -r '.token')
 ```
 
-### 2. Get Recent Transactions
+### 2. Get My Transactions (Authenticated)
 ```bash
-curl -X POST http://localhost:8081/query/recent_transactions \
+curl -X POST http://localhost:8081/query/my_transactions \
+  -H "Authorization: Bearer $ALICE_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"limit": 10}'
 ```
 
-### 3. Calculate Account Balances
+### 3. Get My Account Balance (Authenticated)
 ```bash
-curl -X POST http://localhost:8081/query/account_balances \
+curl -X POST http://localhost:8081/query/my_account_balance \
+  -H "Authorization: Bearer $ALICE_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{}'
 ```
 
-### 4. Transaction Summary by Type
+### 4. Get My Transaction Summary (Authenticated)
 ```bash
-curl -X POST http://localhost:8081/query/transaction_type_summary \
+curl -X POST http://localhost:8081/query/my_transaction_summary \
+  -H "Authorization: Bearer $ALICE_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{}'
 ```
 
-### 5. Find Large Transactions
+### 5. Get Specific Account Transactions (Authenticated, User Must Own Account)
 ```bash
-curl -X POST http://localhost:8081/query/large_transactions \
-  -H "Content-Type: application/json" \
-  -d '{"min_amount": 1000.0}'
-```
-
-### 6. Get Transactions for Specific Account
-```bash
-curl -X POST http://localhost:8081/query/account_transactions \
+curl -X POST http://localhost:8081/query/my_account_transactions \
+  -H "Authorization: Bearer $ALICE_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"account_id": "account-demo-alice"}'
 ```
 
+### 6. Unauthenticated Request (Will Fail)
+```bash
+# This will return 401 Unauthorized
+curl -X POST http://localhost:8081/query/my_transactions \
+  -H "Content-Type: application/json" \
+  -d '{"limit": 5}'
+```
+
 ## Simple Query Server API
 
+### Authentication
+All endpoints require a valid JWT token in the Authorization header:
+```
+Authorization: Bearer <jwt_token>
+```
+
 ### GET /queries
-List all available predefined queries.
+List all available account holder queries.
 
 **Response:**
 ```json
 {
   "queries": [
-    "recent_transactions",
-    "account_balances", 
-    "account_transactions",
-    "transaction_type_summary",
-    "daily_volume",
-    "large_transactions",
-    "transactions_by_owner",
-    "transaction_count",
-    "all_transactions",
-    "transactions_by_type"
+    "my_transactions",
+    "my_account_balance", 
+    "my_recent_transactions",
+    "my_account_transactions",
+    "my_transaction_summary",
+    "my_transaction_count"
   ]
 }
 ```
 
 ### POST /query/{query_name}
-Execute a predefined query with parameters.
+Execute an account holder query. The JWT `sub` claim automatically becomes the `user_id` parameter.
 
 **Request Example:**
 ```bash
-curl -X POST http://localhost:8081/query/recent_transactions \
+curl -X POST http://localhost:8081/query/my_recent_transactions \
+  -H "Authorization: Bearer $ALICE_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"limit": 5}'
 ```
@@ -226,38 +268,43 @@ curl -X POST http://localhost:8081/query/recent_transactions \
 ```
 
 ### GET /health
-Health check endpoint.
+Health check endpoint with JWKS middleware status.
 
 **Response:**
 ```json
 {
+  "status": "healthy",
   "database": {"connected": true},
-  "status": "healthy"
+  "middleware": {
+    "bearer-jwks(http://jwks-mock-api:3000/.well-known/jwks.json)": {
+      "healthy": true
+    }
+  }
 }
 ```
 
-## Available Predefined Queries
+## Available Account Holder Queries
 
-The simple-query-server provides these predefined queries:
+The simple-query-server provides these secure, account holder-specific queries:
 
-- **`recent_transactions`**: Get the most recent transactions with limit parameter
-- **`account_balances`**: Calculate balance per account from all transactions
-- **`account_transactions`**: Get all transactions for a specific account ID
-- **`transaction_type_summary`**: Count and sum transactions by type
-- **`daily_volume`**: Show transaction volume grouped by day
-- **`large_transactions`**: Find transactions over a specified amount threshold
-- **`transactions_by_owner`**: Get transactions for a specific owner ID
-- **`transaction_count`**: Get total number of transactions
-- **`all_transactions`**: Get all transactions with optional limit
-- **`transactions_by_type`**: Filter transactions by specific type
+- **`my_transactions`**: Get the authenticated user's transactions with limit parameter
+- **`my_account_balance`**: Calculate balance for the authenticated user's accounts  
+- **`my_recent_transactions`**: Get the authenticated user's most recent transactions
+- **`my_account_transactions`**: Get transactions for a specific account (only if owned by authenticated user)
+- **`my_transaction_summary`**: Count and sum transactions by type for the authenticated user
+- **`my_transaction_count`**: Get total number of transactions for the authenticated user
+
+All queries automatically filter results by the authenticated user's ID (`user_id` from JWT `sub` claim).
 
 ## Security
 
-- Query execution is limited to predefined queries only (no arbitrary SQL)
-- Parameter validation and type checking for query safety
-- SQL injection protection through parameterized queries
-- Database connection with authentication
-- No direct SQL interface exposed to users
+- **JWT Authentication Required**: All query endpoints require valid JWT tokens
+- **Account Holder Access Only**: Users can only query their own transaction data through automatic `user_id` filtering
+- **JWKS Verification**: Tokens are verified using the JWKS Mock API endpoint at `/.well-known/jwks.json`
+- **No Cross-Account Access**: SQL queries are filtered by `user_id` to prevent access to other users' data
+- **Parameter Validation**: Query parameters are validated and type-checked for safety
+- **SQL Injection Protection**: All queries use parameterized SQL with proper escaping
+- **No Administrative Queries**: No global or admin-level queries are available to regular users
 
 ## Performance Considerations
 
@@ -271,22 +318,23 @@ The simple-query-server provides these predefined queries:
 
 ## Testing
 
-Run the projection demo:
+Run the projection demo with JWT authentication:
 ```bash
 ./scripts/test-projection.sh
 ```
 
 This script:
-1. Creates test transactions via BankAccount actors
-2. Waits for projection to process events
-3. Executes various predefined queries using the simple-query-server API
-4. Displays results in JSON format
+1. Generates JWT tokens for different users (Alice and Bob)
+2. Creates test transactions via BankAccount actors using JWT authentication
+3. Waits for projection to process events
+4. Executes account holder queries using JWT tokens
+5. Demonstrates security by showing cross-account access prevention
 
-Example queries executed:
-- `POST /query/all_transactions` - List all transactions
-- `POST /query/transaction_type_summary` - Transaction counts by type
-- `POST /query/account_balances` - Calculated account balances
-- `POST /query/recent_transactions` - Most recent activity
+Example authenticated queries executed:
+- `POST /query/my_transactions` - List user's transactions
+- `POST /query/my_account_balance` - User's calculated account balance
+- `POST /query/my_transaction_summary` - User's transaction counts by type
+- Security demonstration showing unauthorized access attempts fail
 
 ## Integration with Existing System
 
@@ -294,7 +342,8 @@ The projection system:
 - ✅ Does not modify existing BankAccount actor implementation
 - ✅ Uses the same PostgreSQL database for consistency
 - ✅ Processes events asynchronously without affecting actor performance
-- ✅ Provides predefined query capabilities while maintaining event sourcing benefits
+- ✅ Provides secure account holder query capabilities while maintaining event sourcing benefits
 - ✅ Can be deployed alongside existing services via Docker Compose
 - ✅ Uses cursor-based event consumption for reliable resumption
-- ✅ Leverages external simple-query-server for robust query execution
+- ✅ Leverages external simple-query-server v0.0.2 with JWT authentication middleware
+- ✅ Maintains backward compatibility with existing JWT authentication system

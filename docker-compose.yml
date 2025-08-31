@@ -137,12 +137,12 @@ services:
 
   # Transactions Query Server
   query-server:
-    image: ghcr.io/shogotsuneto/simple-query-server:v0.0.1
+    image: ghcr.io/shogotsuneto/simple-query-server:v0.0.2
     ports:
       - "8081:8080"
     volumes:
       - "./configs/query-server:/configs"
-    command: ["--db-config", "/configs/database.yaml", "--queries-config", "/configs/queries.yaml", "--port", "8080"]
+    command: ["--db-config", "/configs/database.yaml", "--queries-config", "/configs/queries.yaml", "--server-config", "/configs/server.yaml", "--port", "8080"]
     depends_on:
       postgres:
         condition: service_healthy
