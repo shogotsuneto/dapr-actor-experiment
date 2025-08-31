@@ -7,7 +7,7 @@ This document explains the BankAccount transactions projection feature that demo
 The projection system consists of two main components:
 
 1. **Projector Worker** (`cmd/projector`) - Continuously reads events from `bankaccount_events` and projects them to a `transactions` table
-2. **Query Server** (`cmd/query-server`) - Provides a SQL query interface with JSON results
+2. **Simple Query Server** ([shogotsuneto/simple-query-server](https://github.com/shogotsuneto/simple-query-server)) - Provides predefined query endpoints with parameter validation
 
 ## Architecture
 
@@ -27,8 +27,10 @@ The projection system consists of two main components:
                                                           │
                                                           ▼
                                                 ┌─────────────────┐
-                                                │  Query Server   │
-                                                │ (SQL Interface) │
+                                                │ Simple Query    │
+                                                │     Server      │
+                                                │ (REST API with  │
+                                                │predefined queries)│
                                                 └─────────────────┘
 ```
 
@@ -106,60 +108,111 @@ VALUES ('account-alice', 'account-alice', 'Alice Demo', 'withdrawal', 1200.00, '
 Environment variables:
 - `POSTGRES_CONNECTION_STRING` - Database connection string (default: postgres://postgres:postgres@postgres:5432/eventstore?sslmode=disable)
 - `EVENTS_TABLE_NAME` - Event store table name (default: bankaccount_events)
-- `PROJECTION_INTERVAL_SECONDS` - Processing interval (default: 30)
+- `PROJECTION_INTERVAL_SECONDS` - Processing interval (default: 10)
 
-### Query Server Configuration  
-Environment variables:
-- `POSTGRES_CONNECTION_STRING` - Database connection string
-- `QUERY_SERVER_PORT` - HTTP server port (default: 8081)
+### Simple Query Server Configuration  
+YAML configuration files mounted at `/configs`:
+
+**Database Configuration** (`database.yaml`):
+```yaml
+type: "postgres"
+dsn: "postgres://postgres:postgres@postgres:5432/eventstore?sslmode=disable"
+```
+
+**Queries Configuration** (`queries.yaml`):
+```yaml
+queries:
+  recent_transactions:
+    sql: "SELECT * FROM transactions ORDER BY transaction_timestamp DESC LIMIT :limit"
+    params:
+      - name: limit
+        type: int
+  # ... additional predefined queries
+```
 
 ## Usage Examples
 
-### 1. Query All Transactions
+### 1. List Available Queries
 ```bash
-curl -X POST http://localhost:8081/query \
-  -H "Content-Type: application/json" \
-  -d '{"sql": "SELECT * FROM transactions ORDER BY transaction_timestamp DESC LIMIT 10"}'
+curl http://localhost:8081/queries
 ```
 
-### 2. Calculate Account Balances
+### 2. Get Recent Transactions
 ```bash
-curl -X POST http://localhost:8081/query \
+curl -X POST http://localhost:8081/query/recent_transactions \
   -H "Content-Type: application/json" \
-  -d '{"sql": "SELECT account_id, owner_name, SUM(CASE WHEN transaction_type IN ('"'"'account_created'"'"', '"'"'deposit'"'"') THEN amount ELSE -amount END) as balance FROM transactions GROUP BY account_id, owner_name ORDER BY balance DESC"}'
+  -d '{"limit": 10}'
 ```
 
-### 3. Transaction Summary by Type
+### 3. Calculate Account Balances
 ```bash
-curl -X POST http://localhost:8081/query \
+curl -X POST http://localhost:8081/query/account_balances \
   -H "Content-Type: application/json" \
-  -d '{"sql": "SELECT transaction_type, COUNT(*) as count, SUM(amount) as total_amount FROM transactions GROUP BY transaction_type ORDER BY count DESC"}'
+  -d '{}'
 ```
 
-### 4. Web Interface
-Visit http://localhost:8081 for an interactive web interface with example queries.
+### 4. Transaction Summary by Type
+```bash
+curl -X POST http://localhost:8081/query/transaction_type_summary \
+  -H "Content-Type: application/json" \
+  -d '{}'
+```
 
-## Query Server API
+### 5. Find Large Transactions
+```bash
+curl -X POST http://localhost:8081/query/large_transactions \
+  -H "Content-Type: application/json" \
+  -d '{"min_amount": 1000.0}'
+```
 
-### POST /query
-Execute SQL queries on the transactions table.
+### 6. Get Transactions for Specific Account
+```bash
+curl -X POST http://localhost:8081/query/account_transactions \
+  -H "Content-Type: application/json" \
+  -d '{"account_id": "account-demo-alice"}'
+```
 
-**Request:**
+## Simple Query Server API
+
+### GET /queries
+List all available predefined queries.
+
+**Response:**
 ```json
 {
-  "sql": "SELECT * FROM transactions LIMIT 5"
+  "queries": [
+    "recent_transactions",
+    "account_balances", 
+    "account_transactions",
+    "transaction_type_summary",
+    "daily_volume",
+    "large_transactions",
+    "transactions_by_owner",
+    "transaction_count",
+    "all_transactions",
+    "transactions_by_type"
+  ]
 }
+```
+
+### POST /query/{query_name}
+Execute a predefined query with parameters.
+
+**Request Example:**
+```bash
+curl -X POST http://localhost:8081/query/recent_transactions \
+  -H "Content-Type: application/json" \
+  -d '{"limit": 5}'
 ```
 
 **Response:**
 ```json
 {
-  "success": true,
-  "data": [
+  "rows": [
     {
       "id": 1,
-      "account_id": "account-alice",
-      "owner_id": "account-alice", 
+      "account_id": "account-demo-alice",
+      "owner_id": "account-demo-alice", 
       "owner_name": "Alice Demo",
       "transaction_type": "account_created",
       "amount": "1000.00",
@@ -168,33 +221,53 @@ Execute SQL queries on the transactions table.
       "event_version": 1,
       "created_at": "2025-08-26T04:20:37.702225Z"
     }
-  ],
-  "count": 1
+  ]
 }
 ```
-
-### GET /examples
-Get predefined example queries.
 
 ### GET /health
 Health check endpoint.
 
-### GET /
-Interactive web interface for executing queries.
+**Response:**
+```json
+{
+  "database": {"connected": true},
+  "status": "healthy"
+}
+```
+
+## Available Predefined Queries
+
+The simple-query-server provides these predefined queries:
+
+- **`recent_transactions`**: Get the most recent transactions with limit parameter
+- **`account_balances`**: Calculate balance per account from all transactions
+- **`account_transactions`**: Get all transactions for a specific account ID
+- **`transaction_type_summary`**: Count and sum transactions by type
+- **`daily_volume`**: Show transaction volume grouped by day
+- **`large_transactions`**: Find transactions over a specified amount threshold
+- **`transactions_by_owner`**: Get transactions for a specific owner ID
+- **`transaction_count`**: Get total number of transactions
+- **`all_transactions`**: Get all transactions with optional limit
+- **`transactions_by_type`**: Filter transactions by specific type
 
 ## Security
 
-- Only SELECT statements are allowed
-- Queries must reference the 'transactions' table
-- SQL injection protection through input validation
-- CORS headers enabled for browser access
+- Query execution is limited to predefined queries only (no arbitrary SQL)
+- Parameter validation and type checking for query safety
+- SQL injection protection through parameterized queries
+- Database connection with authentication
+- No direct SQL interface exposed to users
 
 ## Performance Considerations
 
-- The projector processes events in batches (default: 100 events)
+- The projector processes events using cursor-based consumption for efficient resumption
+- Event processing with configurable polling intervals (default: 10 seconds)
+- Cursor-based positioning eliminates timestamp polling issues
 - Indexed columns: account_id, owner_id, transaction_type, transaction_timestamp, amount
 - Unique constraint prevents duplicate projections
-- Projector tracks last processed event ID for efficient resumption
+- Simple-query-server provides optimized query execution with parameter validation
+- Background database connection management with automatic retry
 
 ## Testing
 
@@ -206,8 +279,14 @@ Run the projection demo:
 This script:
 1. Creates test transactions via BankAccount actors
 2. Waits for projection to process events
-3. Executes various example queries
+3. Executes various predefined queries using the simple-query-server API
 4. Displays results in JSON format
+
+Example queries executed:
+- `POST /query/all_transactions` - List all transactions
+- `POST /query/transaction_type_summary` - Transaction counts by type
+- `POST /query/account_balances` - Calculated account balances
+- `POST /query/recent_transactions` - Most recent activity
 
 ## Integration with Existing System
 
@@ -215,5 +294,7 @@ The projection system:
 - ✅ Does not modify existing BankAccount actor implementation
 - ✅ Uses the same PostgreSQL database for consistency
 - ✅ Processes events asynchronously without affecting actor performance
-- ✅ Provides additional query capabilities while maintaining event sourcing benefits
+- ✅ Provides predefined query capabilities while maintaining event sourcing benefits
 - ✅ Can be deployed alongside existing services via Docker Compose
+- ✅ Uses cursor-based event consumption for reliable resumption
+- ✅ Leverages external simple-query-server for robust query execution
