@@ -90,7 +90,6 @@ func testMultipleActorTypes(t *testing.T, client *DaprClient) {
 		ActorID:   bankActorID,
 		Method:    "CreateAccount",
 		Data: bankaccount.CreateAccountRequest{
-			OwnerName:      "Multi Test User",
 			InitialDeposit: 2000.0,
 		},
 	}, bankToken, &createResult)
@@ -193,7 +192,6 @@ func testActorTypesIsolation(t *testing.T, client *DaprClient) {
 		ActorID:   actorID,
 		Method:    "CreateAccount",
 		Data: bankaccount.CreateAccountRequest{
-			OwnerName:      "Isolation Test",
 			InitialDeposit: 1000.0,
 		},
 	}, bankToken, &createResult)
@@ -238,12 +236,11 @@ func testConcurrentActorOperations(t *testing.T, client *DaprClient) {
 	// Setup multiple bank account actors with unique IDs
 	bankActors := []struct {
 		id      string
-		owner   string
 		initial float64
 	}{
-		{fmt.Sprintf("concurrent-account-1-%d", timestamp), "User One", 1000.0},
-		{fmt.Sprintf("concurrent-account-2-%d", timestamp), "User Two", 2000.0},
-		{fmt.Sprintf("concurrent-account-3-%d", timestamp), "User Three", 3000.0},
+		{fmt.Sprintf("concurrent-account-1-%d", timestamp), 1000.0},
+		{fmt.Sprintf("concurrent-account-2-%d", timestamp), 2000.0},
+		{fmt.Sprintf("concurrent-account-3-%d", timestamp), 3000.0},
 	}
 
 	// Generate JWT tokens
@@ -265,7 +262,7 @@ func testConcurrentActorOperations(t *testing.T, client *DaprClient) {
 
 	for _, account := range bankActors {
 		// Generate JWT token for each bank account (use actorID as userID for ownership)
-		bankToken, err := generateTestToken(account.id, account.owner, fmt.Sprintf("%s@example.com", account.id), []string{"user"}, 1*time.Hour)
+		bankToken, err := generateTestToken(account.id, "user", fmt.Sprintf("%s@example.com", account.id), []string{"user"}, 1*time.Hour)
 		require.NoError(t, err, "Failed to generate JWT token for BankAccount %s", account.id)
 
 		var createResult interface{}
@@ -274,7 +271,6 @@ func testConcurrentActorOperations(t *testing.T, client *DaprClient) {
 			ActorID:   account.id,
 			Method:    "CreateAccount",
 			Data: bankaccount.CreateAccountRequest{
-				OwnerName:      account.owner,
 				InitialDeposit: account.initial,
 			},
 		}, bankToken, &createResult)
@@ -299,7 +295,7 @@ func testConcurrentActorOperations(t *testing.T, client *DaprClient) {
 	depositAmount := 500.0
 	for _, account := range bankActors {
 		// Generate JWT token for this specific account
-		bankToken, err := generateTestToken(account.id, account.owner, fmt.Sprintf("%s@example.com", account.id), []string{"user"}, 1*time.Hour)
+		bankToken, err := generateTestToken(account.id, "user", fmt.Sprintf("%s@example.com", account.id), []string{"user"}, 1*time.Hour)
 		require.NoError(t, err, "Failed to generate JWT token for BankAccount %s", account.id)
 
 		var depositResult interface{}
@@ -329,7 +325,7 @@ func testConcurrentActorOperations(t *testing.T, client *DaprClient) {
 
 	for _, account := range bankActors {
 		// Generate JWT token for this specific account
-		bankToken, err := generateTestToken(account.id, account.owner, fmt.Sprintf("%s@example.com", account.id), []string{"user"}, 1*time.Hour)
+		bankToken, err := generateTestToken(account.id, "user", fmt.Sprintf("%s@example.com", account.id), []string{"user"}, 1*time.Hour)
 		require.NoError(t, err, "Failed to generate JWT token for BankAccount %s", account.id)
 
 		var balance bankaccount.BankAccountState
@@ -343,6 +339,5 @@ func testConcurrentActorOperations(t *testing.T, client *DaprClient) {
 		require.True(t, balance.Success, "Balance operation should succeed for account %s", account.id)
 		require.NotNil(t, balance.Data, "Balance data should not be nil when success=true")
 		assert.Equal(t, expectedBalance, balance.Data.Balance, "Account %s should have correct balance", account.id)
-		assert.Equal(t, account.owner, balance.Data.OwnerName, "Account %s should have correct owner", account.id)
 	}
 }

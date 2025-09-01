@@ -25,7 +25,6 @@ type TransactionProjection struct {
 	ID                     int       `json:"id" db:"id"`
 	AccountID              string    `json:"accountId" db:"account_id"`
 	OwnerID                string    `json:"ownerId" db:"owner_id"`
-	OwnerName              string    `json:"ownerName" db:"owner_name"`
 	TransactionType        string    `json:"transactionType" db:"transaction_type"`
 	Amount                 float64   `json:"amount" db:"amount"`
 	Description            string    `json:"description" db:"description"`
@@ -145,7 +144,6 @@ CREATE TABLE IF NOT EXISTS transactions (
     id SERIAL PRIMARY KEY,
     account_id VARCHAR(255) NOT NULL,
     owner_id VARCHAR(255) NOT NULL,
-    owner_name VARCHAR(255) NOT NULL,
     transaction_type VARCHAR(50) NOT NULL, -- 'account_created', 'deposit', 'withdrawal'
     amount DECIMAL(15,2) NOT NULL DEFAULT 0.00,
     description TEXT,
@@ -249,17 +247,6 @@ func createApplyFunc(db *sql.DB) projector.ApplyFunc {
 
 			// Insert transaction into projection table if not nil
 			if transaction != nil {
-				// Handle owner name lookup for deposit/withdrawal events (simplified)
-				if transaction.OwnerName == "" && transaction.OwnerID != "" {
-					ownerName, err := lookupOwnerName(ctx, tx, accountID)
-					if err != nil {
-						log.Printf("Warning: Failed to lookup owner name for account %s: %v", accountID, err)
-						// Continue with empty owner name rather than failing
-					} else {
-						transaction.OwnerName = ownerName
-					}
-				}
-
 				// Insert transaction (database unique constraint provides idempotency)
 				err = upsertTransactionTx(tx, transaction)
 				if err != nil {
@@ -314,7 +301,6 @@ func projectEvent(accountID string, version int64, eventType string, eventData [
 		return &TransactionProjection{
 			AccountID:            accountID,
 			OwnerID:              event.OwnerId,
-			OwnerName:            event.OwnerName,
 			TransactionType:      "account_created",
 			Amount:               event.InitialDeposit,
 			Description:          "Account created with initial deposit",
@@ -331,7 +317,6 @@ func projectEvent(accountID string, version int64, eventType string, eventData [
 		return &TransactionProjection{
 			AccountID:            accountID,
 			OwnerID:              event.OwnerId,
-			OwnerName:            "", // Will be populated from account state lookup if needed
 			TransactionType:      "deposit",
 			Amount:               event.Amount,
 			Description:          event.Description,
@@ -348,7 +333,6 @@ func projectEvent(accountID string, version int64, eventType string, eventData [
 		return &TransactionProjection{
 			AccountID:            accountID,
 			OwnerID:              event.OwnerId,
-			OwnerName:            "", // Will be populated from account state lookup if needed
 			TransactionType:      "withdrawal",
 			Amount:               event.Amount,
 			Description:          event.Description,
@@ -368,15 +352,14 @@ func projectEvent(accountID string, version int64, eventType string, eventData [
 // upsertTransactionTx optimistically inserts a transaction, relying on database unique constraint for idempotency
 func upsertTransactionTx(tx *sql.Tx, transaction *TransactionProjection) error {
 	query := `
-		INSERT INTO transactions (account_id, owner_id, owner_name, transaction_type, amount, description, transaction_timestamp, event_version)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		INSERT INTO transactions (account_id, owner_id, transaction_type, amount, description, transaction_timestamp, event_version)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
 		ON CONFLICT (account_id, event_version) DO NOTHING
 	`
 
 	result, err := tx.Exec(query,
 		transaction.AccountID,
 		transaction.OwnerID,
-		transaction.OwnerName,
 		transaction.TransactionType,
 		transaction.Amount,
 		transaction.Description,
@@ -400,18 +383,5 @@ func upsertTransactionTx(tx *sql.Tx, transaction *TransactionProjection) error {
 	return nil
 }
 
-// lookupOwnerName looks up the owner name from existing transactions for the given account
-func lookupOwnerName(ctx context.Context, tx *sql.Tx, accountID string) (string, error) {
-	var ownerName string
-	err := tx.QueryRowContext(ctx, 
-		"SELECT owner_name FROM transactions WHERE account_id = $1 AND owner_name != '' LIMIT 1", 
-		accountID).Scan(&ownerName)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return "", nil // No owner name found, not an error
-		}
-		return "", err
-	}
-	return ownerName, nil
-}
+
 

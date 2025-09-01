@@ -13,7 +13,7 @@ queries:
 
   # Get balance for the authenticated user's accounts
   my_account_balance:
-    sql: "SELECT account_id, owner_name, SUM(CASE WHEN transaction_type IN ('account_created', 'deposit') THEN amount ELSE -amount END) as balance FROM transactions WHERE owner_id = :user_id GROUP BY account_id, owner_name ORDER BY balance DESC"
+    sql: "SELECT account_id, SUM(CASE WHEN transaction_type IN ('account_created', 'deposit') THEN amount ELSE -amount END) as balance FROM transactions WHERE owner_id = :user_id GROUP BY account_id ORDER BY balance DESC"
     params:
       - name: user_id
         type: string
