@@ -1,4 +1,16 @@
 # Server configuration for simple-query-server
-# Simple configuration without authentication for experimental purposes
+# Enables JWT/JWKS authentication middleware for account holder access
 
-# No middleware - simplified for experimental demonstration
+middleware:
+  # JWT/JWKS verification middleware - limits access to account holders
+  - type: "bearer-jwks"
+    config:
+      jwks_url: "http://jwks-mock-api:3000/.well-known/jwks.json"  # JWKS endpoint URL
+      required: true                                              # Authentication is mandatory
+      fallback_ttl: "10m"                                         # Fallback TTL for JWKS cache
+      enable_health_check: true                                   # Include JWKS health in server health
+      claims_mapping:                                             # Map JWT claims to SQL parameters
+        sub: "user_id"                                            # Map 'sub' claim to 'user_id' parameter
+        name: "user_name"                                         # Map 'name' claim to 'user_name' parameter
+      issuer: "http://jwks-mock-api:3000"                        # Expected issuer
+      audience: "dapr-actor-service"                             # Expected audience

@@ -280,7 +280,9 @@ func (b *BankAccount) Deposit(ctx context.Context, request DepositRequest) (*Ban
 	}
 
 	// Create and store versioned event for durability
+	currentState := b.stateManager.GetState()
 	eventData := MoneyDepositedEventV1{
+		OwnerId:     currentState.OwnerId,
 		Amount:      request.Amount,
 		Description: request.Description,
 		Timestamp:   time.Now(),
@@ -345,6 +347,7 @@ func (b *BankAccount) Withdraw(ctx context.Context, request WithdrawRequest) (*B
 
 	// Create and store versioned event for durability
 	eventData := MoneyWithdrawnEventV1{
+		OwnerId:     currentState.OwnerId,
 		Amount:      request.Amount,
 		Description: request.Description,
 		Timestamp:   time.Now(),

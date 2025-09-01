@@ -32,6 +32,7 @@ func (e AccountCreatedEventV1) Type() string { return string(EventTypeAccountCre
 
 // MoneyDepositedEventV1 represents a deposit transaction
 type MoneyDepositedEventV1 struct {
+	OwnerId     string    `json:"ownerId"`
 	Amount      float64   `json:"amount"`
 	Description string    `json:"description"`
 	Timestamp   time.Time `json:"timestamp"`
@@ -42,6 +43,7 @@ func (e MoneyDepositedEventV1) Type() string { return string(EventTypeMoneyDepos
 
 // MoneyWithdrawnEventV1 represents a withdrawal transaction
 type MoneyWithdrawnEventV1 struct {
+	OwnerId     string    `json:"ownerId"`
 	Amount      float64   `json:"amount"`
 	Description string    `json:"description"`
 	Timestamp   time.Time `json:"timestamp"`
