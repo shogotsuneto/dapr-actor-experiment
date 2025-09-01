@@ -177,10 +177,11 @@ INSERT INTO projection_checkpoint (id, last_cursor)
 VALUES (1, NULL) 
 ON CONFLICT (id) DO NOTHING;
 
--- Processed events table for idempotency
-CREATE TABLE IF NOT EXISTS processed_events (
-    event_id VARCHAR(255) PRIMARY KEY,
-    processed_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+-- Stream checkpoints table for simple idempotency using (streamID, version)
+CREATE TABLE IF NOT EXISTS stream_checkpoints (
+    stream_id VARCHAR(255) PRIMARY KEY,
+    last_processed_version BIGINT NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );`
 
 	_, err := db.Exec(schema)
@@ -213,17 +214,8 @@ func saveCursorTx(ctx context.Context, tx *sql.Tx, cursor es.Cursor) error {
 	return err
 }
 
-// createApplyFunc creates the Apply function for the projector
+// createApplyFunc creates the Apply function for the projector using stream version tracking for idempotency
 func createApplyFunc(db *sql.DB) projector.ApplyFunc {
-	// Track processed events in memory for recent events (last 24 hours)
-	processedEvents := make(map[string]bool)
-	
-	// Cache for owner information lookup
-	ownerCache := make(map[string]string) // accountID -> ownerName
-	
-	// Load recent processed event IDs for idempotency
-	loadProcessedEventIDs(db, processedEvents)
-
 	return func(ctx context.Context, batch []es.Envelope, next es.Cursor) error {
 		// Begin transaction for atomic projection + checkpoint
 		tx, err := db.BeginTx(ctx, nil)
@@ -242,12 +234,6 @@ func createApplyFunc(db *sql.DB) projector.ApplyFunc {
 
 		// Process each event in the batch
 		for _, envelope := range batch {
-			// Check if we've already processed this event (idempotency)
-			if envelope.EventID != "" && processedEvents[envelope.EventID] {
-				log.Printf("Event %s already processed, skipping", envelope.EventID)
-				continue
-			}
-
 			// Extract account ID from stream ID (format: bankaccount-<accountId>)
 			accountID := extractAccountIDFromStreamID(envelope.StreamID)
 			if accountID == "" {
@@ -255,7 +241,7 @@ func createApplyFunc(db *sql.DB) projector.ApplyFunc {
 				continue
 			}
 
-			// Use the event version from the envelope offset (this is the actual stream version)
+			// Parse event version from envelope offset
 			version := int64(1) // Default version
 			if envelope.Offset != "" {
 				if parsedVersion, err := strconv.ParseInt(envelope.Offset, 10, 64); err == nil {
@@ -263,11 +249,17 @@ func createApplyFunc(db *sql.DB) projector.ApplyFunc {
 				} else {
 					log.Printf("Debug: Failed to parse version from offset '%s': %v", envelope.Offset, err)
 				}
-			} else {
-				log.Printf("Debug: Envelope offset is empty")
 			}
 
-			log.Printf("Debug: Processing event ID=%s, Type=%s, Account=%s, Version=%d, Offset=%s", envelope.EventID, envelope.Type, accountID, version, envelope.Offset)
+			// Check if this event has already been processed using stream version tracking
+			if shouldSkipEvent, err := isEventAlreadyProcessed(ctx, tx, envelope.StreamID, version); err != nil {
+				return fmt.Errorf("failed to check if event already processed: %v", err)
+			} else if shouldSkipEvent {
+				log.Printf("Event already processed for stream %s at version %d, skipping", envelope.StreamID, version)
+				continue
+			}
+
+			log.Printf("Processing event: Stream=%s, Type=%s, Account=%s, Version=%d", envelope.StreamID, envelope.Type, accountID, version)
 
 			transaction, err := projectEvent(accountID, version, envelope.Type, envelope.Data, envelope.CommitTime)
 			if err != nil {
@@ -277,44 +269,31 @@ func createApplyFunc(db *sql.DB) projector.ApplyFunc {
 
 			// Insert transaction into projection table if not nil
 			if transaction != nil {
-				// Handle owner name lookup for deposit/withdrawal events
+				// Handle owner name lookup for deposit/withdrawal events (simplified)
 				if transaction.OwnerName == "" && transaction.OwnerID != "" {
-					// Try to get owner name from cache first
-					if ownerName, exists := ownerCache[accountID]; exists {
-						transaction.OwnerName = ownerName
+					ownerName, err := lookupOwnerName(ctx, tx, accountID)
+					if err != nil {
+						log.Printf("Warning: Failed to lookup owner name for account %s: %v", accountID, err)
+						// Continue with empty owner name rather than failing
 					} else {
-						// Fallback: lookup from database
-						ownerName, err := lookupOwnerName(ctx, tx, accountID)
-						if err != nil {
-							log.Printf("Warning: Failed to lookup owner name for account %s: %v", accountID, err)
-							// Continue with empty owner name rather than failing
-						} else if ownerName != "" {
-							transaction.OwnerName = ownerName
-							ownerCache[accountID] = ownerName // Cache for future use
-						}
+						transaction.OwnerName = ownerName
 					}
-				} else if transaction.OwnerName != "" {
-					// Cache the owner name from account creation event
-					ownerCache[accountID] = transaction.OwnerName
 				}
-				// Use INSERT ... ON CONFLICT DO NOTHING to avoid transaction abortion
+
+				// Insert transaction (using ON CONFLICT DO NOTHING for safety)
 				err = upsertTransactionTx(tx, transaction)
 				if err != nil {
 					return fmt.Errorf("failed to upsert transaction: %v", err)
 				}
 			}
 
-			// Mark event as processed using ON CONFLICT DO NOTHING
-			if envelope.EventID != "" {
-				processedEvents[envelope.EventID] = true
-				if err := upsertProcessedEventIDTx(tx, envelope.EventID); err != nil {
-					return fmt.Errorf("failed to record processed event ID: %v", err)
-				}
+			// Update stream checkpoint to track the latest processed version
+			if err := updateStreamCheckpoint(ctx, tx, envelope.StreamID, version); err != nil {
+				return fmt.Errorf("failed to update stream checkpoint: %v", err)
 			}
 
 			eventsProcessed++
-
-			log.Printf("Successfully processed event: ID=%s, Type=%s, Account=%s", envelope.EventID, envelope.Type, accountID)
+			log.Printf("Successfully processed event: Stream=%s, Type=%s, Account=%s, Version=%d", envelope.StreamID, envelope.Type, accountID, version)
 		}
 
 		// Save the cursor to mark progress
@@ -335,29 +314,42 @@ func createApplyFunc(db *sql.DB) projector.ApplyFunc {
 	}
 }
 
-// loadProcessedEventIDs loads recent processed event IDs for idempotency
-func loadProcessedEventIDs(db *sql.DB, processedEvents map[string]bool) {
-	// Load recent processed event IDs (last 24 hours to keep memory usage reasonable)
-	cutoffTime := time.Now().Add(-24 * time.Hour)
-	rows, err := db.Query("SELECT event_id FROM processed_events WHERE processed_at > $1", cutoffTime)
+// isEventAlreadyProcessed checks if an event has already been processed using stream version tracking
+func isEventAlreadyProcessed(ctx context.Context, tx *sql.Tx, streamID string, version int64) (bool, error) {
+	var lastProcessedVersion sql.NullInt64
+	err := tx.QueryRowContext(ctx, 
+		"SELECT last_processed_version FROM stream_checkpoints WHERE stream_id = $1", 
+		streamID).Scan(&lastProcessedVersion)
+	
 	if err != nil {
-		log.Printf("Warning: Failed to load processed events: %v", err)
-		return
-	}
-	defer rows.Close()
-
-	count := 0
-	for rows.Next() {
-		var eventID string
-		if err := rows.Scan(&eventID); err != nil {
-			log.Printf("Warning: Failed to scan processed event ID: %v", err)
-			continue
+		if err == sql.ErrNoRows {
+			// No checkpoint exists for this stream, so this is the first event
+			return false, nil
 		}
-		processedEvents[eventID] = true
-		count++
+		return false, err
 	}
+	
+	// If we have processed a version >= this version, skip it
+	if lastProcessedVersion.Valid && version <= lastProcessedVersion.Int64 {
+		return true, nil
+	}
+	
+	return false, nil
+}
 
-	log.Printf("Loaded %d recent processed event IDs for idempotency", count)
+// updateStreamCheckpoint updates the last processed version for a stream
+func updateStreamCheckpoint(ctx context.Context, tx *sql.Tx, streamID string, version int64) error {
+	query := `
+		INSERT INTO stream_checkpoints (stream_id, last_processed_version, updated_at) 
+		VALUES ($1, $2, CURRENT_TIMESTAMP)
+		ON CONFLICT (stream_id) 
+		DO UPDATE SET 
+			last_processed_version = GREATEST(stream_checkpoints.last_processed_version, EXCLUDED.last_processed_version),
+			updated_at = CURRENT_TIMESTAMP
+	`
+	
+	_, err := tx.ExecContext(ctx, query, streamID, version)
+	return err
 }
 
 // extractAccountIDFromStreamID extracts account ID from stream ID like "bankaccount-<accountId>"
@@ -486,9 +478,3 @@ func lookupOwnerName(ctx context.Context, tx *sql.Tx, accountID string) (string,
 	return ownerName, nil
 }
 
-// upsertProcessedEventIDTx records an event ID as processed for idempotency within a transaction using ON CONFLICT DO NOTHING
-func upsertProcessedEventIDTx(tx *sql.Tx, eventID string) error {
-	query := "INSERT INTO processed_events (event_id) VALUES ($1) ON CONFLICT (event_id) DO NOTHING"
-	_, err := tx.Exec(query, eventID)
-	return err
-}
