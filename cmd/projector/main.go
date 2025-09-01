@@ -236,21 +236,14 @@ func createApplyFunc(db *sql.DB) projector.ApplyFunc {
 				continue
 			}
 
-			// Parse event version from envelope offset
-			version := int64(1) // Default version
-			if envelope.Offset != "" {
-				if parsedVersion, err := strconv.ParseInt(envelope.Offset, 10, 64); err == nil {
-					version = parsedVersion
-				} else {
-					log.Printf("Debug: Failed to parse version from offset '%s': %v", envelope.Offset, err)
-				}
-			}
+			// Use event version from envelope event's version
+			version := envelope.Event.Version
 
-			log.Printf("Processing event: Stream=%s, Type=%s, Account=%s, Version=%d", envelope.StreamID, envelope.Type, accountID, version)
+			log.Printf("Processing event: Stream=%s, Type=%s, Account=%s, Version=%d", envelope.StreamID, envelope.Event.Type, accountID, version)
 
-			transaction, err := projectEvent(accountID, version, envelope.Type, envelope.Data, envelope.CommitTime)
+			transaction, err := projectEvent(accountID, version, envelope.Event.Type, envelope.Event.Data, envelope.Event.Timestamp)
 			if err != nil {
-				log.Printf("Warning: Failed to project event %s: %v", envelope.EventID, err)
+				log.Printf("Warning: Failed to project event %s: %v", envelope.Event.ID, err)
 				continue
 			}
 
@@ -275,7 +268,7 @@ func createApplyFunc(db *sql.DB) projector.ApplyFunc {
 			}
 
 			eventsProcessed++
-			log.Printf("Successfully processed event: Stream=%s, Type=%s, Account=%s, Version=%d", envelope.StreamID, envelope.Type, accountID, version)
+			log.Printf("Successfully processed event: Stream=%s, Type=%s, Account=%s, Version=%d", envelope.StreamID, envelope.Event.Type, accountID, version)
 		}
 
 		// Save the cursor to mark progress
