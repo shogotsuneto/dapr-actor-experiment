@@ -177,12 +177,7 @@ INSERT INTO projection_checkpoint (id, last_cursor)
 VALUES (1, NULL) 
 ON CONFLICT (id) DO NOTHING;
 
--- Stream checkpoints table for simple idempotency using (streamID, version)
-CREATE TABLE IF NOT EXISTS stream_checkpoints (
-    stream_id VARCHAR(255) PRIMARY KEY,
-    last_processed_version BIGINT NOT NULL,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-);`
+`
 
 	_, err := db.Exec(schema)
 	if err != nil {
@@ -214,7 +209,7 @@ func saveCursorTx(ctx context.Context, tx *sql.Tx, cursor es.Cursor) error {
 	return err
 }
 
-// createApplyFunc creates the Apply function for the projector using stream version tracking for idempotency
+// createApplyFunc creates the Apply function for the projector using optimistic inserts for idempotency
 func createApplyFunc(db *sql.DB) projector.ApplyFunc {
 	return func(ctx context.Context, batch []es.Envelope, next es.Cursor) error {
 		// Begin transaction for atomic projection + checkpoint
@@ -251,14 +246,6 @@ func createApplyFunc(db *sql.DB) projector.ApplyFunc {
 				}
 			}
 
-			// Check if this event has already been processed using stream version tracking
-			if shouldSkipEvent, err := isEventAlreadyProcessed(ctx, tx, envelope.StreamID, version); err != nil {
-				return fmt.Errorf("failed to check if event already processed: %v", err)
-			} else if shouldSkipEvent {
-				log.Printf("Event already processed for stream %s at version %d, skipping", envelope.StreamID, version)
-				continue
-			}
-
 			log.Printf("Processing event: Stream=%s, Type=%s, Account=%s, Version=%d", envelope.StreamID, envelope.Type, accountID, version)
 
 			transaction, err := projectEvent(accountID, version, envelope.Type, envelope.Data, envelope.CommitTime)
@@ -280,16 +267,11 @@ func createApplyFunc(db *sql.DB) projector.ApplyFunc {
 					}
 				}
 
-				// Insert transaction (using ON CONFLICT DO NOTHING for safety)
+				// Insert transaction (database unique constraint provides idempotency)
 				err = upsertTransactionTx(tx, transaction)
 				if err != nil {
 					return fmt.Errorf("failed to upsert transaction: %v", err)
 				}
-			}
-
-			// Update stream checkpoint to track the latest processed version
-			if err := updateStreamCheckpoint(ctx, tx, envelope.StreamID, version); err != nil {
-				return fmt.Errorf("failed to update stream checkpoint: %v", err)
 			}
 
 			eventsProcessed++
@@ -312,44 +294,6 @@ func createApplyFunc(db *sql.DB) projector.ApplyFunc {
 
 		return nil
 	}
-}
-
-// isEventAlreadyProcessed checks if an event has already been processed using stream version tracking
-func isEventAlreadyProcessed(ctx context.Context, tx *sql.Tx, streamID string, version int64) (bool, error) {
-	var lastProcessedVersion sql.NullInt64
-	err := tx.QueryRowContext(ctx, 
-		"SELECT last_processed_version FROM stream_checkpoints WHERE stream_id = $1", 
-		streamID).Scan(&lastProcessedVersion)
-	
-	if err != nil {
-		if err == sql.ErrNoRows {
-			// No checkpoint exists for this stream, so this is the first event
-			return false, nil
-		}
-		return false, err
-	}
-	
-	// If we have processed a version >= this version, skip it
-	if lastProcessedVersion.Valid && version <= lastProcessedVersion.Int64 {
-		return true, nil
-	}
-	
-	return false, nil
-}
-
-// updateStreamCheckpoint updates the last processed version for a stream
-func updateStreamCheckpoint(ctx context.Context, tx *sql.Tx, streamID string, version int64) error {
-	query := `
-		INSERT INTO stream_checkpoints (stream_id, last_processed_version, updated_at) 
-		VALUES ($1, $2, CURRENT_TIMESTAMP)
-		ON CONFLICT (stream_id) 
-		DO UPDATE SET 
-			last_processed_version = GREATEST(stream_checkpoints.last_processed_version, EXCLUDED.last_processed_version),
-			updated_at = CURRENT_TIMESTAMP
-	`
-	
-	_, err := tx.ExecContext(ctx, query, streamID, version)
-	return err
 }
 
 // extractAccountIDFromStreamID extracts account ID from stream ID like "bankaccount-<accountId>"
@@ -428,7 +372,7 @@ func projectEvent(accountID string, version int64, eventType string, eventData [
 	}
 }
 
-// upsertTransactionTx inserts a transaction projection into the database within a transaction using ON CONFLICT DO NOTHING
+// upsertTransactionTx optimistically inserts a transaction, relying on database unique constraint for idempotency
 func upsertTransactionTx(tx *sql.Tx, transaction *TransactionProjection) error {
 	query := `
 		INSERT INTO transactions (account_id, owner_id, owner_name, transaction_type, amount, description, transaction_timestamp, event_version)
