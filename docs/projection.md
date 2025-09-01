@@ -1,13 +1,13 @@
-# BankAccount Transactions Projection with JWT Authentication
+# BankAccount Transactions Projection - Simplified
 
-This document explains the BankAccount transactions projection feature that demonstrates how account holders can securely query their own transaction data using JWT authentication.
+This document explains the simplified BankAccount transactions projection feature that demonstrates how events can be projected to queryable tables using go-simple-es-projector.
 
 ## Overview
 
 The projection system consists of two main components:
 
-1. **Projector Worker** (`cmd/projector`) - Continuously reads events from `bankaccount_events` and projects them to a `transactions` table
-2. **Simple Query Server with JWT Authentication** ([shogotsuneto/simple-query-server v0.0.2](https://github.com/shogotsuneto/simple-query-server)) - Provides secure, account holder-specific query endpoints
+1. **Projector Worker** (`cmd/projector`) - Uses go-simple-es-projector to continuously read events from `bankaccount_events` and projects them to a `transactions` table
+2. **Simple Query Server** ([shogotsuneto/simple-query-server v0.0.2](https://github.com/shogotsuneto/simple-query-server)) - Provides account-based query endpoints without authentication
 
 ## Architecture
 
@@ -26,37 +26,34 @@ The projection system consists of two main components:
                                                 └─────────────────┘
                                                           │
                                                           ▼
-┌─────────────────┐    ┌─────────────────┐              ┌─────────────────┐
-│   JWKS Mock     │───▶│   JWT Token     │───────────── │ Simple Query    │
-│     API         │    │ Authentication  │              │     Server      │
-│  (Token Gen)    │    │   Middleware    │              │ (Account Holder │
-└─────────────────┘    └─────────────────┘              │   Queries Only) │
-                                                         └─────────────────┘
+                                               ┌─────────────────┐
+                                               │ Simple Query    │
+                                               │     Server      │
+                                               │ (Account-based  │
+                                               │    Queries)     │
+                                               └─────────────────┘
 ```
 
-## Security Model
+## Simplified Design
 
-### JWT Authentication
-- **Required Authentication**: All query endpoints require valid JWT tokens
-- **Account Holder Access**: Users can only query their own transaction data
-- **JWKS Verification**: Tokens are verified using the JWKS Mock API endpoint
-- **Claim Mapping**: The JWT `sub` claim is mapped to `user_id` SQL parameter for data filtering
+### No Authentication Required
+- Query endpoints accept `account_id` parameter directly
+- Simplified for experimental demonstration of projection patterns
+- Focus on event sourcing and projection design patterns rather than security
 
-### Access Control
-- Queries are automatically filtered by the authenticated user's ID (`user_id` from JWT `sub` claim)
-- Cross-account access is prevented by SQL-level filtering
-- No administrative or global queries are available to regular users
+### Account-Based Queries
+- Queries filter by `account_id` parameter
+- No user management or JWT authentication complexity
+- Direct account access for demonstration purposes
 
 ## Transactions Table Schema
 
-The `transactions` table stores flattened transaction data:
+The `transactions` table stores simplified transaction data:
 
 ```sql
 CREATE TABLE transactions (
     id SERIAL PRIMARY KEY,
     account_id VARCHAR(255) NOT NULL,
-    owner_id VARCHAR(255) NOT NULL,
-    owner_name VARCHAR(255) NOT NULL,
     transaction_type VARCHAR(50) NOT NULL, -- 'account_created', 'deposit', 'withdrawal'
     amount DECIMAL(15,2) NOT NULL DEFAULT 0.00,
     description TEXT,
@@ -83,8 +80,8 @@ The projector transforms these event types:
 ```
 ↓ Projects to:
 ```sql
-INSERT INTO transactions (account_id, owner_id, owner_name, transaction_type, amount, description, transaction_timestamp, event_version)
-VALUES ('account-alice', 'account-alice', 'Alice Demo', 'account_created', 1000.00, 'Account created with initial deposit', '2025-08-26T04:14:35Z', 1);
+INSERT INTO transactions (account_id, transaction_type, amount, description, transaction_timestamp, event_version)
+VALUES ('account-alice', 'account_created', 1000.00, 'Account created with initial deposit', '2025-08-26T04:14:35Z', 1);
 ```
 
 ### MoneyDepositedV1 Events  
@@ -97,8 +94,8 @@ VALUES ('account-alice', 'account-alice', 'Alice Demo', 'account_created', 1000.
 ```
 ↓ Projects to:
 ```sql
-INSERT INTO transactions (account_id, owner_id, owner_name, transaction_type, amount, description, transaction_timestamp, event_version)
-VALUES ('account-alice', 'account-alice', 'Alice Demo', 'deposit', 2500.00, 'Salary deposit', '2025-08-26T04:14:48Z', 2);
+INSERT INTO transactions (account_id, transaction_type, amount, description, transaction_timestamp, event_version)
+VALUES ('account-alice', 'deposit', 2500.00, 'Salary deposit', '2025-08-26T04:14:48Z', 2);
 ```
 
 ### MoneyWithdrawnV1 Events
@@ -111,8 +108,8 @@ VALUES ('account-alice', 'account-alice', 'Alice Demo', 'deposit', 2500.00, 'Sal
 ```
 ↓ Projects to:
 ```sql
-INSERT INTO transactions (account_id, owner_id, owner_name, transaction_type, amount, description, transaction_timestamp, event_version)
-VALUES ('account-alice', 'account-alice', 'Alice Demo', 'withdrawal', 1200.00, 'Rent payment', '2025-08-26T04:14:48Z', 3);
+INSERT INTO transactions (account_id, transaction_type, amount, description, transaction_timestamp, event_version)
+VALUES ('account-alice', 'withdrawal', 1200.00, 'Rent payment', '2025-08-26T04:14:48Z', 3);
 ```
 
 ## Configuration
@@ -134,73 +131,54 @@ dsn: "postgres://postgres:postgres@postgres:5432/eventstore?sslmode=disable"
 
 **Server Configuration** (`server.yaml`):
 ```yaml
-middleware:
-  - type: "bearer-jwks"
-    config:
-      jwks_url: "http://jwks-mock-api:3000/.well-known/jwks.json"
-      required: true                                              
-      fallback_ttl: "10m"                                         
-      enable_health_check: true                                   
-      claims_mapping:                                             
-        sub: "user_id"                                            
-        name: "user_name"                                         
-      issuer: "http://jwks-mock-api:3000"                        
-      audience: "dapr-actor-service"                             
+# Simple configuration without authentication for experimental purposes
+# No middleware - simplified for experimental demonstration
 ```
 
 **Queries Configuration** (`queries.yaml`):
 ```yaml
 queries:
   my_transactions:
-    sql: "SELECT * FROM transactions WHERE owner_id = :user_id ORDER BY transaction_timestamp DESC LIMIT :limit"
+    sql: "SELECT * FROM transactions WHERE account_id = :account_id ORDER BY transaction_timestamp DESC LIMIT :limit"
     params:
-      - name: user_id
+      - name: account_id
         type: string
       - name: limit
         type: int
-  # ... additional account holder queries
+  my_account_balance:
+    sql: "SELECT account_id, SUM(CASE WHEN transaction_type IN ('account_created', 'deposit') THEN amount ELSE -amount END) as balance FROM transactions WHERE account_id = :account_id GROUP BY account_id"
+    params:
+      - name: account_id
+        type: string
+  my_transaction_summary:
+    sql: "SELECT transaction_type, COUNT(*) as count, SUM(amount) as total_amount FROM transactions WHERE account_id = :account_id GROUP BY transaction_type ORDER BY count DESC"
+    params:
+      - name: account_id
+        type: string
 ```
 
 ## Usage Examples
 
-### 1. Generate JWT Token
-```bash
-# Generate token for Alice
-ALICE_TOKEN=$(curl -s http://localhost:3000/generate-token \
-  -H "Content-Type: application/json" \
-  -d '{"sub": "account-demo-alice", "name": "Alice Demo", "exp_minutes": 60}' | jq -r '.token')
-```
-
-### 2. Get My Transactions (Authenticated)
+### 1. Get Account Transactions
 ```bash
 curl -X POST http://localhost:8081/query/my_transactions \
-  -H "Authorization: Bearer $ALICE_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"limit": 10}'
+  -d '{"account_id": "account-demo-alice", "limit": 10}'
 ```
 
-### 3. Get My Account Balance (Authenticated)
+### 2. Get Account Balance
 ```bash
 curl -X POST http://localhost:8081/query/my_account_balance \
-  -H "Authorization: Bearer $ALICE_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{}'
+  -d '{"account_id": "account-demo-alice"}'
 ```
 
-### 4. Get My Transaction Summary (Authenticated)
+### 3. Get Transaction Summary
 ```bash
 curl -X POST http://localhost:8081/query/my_transaction_summary \
-  -H "Authorization: Bearer $ALICE_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{}'
+  -d '{"account_id": "account-demo-alice"}'
 ```
-
-### 5. Unauthenticated Request (Will Fail)
-```bash
-# This will return 401 Unauthorized
-curl -X POST http://localhost:8081/query/my_transactions \
-  -H "Content-Type: application/json" \
-  -d '{"limit": 5}'
 ```
 
 ## Simple Query Server API
@@ -211,14 +189,14 @@ All endpoints require a valid JWT token in the Authorization header:
 Authorization: Bearer <jwt_token>
 ```
 
-### GET /queries
-List all available account holder queries.
+## Query API Endpoints
 
-**Response:**
+### GET /queries
+List all available queries:
 ```json
 {
   "queries": [
-    "my_transactions",
+    "my_transactions", 
     "my_account_balance", 
     "my_transaction_summary"
   ]
@@ -226,14 +204,13 @@ List all available account holder queries.
 ```
 
 ### POST /query/{query_name}
-Execute an account holder query. The JWT `sub` claim automatically becomes the `user_id` parameter.
+Execute an account-based query by providing the `account_id` parameter.
 
 **Request Example:**
 ```bash
 curl -X POST http://localhost:8081/query/my_transactions \
-  -H "Authorization: Bearer $ALICE_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"limit": 5}'
+  -d '{"account_id": "account-demo-alice", "limit": 5}'
 ```
 
 **Response:**
@@ -243,8 +220,6 @@ curl -X POST http://localhost:8081/query/my_transactions \
     {
       "id": 1,
       "account_id": "account-demo-alice",
-      "owner_id": "account-demo-alice", 
-      "owner_name": "Alice Demo",
       "transaction_type": "account_created",
       "amount": "1000.00",
       "description": "Account created with initial deposit",
@@ -257,79 +232,70 @@ curl -X POST http://localhost:8081/query/my_transactions \
 ```
 
 ### GET /health
-Health check endpoint with JWKS middleware status.
+Health check endpoint.
 
 **Response:**
 ```json
 {
   "status": "healthy",
-  "database": {"connected": true},
-  "middleware": {
-    "bearer-jwks(http://jwks-mock-api:3000/.well-known/jwks.json)": {
-      "healthy": true
-    }
-  }
+  "database": {"connected": true}
 }
 ```
 
-## Available Account Holder Queries
+## Available Account-Based Queries
 
-The simple-query-server provides these secure, account holder-specific queries:
+The simple-query-server provides these account-based queries:
 
-- **`my_transactions`**: Get the authenticated user's transactions with limit parameter
-- **`my_account_balance`**: Calculate balance for the authenticated user's accounts  
-- **`my_transaction_summary`**: Count and sum transactions by type for the authenticated user
+- **`my_transactions`**: Get account transactions with limit parameter
+- **`my_account_balance`**: Calculate balance for a specific account  
+- **`my_transaction_summary`**: Count and sum transactions by type for a specific account
 
-All queries automatically filter results by the authenticated user's ID (`user_id` from JWT `sub` claim).
+All queries filter results by the provided `account_id` parameter.
 
-## Security
+## Simplified Design
 
-- **JWT Authentication Required**: All query endpoints require valid JWT tokens
-- **Account Holder Access Only**: Users can only query their own transaction data through automatic `user_id` filtering
-- **JWKS Verification**: Tokens are verified using the JWKS Mock API endpoint at `/.well-known/jwks.json`
-- **No Cross-Account Access**: SQL queries are filtered by `user_id` to prevent access to other users' data
+- **No Authentication**: Query endpoints accept direct `account_id` parameter  
+- **Account-Based Access**: Queries filter by `account_id` for demonstration purposes
+- **Focused on Patterns**: Emphasizes event sourcing and projection design patterns
 - **Parameter Validation**: Query parameters are validated and type-checked for safety
 - **SQL Injection Protection**: All queries use parameterized SQL with proper escaping
-- **No Administrative Queries**: No global or admin-level queries are available to regular users
 
 ## Performance Considerations
 
-- The projector processes events using cursor-based consumption for efficient resumption
+- The projector processes events using go-simple-es-projector for efficient cursor-based consumption
 - Event processing with configurable polling intervals (default: 10 seconds)
 - Cursor-based positioning eliminates timestamp polling issues
-- Indexed columns: account_id, owner_id, transaction_type, transaction_timestamp, amount
+- Indexed columns: account_id, transaction_type, transaction_timestamp, amount
 - Unique constraint prevents duplicate projections
 - Simple-query-server provides optimized query execution with parameter validation
 - Background database connection management with automatic retry
 
 ## Testing
 
-Run the projection demo with JWT authentication:
+Run the simplified projection demo:
 ```bash
 ./scripts/test-projection.sh
 ```
 
 This script:
-1. Generates JWT tokens for different users (Alice and Bob)
-2. Creates test transactions via BankAccount actors using JWT authentication
-3. Waits for projection to process events
-4. Executes account holder queries using JWT tokens
-5. Demonstrates security by showing cross-account access prevention
+1. Creates test transactions via BankAccount actors (JWT tokens still needed for actors)
+2. Waits for projection to process events
+3. Executes account-based queries without authentication
+4. Demonstrates the projection pattern working correctly
 
-Example authenticated queries executed:
-- `POST /query/my_transactions` - List user's transactions
-- `POST /query/my_account_balance` - User's calculated account balance
-- `POST /query/my_transaction_summary` - User's transaction counts by type
-- Security demonstration showing unauthorized access attempts fail
+Example queries executed:
+- `POST /query/my_transactions` - List account transactions
+- `POST /query/my_account_balance` - Calculate account balance
+- `POST /query/my_transaction_summary` - Account transaction counts by type
 
 ## Integration with Existing System
 
-The projection system:
+The simplified projection system:
 - ✅ Does not modify existing BankAccount actor implementation
 - ✅ Uses the same PostgreSQL database for consistency
 - ✅ Processes events asynchronously without affecting actor performance
-- ✅ Provides secure account holder query capabilities while maintaining event sourcing benefits
+- ✅ Provides account-based query capabilities while maintaining event sourcing benefits
 - ✅ Can be deployed alongside existing services via Docker Compose
-- ✅ Uses cursor-based event consumption for reliable resumption
-- ✅ Leverages external simple-query-server v0.0.2 with JWT authentication middleware
-- ✅ Maintains backward compatibility with existing JWT authentication system
+- ✅ Uses cursor-based event consumption for reliable resumption via go-simple-es-projector
+- ✅ Leverages external simple-query-server v0.0.2 with simplified configuration
+- ✅ Focuses on demonstrating projection patterns without authentication complexity

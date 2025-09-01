@@ -24,8 +24,6 @@ import (
 type TransactionProjection struct {
 	ID                     int       `json:"id" db:"id"`
 	AccountID              string    `json:"accountId" db:"account_id"`
-	OwnerID                string    `json:"ownerId" db:"owner_id"`
-	OwnerName              string    `json:"ownerName" db:"owner_name"`
 	TransactionType        string    `json:"transactionType" db:"transaction_type"`
 	Amount                 float64   `json:"amount" db:"amount"`
 	Description            string    `json:"description" db:"description"`
@@ -144,8 +142,6 @@ func initSchema(db *sql.DB) error {
 CREATE TABLE IF NOT EXISTS transactions (
     id SERIAL PRIMARY KEY,
     account_id VARCHAR(255) NOT NULL,
-    owner_id VARCHAR(255) NOT NULL,
-    owner_name VARCHAR(255) NOT NULL,
     transaction_type VARCHAR(50) NOT NULL, -- 'account_created', 'deposit', 'withdrawal'
     amount DECIMAL(15,2) NOT NULL DEFAULT 0.00,
     description TEXT,
@@ -159,7 +155,6 @@ CREATE TABLE IF NOT EXISTS transactions (
 
 -- Indexes for efficient querying
 CREATE INDEX IF NOT EXISTS idx_transactions_account_id ON transactions(account_id);
-CREATE INDEX IF NOT EXISTS idx_transactions_owner_id ON transactions(owner_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_type ON transactions(transaction_type);
 CREATE INDEX IF NOT EXISTS idx_transactions_timestamp ON transactions(transaction_timestamp);
 CREATE INDEX IF NOT EXISTS idx_transactions_amount ON transactions(amount);
@@ -218,12 +213,6 @@ func createApplyFunc(db *sql.DB) projector.ApplyFunc {
 	// Track processed events in memory for recent events (last 24 hours)
 	processedEvents := make(map[string]bool)
 	
-	// Cache for account owner info to avoid repeated lookups
-	ownerCache := make(map[string]struct {
-		OwnerID   string
-		OwnerName string
-	})
-	
 	// Load recent processed event IDs for idempotency
 	loadProcessedEventIDs(db, processedEvents)
 
@@ -258,14 +247,6 @@ func createApplyFunc(db *sql.DB) projector.ApplyFunc {
 				continue
 			}
 
-			// Parse metadata (if present) - handle gracefully if not valid JSON
-			var metadata map[string]string
-			if envelope.Metadata != nil && len(envelope.Metadata) > 0 {
-				if err := json.Unmarshal(envelope.Metadata, &metadata); err != nil {
-					log.Printf("Debug: Metadata not JSON for event %s: %v", envelope.EventID, string(envelope.Metadata))
-				}
-			}
-
 			// Use the event version from the envelope offset (this is the actual stream version)
 			version := int64(1) // Default version
 			if envelope.Offset != "" {
@@ -280,7 +261,7 @@ func createApplyFunc(db *sql.DB) projector.ApplyFunc {
 
 			log.Printf("Debug: Processing event ID=%s, Type=%s, Account=%s, Version=%d, Offset=%s", envelope.EventID, envelope.Type, accountID, version, envelope.Offset)
 
-			transaction, err := projectEventWithCache(accountID, version, envelope.Type, envelope.Data, envelope.CommitTime, ownerCache, db)
+			transaction, err := projectEvent(accountID, version, envelope.Type, envelope.Data, envelope.CommitTime)
 			if err != nil {
 				log.Printf("Warning: Failed to project event %s: %v", envelope.EventID, err)
 				continue
@@ -364,126 +345,8 @@ func extractAccountIDFromStreamID(streamID string) string {
 	return ""
 }
 
-// projectEventWithCache converts an event store event into a transaction projection with owner caching
-func projectEventWithCache(accountID string, version int64, eventType string, eventData []byte, timestamp time.Time, ownerCache map[string]struct {
-	OwnerID   string
-	OwnerName string
-}, db *sql.DB) (*TransactionProjection, error) {
-	switch bankaccount.EventTypeV1(eventType) {
-	case bankaccount.EventTypeAccountCreatedV1:
-		var event bankaccount.AccountCreatedEventV1
-		if err := json.Unmarshal(eventData, &event); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal AccountCreatedV1: %v", err)
-		}
-
-		// Cache owner info for future events
-		ownerCache[accountID] = struct {
-			OwnerID   string
-			OwnerName string
-		}{
-			OwnerID:   event.OwnerId,
-			OwnerName: event.OwnerName,
-		}
-
-		return &TransactionProjection{
-			AccountID:            accountID,
-			OwnerID:              event.OwnerId,
-			OwnerName:            event.OwnerName,
-			TransactionType:      "account_created",
-			Amount:               event.InitialDeposit,
-			Description:          fmt.Sprintf("Account created with initial deposit"),
-			TransactionTimestamp: event.CreatedAt,
-			EventVersion:         version,
-		}, nil
-
-	case bankaccount.EventTypeMoneyDepositedV1:
-		var event bankaccount.MoneyDepositedEventV1
-		if err := json.Unmarshal(eventData, &event); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal MoneyDepositedV1: %v", err)
-		}
-
-		// Get owner info from cache or database
-		ownerID, ownerName, err := getAccountOwnerInfoCached(accountID, ownerCache, db)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get owner info for account %s: %v", accountID, err)
-		}
-
-		return &TransactionProjection{
-			AccountID:            accountID,
-			OwnerID:              ownerID,
-			OwnerName:            ownerName,
-			TransactionType:      "deposit",
-			Amount:               event.Amount,
-			Description:          event.Description,
-			TransactionTimestamp: event.Timestamp,
-			EventVersion:         version,
-		}, nil
-
-	case bankaccount.EventTypeMoneyWithdrawnV1:
-		var event bankaccount.MoneyWithdrawnEventV1
-		if err := json.Unmarshal(eventData, &event); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal MoneyWithdrawnV1: %v", err)
-		}
-
-		// Get owner info from cache or database
-		ownerID, ownerName, err := getAccountOwnerInfoCached(accountID, ownerCache, db)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get owner info for account %s: %v", accountID, err)
-		}
-
-		return &TransactionProjection{
-			AccountID:            accountID,
-			OwnerID:              ownerID,
-			OwnerName:            ownerName,
-			TransactionType:      "withdrawal",
-			Amount:               event.Amount,
-			Description:          event.Description,
-			TransactionTimestamp: event.Timestamp,
-			EventVersion:         version,
-		}, nil
-
-	case bankaccount.EventTypeStateSnapshotV1:
-		// Skip snapshot events as they don't represent transactions
-		return nil, nil
-
-	default:
-		return nil, fmt.Errorf("unknown event type: %s", eventType)
-	}
-}
-
-// getAccountOwnerInfoCached retrieves owner information for an account from cache or database
-func getAccountOwnerInfoCached(accountID string, ownerCache map[string]struct {
-	OwnerID   string
-	OwnerName string
-}, db *sql.DB) (string, string, error) {
-	// Check cache first
-	if cached, exists := ownerCache[accountID]; exists {
-		return cached.OwnerID, cached.OwnerName, nil
-	}
-
-	// Look up in database using a separate connection to avoid transaction conflicts
-	var ownerID, ownerName string
-	query := `SELECT owner_id, owner_name FROM transactions WHERE account_id = $1 LIMIT 1`
-
-	err := db.QueryRow(query, accountID).Scan(&ownerID, &ownerName)
-	if err != nil {
-		return "", "", fmt.Errorf("owner info not found for account %s: %v", accountID, err)
-	}
-
-	// Cache for future use
-	ownerCache[accountID] = struct {
-		OwnerID   string
-		OwnerName string
-	}{
-		OwnerID:   ownerID,
-		OwnerName: ownerName,
-	}
-
-	return ownerID, ownerName, nil
-}
-
 // projectEvent converts an event store event into a transaction projection
-func projectEvent(tx *sql.Tx, accountID string, version int64, eventType string, eventData []byte, timestamp time.Time) (*TransactionProjection, error) {
+func projectEvent(accountID string, version int64, eventType string, eventData []byte, timestamp time.Time) (*TransactionProjection, error) {
 	switch bankaccount.EventTypeV1(eventType) {
 	case bankaccount.EventTypeAccountCreatedV1:
 		var event bankaccount.AccountCreatedEventV1
@@ -493,11 +356,9 @@ func projectEvent(tx *sql.Tx, accountID string, version int64, eventType string,
 
 		return &TransactionProjection{
 			AccountID:            accountID,
-			OwnerID:              event.OwnerId,
-			OwnerName:            event.OwnerName,
 			TransactionType:      "account_created",
 			Amount:               event.InitialDeposit,
-			Description:          fmt.Sprintf("Account created with initial deposit"),
+			Description:          "Account created with initial deposit",
 			TransactionTimestamp: event.CreatedAt,
 			EventVersion:         version,
 		}, nil
@@ -508,16 +369,8 @@ func projectEvent(tx *sql.Tx, accountID string, version int64, eventType string,
 			return nil, fmt.Errorf("failed to unmarshal MoneyDepositedV1: %v", err)
 		}
 
-		// Need to get owner info from previous events or cache
-		ownerID, ownerName, err := getAccountOwnerInfoTx(tx, accountID)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get owner info for account %s: %v", accountID, err)
-		}
-
 		return &TransactionProjection{
 			AccountID:            accountID,
-			OwnerID:              ownerID,
-			OwnerName:            ownerName,
 			TransactionType:      "deposit",
 			Amount:               event.Amount,
 			Description:          event.Description,
@@ -531,16 +384,8 @@ func projectEvent(tx *sql.Tx, accountID string, version int64, eventType string,
 			return nil, fmt.Errorf("failed to unmarshal MoneyWithdrawnV1: %v", err)
 		}
 
-		// Need to get owner info from previous events or cache
-		ownerID, ownerName, err := getAccountOwnerInfoTx(tx, accountID)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get owner info for account %s: %v", accountID, err)
-		}
-
 		return &TransactionProjection{
 			AccountID:            accountID,
-			OwnerID:              ownerID,
-			OwnerName:            ownerName,
 			TransactionType:      "withdrawal",
 			Amount:               event.Amount,
 			Description:          event.Description,
@@ -555,33 +400,18 @@ func projectEvent(tx *sql.Tx, accountID string, version int64, eventType string,
 	default:
 		return nil, fmt.Errorf("unknown event type: %s", eventType)
 	}
-}
-
-// getAccountOwnerInfoTx retrieves owner information for an account from existing transactions within a transaction
-func getAccountOwnerInfoTx(tx *sql.Tx, accountID string) (string, string, error) {
-	var ownerID, ownerName string
-	query := `SELECT owner_id, owner_name FROM transactions WHERE account_id = $1 LIMIT 1`
-
-	err := tx.QueryRow(query, accountID).Scan(&ownerID, &ownerName)
-	if err != nil {
-		return "", "", fmt.Errorf("owner info not found for account %s: %v", accountID, err)
-	}
-
-	return ownerID, ownerName, nil
 }
 
 // upsertTransactionTx inserts a transaction projection into the database within a transaction using ON CONFLICT DO NOTHING
 func upsertTransactionTx(tx *sql.Tx, transaction *TransactionProjection) error {
 	query := `
-		INSERT INTO transactions (account_id, owner_id, owner_name, transaction_type, amount, description, transaction_timestamp, event_version)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		INSERT INTO transactions (account_id, transaction_type, amount, description, transaction_timestamp, event_version)
+		VALUES ($1, $2, $3, $4, $5, $6)
 		ON CONFLICT (account_id, event_version) DO NOTHING
 	`
 
 	result, err := tx.Exec(query,
 		transaction.AccountID,
-		transaction.OwnerID,
-		transaction.OwnerName,
 		transaction.TransactionType,
 		transaction.Amount,
 		transaction.Description,
@@ -607,34 +437,6 @@ func upsertTransactionTx(tx *sql.Tx, transaction *TransactionProjection) error {
 
 // upsertProcessedEventIDTx records an event ID as processed for idempotency within a transaction using ON CONFLICT DO NOTHING
 func upsertProcessedEventIDTx(tx *sql.Tx, eventID string) error {
-	query := "INSERT INTO processed_events (event_id) VALUES ($1) ON CONFLICT (event_id) DO NOTHING"
-	_, err := tx.Exec(query, eventID)
-	return err
-}
-
-// insertTransactionTx inserts a transaction projection into the database within a transaction
-func insertTransactionTx(tx *sql.Tx, transaction *TransactionProjection) error {
-	query := `
-		INSERT INTO transactions (account_id, owner_id, owner_name, transaction_type, amount, description, transaction_timestamp, event_version)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-	`
-
-	_, err := tx.Exec(query,
-		transaction.AccountID,
-		transaction.OwnerID,
-		transaction.OwnerName,
-		transaction.TransactionType,
-		transaction.Amount,
-		transaction.Description,
-		transaction.TransactionTimestamp,
-		transaction.EventVersion,
-	)
-
-	return err
-}
-
-// recordProcessedEventIDTx records an event ID as processed for idempotency within a transaction
-func recordProcessedEventIDTx(tx *sql.Tx, eventID string) error {
 	query := "INSERT INTO processed_events (event_id) VALUES ($1) ON CONFLICT (event_id) DO NOTHING"
 	_, err := tx.Exec(query, eventID)
 	return err

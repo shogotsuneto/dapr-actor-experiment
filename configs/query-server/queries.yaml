@@ -1,26 +1,26 @@
-# Queries configuration for BankAccount transactions with JWT authentication
-# Account holders can only query their own transaction data
+# Queries configuration for BankAccount transactions
+# Simple account-based queries without owner filtering
 
 queries:
-  # Get transactions for the authenticated user's accounts
+  # Get transactions for a specific account
   my_transactions:
-    sql: "SELECT * FROM transactions WHERE owner_id = :user_id ORDER BY transaction_timestamp DESC LIMIT :limit"
+    sql: "SELECT * FROM transactions WHERE account_id = :account_id ORDER BY transaction_timestamp DESC LIMIT :limit"
     params:
-      - name: user_id
+      - name: account_id
         type: string
       - name: limit
         type: int
 
-  # Get balance for the authenticated user's accounts
+  # Get balance for a specific account
   my_account_balance:
-    sql: "SELECT account_id, owner_name, SUM(CASE WHEN transaction_type IN ('account_created', 'deposit') THEN amount ELSE -amount END) as balance FROM transactions WHERE owner_id = :user_id GROUP BY account_id, owner_name ORDER BY balance DESC"
+    sql: "SELECT account_id, SUM(CASE WHEN transaction_type IN ('account_created', 'deposit') THEN amount ELSE -amount END) as balance FROM transactions WHERE account_id = :account_id GROUP BY account_id"
     params:
-      - name: user_id
+      - name: account_id
         type: string
 
-  # Get transaction summary by type for the authenticated user
+  # Get transaction summary by type for a specific account
   my_transaction_summary:
-    sql: "SELECT transaction_type, COUNT(*) as count, SUM(amount) as total_amount FROM transactions WHERE owner_id = :user_id GROUP BY transaction_type ORDER BY count DESC"
+    sql: "SELECT transaction_type, COUNT(*) as count, SUM(amount) as total_amount FROM transactions WHERE account_id = :account_id GROUP BY transaction_type ORDER BY count DESC"
     params:
-      - name: user_id
+      - name: account_id
         type: string

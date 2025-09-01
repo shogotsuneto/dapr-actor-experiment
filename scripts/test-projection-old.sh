@@ -1,12 +1,12 @@
 #!/bin/bash
 
-# BankAccount Transactions Projection Demo - Simplified
-# This script demonstrates the projection functionality without JWT authentication
+# BankAccount Transactions Projection Demo with JWT Authentication
+# This script demonstrates the projection functionality with account holder authentication
 
 set -e
 
-echo "BankAccount Transactions Projection Demo"
-echo "========================================"
+echo "BankAccount Transactions Projection Demo with JWT Authentication"
+echo "==============================================================="
 
 # Colors for output
 RED='\033[0;31m'
@@ -38,8 +38,8 @@ fi
 
 echo -e "${GREEN}✅ Services ready${NC}"
 
-# Generate JWT tokens for actor authentication (still needed for actors)
-echo -e "\n${BLUE}Generating JWT tokens for actor operations...${NC}"
+# Generate JWT tokens for different users
+echo -e "\n${BLUE}Generating JWT tokens...${NC}"
 ALICE_TOKEN=$(curl -s http://localhost:3000/generate-token -H "Content-Type: application/json" -d '{"claims": {"sub": "account-demo-alice", "name": "Alice Demo"}, "exp_minutes": 60}' | jq -r '.token')
 BOB_TOKEN=$(curl -s http://localhost:3000/generate-token -H "Content-Type: application/json" -d '{"claims": {"sub": "account-demo-bob", "name": "Bob Demo"}, "exp_minutes": 60}' | jq -r '.token')
 
@@ -84,50 +84,65 @@ echo -e "${GREEN}✅ Test transactions created${NC}"
 echo -e "\n${BLUE}Waiting for projector to process events (15 seconds)...${NC}"
 sleep 15
 
-echo -e "\n${YELLOW}Account-Based Queries (No Authentication Required):${NC}"
-echo "=================================================="
+echo -e "\n${YELLOW}Account Holder Queries (JWT Authentication Required):${NC}"
+echo "======================================================"
 
-# Alice's account queries
+# Alice's queries (using Alice's token)
 echo -e "\n${BLUE}Alice's Account Data:${NC}"
 echo "--------------------"
 
 echo -e "\n→ Alice's Transactions:"
 curl -s -X POST http://localhost:8081/query/my_transactions \
+  -H "Authorization: Bearer $ALICE_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"account_id": "account-demo-alice", "limit": 10}' | jq '.'
+  -d '{"limit": 10}' | jq '.'
 
 echo -e "\n→ Alice's Account Balance:"
 curl -s -X POST http://localhost:8081/query/my_account_balance \
+  -H "Authorization: Bearer $ALICE_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"account_id": "account-demo-alice"}' | jq '.'
+  -d '{}' | jq '.'
 
 echo -e "\n→ Alice's Transaction Summary:"
 curl -s -X POST http://localhost:8081/query/my_transaction_summary \
+  -H "Authorization: Bearer $ALICE_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"account_id": "account-demo-alice"}' | jq '.'
+  -d '{}' | jq '.'
 
-# Bob's account queries
+# Bob's queries (using Bob's token)
 echo -e "\n${BLUE}Bob's Account Data:${NC}"
 echo "------------------"
 
 echo -e "\n→ Bob's Transactions:"
 curl -s -X POST http://localhost:8081/query/my_transactions \
+  -H "Authorization: Bearer $BOB_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"account_id": "account-demo-bob", "limit": 10}' | jq '.'
+  -d '{"limit": 10}' | jq '.'
 
 echo -e "\n→ Bob's Account Balance:"
 curl -s -X POST http://localhost:8081/query/my_account_balance \
+  -H "Authorization: Bearer $BOB_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"account_id": "account-demo-bob"}' | jq '.'
+  -d '{}' | jq '.'
 
-echo -e "\n${GREEN}✅ Projection Demo completed!${NC}"
+# Demonstrate security
+echo -e "\n${YELLOW}Security Demonstration:${NC}"
+echo "======================="
+
+echo -e "\n→ Request without JWT token (should fail with 401):"
+curl -s -X POST http://localhost:8081/query/my_transactions \
+  -H "Content-Type: application/json" \
+  -d '{"limit": 5}' || echo -e "${RED}❌ Unauthorized (expected)${NC}"
+
+echo -e "\n${GREEN}✅ JWT Authentication and Security Demo completed!${NC}"
 echo ""
 echo "Summary:"
-echo "  • Events are projected from event store to a simplified transactions table"
-echo "  • Queries are based on account_id parameter without authentication"
-echo "  • Simplified for experimental demonstration of projection patterns"
+echo "  • Account holders can only query their own transaction data"
+echo "  • JWT authentication is required for all query endpoints"
+echo "  • The 'sub' claim from JWT is mapped to 'user_id' parameter in SQL"
+echo "  • Cross-account access is prevented by user_id filtering"
 echo ""
-echo "Available queries:"
-echo "  • POST /query/my_transactions - Get account transactions"
-echo "  • POST /query/my_account_balance - Get account balance"
-echo "  • POST /query/my_transaction_summary - Get account transaction summary"
+echo "Available authenticated queries:"
+echo "  • POST /query/my_transactions - Get user's transactions"
+echo "  • POST /query/my_account_balance - Get user's account balance"
+echo "  • POST /query/my_transaction_summary - Get user's transaction summary"
