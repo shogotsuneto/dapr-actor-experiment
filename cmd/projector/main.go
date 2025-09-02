@@ -9,7 +9,6 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
-	"strings"
 	"syscall"
 	"time"
 
@@ -227,19 +226,12 @@ func createApplyFunc(db *sql.DB) projector.ApplyFunc {
 
 		// Process each event in the batch
 		for _, envelope := range batch {
-			// Extract account ID from stream ID (format: bankaccount-<accountId>)
-			accountID := extractAccountIDFromStreamID(envelope.StreamID)
-			if accountID == "" {
-				log.Printf("Warning: Could not extract account ID from stream %s", envelope.StreamID)
-				continue
-			}
-
 			// Use event version from envelope event's version
 			version := envelope.Event.Version
 
-			log.Printf("Processing event: Stream=%s, Type=%s, Account=%s, Version=%d", envelope.StreamID, envelope.Event.Type, accountID, version)
+			log.Printf("Processing event: Stream=%s, Type=%s, Version=%d", envelope.StreamID, envelope.Event.Type, version)
 
-			transaction, err := projectEvent(accountID, version, envelope.Event.Type, envelope.Event.Data, envelope.Event.Timestamp)
+			transaction, err := projectEvent(version, envelope.Event.Type, envelope.Event.Data, envelope.Event.Timestamp)
 			if err != nil {
 				log.Printf("Warning: Failed to project event %s: %v", envelope.Event.ID, err)
 				continue
@@ -255,7 +247,11 @@ func createApplyFunc(db *sql.DB) projector.ApplyFunc {
 			}
 
 			eventsProcessed++
-			log.Printf("Successfully processed event: Stream=%s, Type=%s, Account=%s, Version=%d", envelope.StreamID, envelope.Event.Type, accountID, version)
+			if transaction != nil {
+				log.Printf("Successfully processed event: Stream=%s, Type=%s, Account=%s, Version=%d", envelope.StreamID, envelope.Event.Type, transaction.AccountID, version)
+			} else {
+				log.Printf("Successfully skipped event: Stream=%s, Type=%s, Version=%d", envelope.StreamID, envelope.Event.Type, version)
+			}
 		}
 
 		// Save the cursor to mark progress
@@ -276,21 +272,8 @@ func createApplyFunc(db *sql.DB) projector.ApplyFunc {
 	}
 }
 
-// extractAccountIDFromStreamID extracts account ID from stream ID like "bankaccount-<accountId>"
-func extractAccountIDFromStreamID(streamID string) string {
-	const prefix = "bankaccount-"
-	if len(streamID) > len(prefix) && strings.HasPrefix(streamID, prefix) {
-		accountID := streamID[len(prefix):]
-		// Ensure it's not a snapshot stream
-		if len(accountID) > 0 && !strings.HasSuffix(accountID, "-snapshots") {
-			return accountID
-		}
-	}
-	return ""
-}
-
 // projectEvent converts an event store event into a transaction projection
-func projectEvent(accountID string, version int64, eventType string, eventData []byte, timestamp time.Time) (*TransactionProjection, error) {
+func projectEvent(version int64, eventType string, eventData []byte, timestamp time.Time) (*TransactionProjection, error) {
 	switch bankaccount.EventTypeV1(eventType) {
 	case bankaccount.EventTypeAccountCreatedV1:
 		var event bankaccount.AccountCreatedEventV1
@@ -299,7 +282,7 @@ func projectEvent(accountID string, version int64, eventType string, eventData [
 		}
 
 		return &TransactionProjection{
-			AccountID:            accountID,
+			AccountID:            event.AccountId,
 			OwnerID:              event.OwnerId,
 			TransactionType:      "account_created",
 			Amount:               event.InitialDeposit,
@@ -315,7 +298,7 @@ func projectEvent(accountID string, version int64, eventType string, eventData [
 		}
 
 		return &TransactionProjection{
-			AccountID:            accountID,
+			AccountID:            event.AccountId,
 			OwnerID:              event.OwnerId,
 			TransactionType:      "deposit",
 			Amount:               event.Amount,
@@ -331,7 +314,7 @@ func projectEvent(accountID string, version int64, eventType string, eventData [
 		}
 
 		return &TransactionProjection{
-			AccountID:            accountID,
+			AccountID:            event.AccountId,
 			OwnerID:              event.OwnerId,
 			TransactionType:      "withdrawal",
 			Amount:               event.Amount,

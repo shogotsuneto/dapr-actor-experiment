@@ -21,6 +21,7 @@ const (
 
 // AccountCreatedEventV1 represents the creation of a bank account
 type AccountCreatedEventV1 struct {
+	AccountId      string    `json:"accountId"`
 	OwnerId        string    `json:"ownerId"`
 	InitialDeposit float64   `json:"initialDeposit"`
 	CreatedAt      time.Time `json:"createdAt"`
@@ -31,6 +32,7 @@ func (e AccountCreatedEventV1) Type() string { return string(EventTypeAccountCre
 
 // MoneyDepositedEventV1 represents a deposit transaction
 type MoneyDepositedEventV1 struct {
+	AccountId   string    `json:"accountId"`
 	OwnerId     string    `json:"ownerId"`
 	Amount      float64   `json:"amount"`
 	Description string    `json:"description"`
@@ -42,6 +44,7 @@ func (e MoneyDepositedEventV1) Type() string { return string(EventTypeMoneyDepos
 
 // MoneyWithdrawnEventV1 represents a withdrawal transaction
 type MoneyWithdrawnEventV1 struct {
+	AccountId   string    `json:"accountId"`
 	OwnerId     string    `json:"ownerId"`
 	Amount      float64   `json:"amount"`
 	Description string    `json:"description"`
