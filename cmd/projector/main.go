@@ -21,15 +21,15 @@ import (
 
 // TransactionProjection represents a projected transaction record
 type TransactionProjection struct {
-	ID                     int       `json:"id" db:"id"`
-	AccountID              string    `json:"accountId" db:"account_id"`
-	OwnerID                string    `json:"ownerId" db:"owner_id"`
-	TransactionType        string    `json:"transactionType" db:"transaction_type"`
-	Amount                 float64   `json:"amount" db:"amount"`
-	Description            string    `json:"description" db:"description"`
-	TransactionTimestamp   time.Time `json:"transactionTimestamp" db:"transaction_timestamp"`
-	EventVersion           int64     `json:"eventVersion" db:"event_version"`
-	CreatedAt              time.Time `json:"createdAt" db:"created_at"`
+	ID                     int       `json:"id"`
+	AccountID              string    `json:"accountId"`
+	OwnerID                string    `json:"ownerId"`
+	TransactionType        string    `json:"transactionType"`
+	Amount                 float64   `json:"amount"`
+	Description            string    `json:"description"`
+	TransactionTimestamp   time.Time `json:"transactionTimestamp"`
+	EventVersion           int64     `json:"eventVersion"`
+	CreatedAt              time.Time `json:"createdAt"`
 }
 
 func main() {
