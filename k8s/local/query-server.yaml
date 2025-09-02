@@ -1,4 +1,20 @@
 apiVersion: v1
+kind: Secret
+metadata:
+  name: query-server-database-config
+  namespace: dapr-actor-experiment
+  labels:
+    app: query-server
+type: Opaque
+stringData:
+  database.yaml: |
+    # Database configuration for simple-query-server
+    # PostgreSQL connection to the same database used by the projector
+    
+    type: "postgres"
+    dsn: "postgres://postgres:postgres@postgres:5432/eventstore?sslmode=disable"
+---
+apiVersion: v1
 kind: ConfigMap
 metadata:
   name: query-server-config
@@ -6,13 +22,6 @@ metadata:
   labels:
     app: query-server
 data:
-  database.yaml: |
-    # Database configuration for simple-query-server
-    # PostgreSQL connection to the same database used by the projector
-    
-    type: "postgres"
-    dsn: "postgres://postgres:postgres@postgres:5432/eventstore?sslmode=disable"
-  
   queries.yaml: |
     # Queries configuration for BankAccount transactions with JWT authentication
     # Account holders can only query their own transaction data
@@ -94,6 +103,9 @@ spec:
         volumeMounts:
         - name: config-volume
           mountPath: /configs
+        - name: database-config-volume
+          mountPath: /configs/database.yaml
+          subPath: database.yaml
         livenessProbe:
           httpGet:
             path: /health
@@ -117,6 +129,9 @@ spec:
       - name: config-volume
         configMap:
           name: query-server-config
+      - name: database-config-volume
+        secret:
+          secretName: query-server-database-config
 ---
 apiVersion: v1
 kind: Service
