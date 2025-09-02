@@ -1,0 +1,68 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: projector
+  namespace: dapr-actor-experiment
+  labels:
+    app: projector
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: projector
+  template:
+    metadata:
+      labels:
+        app: projector
+    spec:
+      containers:
+      - name: projector
+        image: dapr-actor-experiment:local
+        command: ["/bin/projector"]
+        env:
+        - name: POSTGRES_CONNECTION_STRING
+          value: "postgres://postgres:postgres@postgres:5432/eventstore?sslmode=disable"
+        - name: EVENTS_TABLE_NAME
+          value: "bankaccount_events"
+        - name: PROJECTION_INTERVAL_SECONDS
+          value: "10"
+        resources:
+          requests:
+            memory: "32Mi"
+            cpu: "100m"
+          limits:
+            memory: "64Mi"
+            cpu: "200m"
+        livenessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - "ps aux | grep '[p]rojector' || exit 1"
+          initialDelaySeconds: 30
+          periodSeconds: 30
+        readinessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - "ps aux | grep '[p]rojector' || exit 1"
+          initialDelaySeconds: 10
+          periodSeconds: 10
+      restartPolicy: Always
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: projector
+  namespace: dapr-actor-experiment
+  labels:
+    app: projector
+spec:
+  selector:
+    app: projector
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+  clusterIP: None  # Headless service since projector doesn't expose HTTP endpoints
