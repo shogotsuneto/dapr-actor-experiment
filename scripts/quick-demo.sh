@@ -50,7 +50,7 @@ if [ "$BALANCE" = "New Account" ]; then
     echo "Creating new account..."
     curl -s -X POST -H "$AUTH_HEADER_ALICE" \
         -H "Content-Type: application/json" \
-        -d '{"ownerName": "Alice Demo", "initialDeposit": 1000}' \
+        -d '{"initialDeposit": 1000}' \
         http://localhost:3500/v1.0/actors/BankAccount/account-alice/method/CreateAccount | jq -c '.'
     BALANCE=1000
 fi

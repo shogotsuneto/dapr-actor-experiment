@@ -130,7 +130,7 @@ curl -H "Authorization: Bearer $TOKEN" \
 curl -X POST \
      -H "Authorization: Bearer $TOKEN" \
      -H "Content-Type: application/json" \
-     -d '{"ownerName": "John Doe", "initialDeposit": 1000}' \
+     -d '{"initialDeposit": 1000}' \
      http://localhost:3500/v1.0/actors/BankAccount/user-123/method/createAccount
 ```
 
@@ -197,7 +197,7 @@ curl -H "Authorization: Bearer $TOKEN" \
 curl -X POST \
      -H "Authorization: Bearer $TOKEN" \
      -H "Content-Type: application/json" \
-     -d '{"ownerName": "John Doe", "initialDeposit": 1000}' \
+     -d '{"initialDeposit": 1000}' \
      http://localhost:3500/v1.0/actors/BankAccount/user-123/method/createAccount
 ```
 

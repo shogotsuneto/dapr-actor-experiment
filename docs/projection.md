@@ -72,7 +72,6 @@ The projector transforms these event types:
 ### AccountCreatedV1 Events
 ```json
 {
-  "ownerName": "Alice Demo",
   "ownerId": "account-alice", 
   "initialDeposit": 1000.0,
   "createdAt": "2025-08-26T04:14:35Z"

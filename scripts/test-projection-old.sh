@@ -52,7 +52,7 @@ echo "→ Creating Alice's account..."
 curl -s -X POST http://localhost:3500/v1.0/actors/BankAccountActor/account-demo-alice/method/createAccount \
   -H "Authorization: Bearer $ALICE_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"ownerName": "Alice Demo", "initialDeposit": 5000.0}' | jq '.'
+  -d '{"initialDeposit": 5000.0}' | jq '.'
 
 echo "→ Alice deposit..."
 curl -s -X POST http://localhost:3500/v1.0/actors/BankAccountActor/account-demo-alice/method/deposit \
@@ -70,7 +70,7 @@ echo "→ Creating Bob's account..."
 curl -s -X POST http://localhost:3500/v1.0/actors/BankAccountActor/account-demo-bob/method/createAccount \
   -H "Authorization: Bearer $BOB_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"ownerName": "Bob Demo", "initialDeposit": 3000.0}' | jq '.'
+  -d '{"initialDeposit": 3000.0}' | jq '.'
 
 echo "→ Bob deposit..."
 curl -s -X POST http://localhost:3500/v1.0/actors/BankAccountActor/account-demo-bob/method/deposit \

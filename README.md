@@ -268,7 +268,7 @@ ALICE_TOKEN=$(curl -s -X POST http://localhost:3000/generate-token \
 # Create Alice's bank account (actor ID 'account-alice' matches token sub)
 curl -X POST -H "Authorization: Bearer $ALICE_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"ownerName": "Alice Johnson", "initialDeposit": 1000.0}' \
+  -d '{"initialDeposit": 1000.0}' \
   http://localhost:3500/v1.0/actors/BankAccount/account-alice/method/CreateAccount
 
 # Deposit money to Alice's account
