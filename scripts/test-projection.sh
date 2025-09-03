@@ -19,8 +19,8 @@ NC='\033[0m' # No Color
 echo -e "${BLUE}Checking if services are ready...${NC}"
 
 # Check actor service
-if ! curl -s http://localhost:8080/health > /dev/null; then
-    echo -e "${RED}❌ Actor service not ready at http://localhost:8080${NC}"
+if ! curl -s http://localhost:3500/v1.0/healthz > /dev/null; then
+    echo "❌ Services not running."
     exit 1
 fi
 
