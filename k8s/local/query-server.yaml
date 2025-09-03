@@ -6,6 +6,7 @@ metadata:
   labels:
     app: query-server
 type: Opaque
+immutable: true
 stringData:
   database.yaml: |
     # Database configuration for simple-query-server
@@ -105,6 +106,7 @@ spec:
           mountPath: /configs
         - name: database-config-volume
           mountPath: /secrets
+          readOnly: true
         livenessProbe:
           httpGet:
             path: /health
