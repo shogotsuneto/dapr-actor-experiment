@@ -93,7 +93,7 @@ spec:
         - containerPort: 8080
         args:
         - "--db-config"
-        - "/configs/database.yaml"
+        - "/secrets/database.yaml"
         - "--queries-config"
         - "/configs/queries.yaml"
         - "--server-config"
@@ -104,8 +104,7 @@ spec:
         - name: config-volume
           mountPath: /configs
         - name: database-config-volume
-          mountPath: /configs/database.yaml
-          subPath: database.yaml
+          mountPath: /secrets
         livenessProbe:
           httpGet:
             path: /health
