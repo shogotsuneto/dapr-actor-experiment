@@ -12,19 +12,24 @@ RUN go mod download
 # Copy source code
 COPY . .
 
-# Build the binary
+# Build the binaries
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o server ./cmd/server
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o projector ./cmd/projector
 
 # Runtime stage
 FROM alpine:latest
 
-WORKDIR /root/
+# Install wget for health checks
+RUN apk --no-cache add wget
 
-# Copy the binary from builder stage
+WORKDIR /bin/
+
+# Copy the binaries from builder stage
 COPY --from=builder /app/server .
+COPY --from=builder /app/projector .
 
-# Expose port
+# Expose ports
 EXPOSE 8080
 
-# Run the binary
+# Default command (can be overridden)
 CMD ["./server"]

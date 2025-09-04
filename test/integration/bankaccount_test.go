@@ -19,13 +19,6 @@ func assertBankAccountSuccess(t *testing.T, state bankaccount.BankAccountState, 
 	assert.Equal(t, expectedBalance, state.Data.Balance, message)
 }
 
-func assertBankAccountSuccessWithOwner(t *testing.T, state bankaccount.BankAccountState, expectedBalance float64, expectedOwner string, message string) {
-	require.True(t, state.Success, "BankAccount operation should succeed: %s", message)
-	require.NotNil(t, state.Data, "BankAccount data should not be nil when success=true")
-	assert.Equal(t, expectedBalance, state.Data.Balance, message)
-	assert.Equal(t, expectedOwner, state.Data.OwnerName, "Owner name should match")
-}
-
 func TestBankAccount(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
@@ -68,7 +61,6 @@ func testBankAccountBasicOperations(t *testing.T, client *DaprClient) {
 		ActorID:   actorID,
 		Method:    "CreateAccount",
 		Data: bankaccount.CreateAccountRequest{
-			OwnerName:      "Test User",
 			InitialDeposit: 1000.0,
 		},
 	}, userToken, &createResult)
@@ -82,7 +74,7 @@ func testBankAccountBasicOperations(t *testing.T, client *DaprClient) {
 		Method:    "GetBalance",
 	}, userToken, &balance)
 	require.NoError(t, err)
-	assertBankAccountSuccessWithOwner(t, balance, 1000.0, "Test User", "Initial balance should be 1000.0")
+	assertBankAccountSuccess(t, balance, 1000.0, "Initial balance should be 1000.0")
 
 	// Test 3: Deposit money
 	var depositResult interface{}
@@ -135,14 +127,12 @@ func testBankAccountStateIsolation(t *testing.T, client *DaprClient) {
 	// Test scenario similar to the shell script test-bank-account-actor.sh
 	testAccounts := []struct {
 		actorID         string
-		ownerName       string
 		initialDeposit  float64
 		operations      []Operation
 		expectedBalance float64
 	}{
 		{
 			actorID:        fmt.Sprintf("account-alice-%d", time.Now().UnixNano()%10000),
-			ownerName:      "Alice Johnson",
 			initialDeposit: 1500.0,
 			operations: []Operation{
 				{Type: "deposit", Amount: 3000.0, Description: "Monthly salary"},
@@ -153,7 +143,6 @@ func testBankAccountStateIsolation(t *testing.T, client *DaprClient) {
 		},
 		{
 			actorID:        fmt.Sprintf("account-bob-%d", time.Now().UnixNano()%10000),
-			ownerName:      "Bob Smith",
 			initialDeposit: 500.0,
 			operations: []Operation{
 				{Type: "deposit", Amount: 800.0, Description: "Freelance project payment"},
@@ -164,7 +153,6 @@ func testBankAccountStateIsolation(t *testing.T, client *DaprClient) {
 		},
 		{
 			actorID:        fmt.Sprintf("account-charlie-%d", time.Now().UnixNano()%10000),
-			ownerName:      "Charlie Brown",
 			initialDeposit: 2000.0,
 			operations: []Operation{
 				{Type: "withdraw", Amount: 50.0, Description: "Coffee shop"},
@@ -179,7 +167,7 @@ func testBankAccountStateIsolation(t *testing.T, client *DaprClient) {
 	for _, account := range testAccounts {
 		t.Run("Account_"+account.actorID, func(t *testing.T) {
 			// Generate JWT token for this account
-			userToken, err := generateTestToken(account.actorID, account.ownerName, account.ownerName+"@example.com", []string{"user"}, 1*time.Hour)
+			userToken, err := generateTestToken(account.actorID, "user", account.actorID+"@example.com", []string{"user"}, 1*time.Hour)
 			require.NoError(t, err, "Failed to generate JWT token for testing")
 
 			// Create account
@@ -189,7 +177,6 @@ func testBankAccountStateIsolation(t *testing.T, client *DaprClient) {
 				ActorID:   account.actorID,
 				Method:    "CreateAccount",
 				Data: bankaccount.CreateAccountRequest{
-					OwnerName:      account.ownerName,
 					InitialDeposit: account.initialDeposit,
 				},
 			}, userToken, &createResult)
@@ -230,7 +217,7 @@ func testBankAccountStateIsolation(t *testing.T, client *DaprClient) {
 				Method:    "GetBalance",
 			}, userToken, &balance)
 			require.NoError(t, err)
-			assertBankAccountSuccessWithOwner(t, balance, account.expectedBalance, account.ownerName, fmt.Sprintf("Final balance for %s should be %.2f", account.actorID, account.expectedBalance))
+			assertBankAccountSuccess(t, balance, account.expectedBalance, fmt.Sprintf("Final balance for %s should be %.2f", account.actorID, account.expectedBalance))
 		})
 	}
 }
@@ -250,7 +237,6 @@ func testBankAccountEventSourcing(t *testing.T, client *DaprClient) {
 		ActorID:   actorID,
 		Method:    "CreateAccount",
 		Data: bankaccount.CreateAccountRequest{
-			OwnerName:      "Event Sourcing Test",
 			InitialDeposit: 1000.0,
 		},
 	}, userToken, &createResult)
@@ -317,7 +303,6 @@ func testBankAccountSnapshotPerformance(t *testing.T, client *DaprClient) {
 		ActorID:   actorID,
 		Method:    "CreateAccount",
 		Data: bankaccount.CreateAccountRequest{
-			OwnerName:      "Performance Test User",
 			InitialDeposit: 1000.0,
 		},
 	}, userToken, &createResult)

@@ -26,8 +26,6 @@ type BankAccountStateData struct {
 	IsActive bool `json:"isActive"`
 	// Account owner ID (for authorization)
 	OwnerId string `json:"ownerId"`
-	// Account owner name
-	OwnerName string `json:"ownerName"`
 	// Current stream version (last applied event version)
 	Version int64 `json:"version"`
 }
@@ -36,8 +34,6 @@ type BankAccountStateData struct {
 type CreateAccountRequest struct {
 	// Initial deposit amount
 	InitialDeposit float64 `json:"initialDeposit"`
-	// Name of the account owner
-	OwnerName string `json:"ownerName"`
 }
 
 // DepositRequest Request to deposit money

@@ -21,7 +21,7 @@ const (
 
 // AccountCreatedEventV1 represents the creation of a bank account
 type AccountCreatedEventV1 struct {
-	OwnerName      string    `json:"ownerName"`
+	AccountId      string    `json:"accountId"`
 	OwnerId        string    `json:"ownerId"`
 	InitialDeposit float64   `json:"initialDeposit"`
 	CreatedAt      time.Time `json:"createdAt"`
@@ -32,6 +32,8 @@ func (e AccountCreatedEventV1) Type() string { return string(EventTypeAccountCre
 
 // MoneyDepositedEventV1 represents a deposit transaction
 type MoneyDepositedEventV1 struct {
+	AccountId   string    `json:"accountId"`
+	OwnerId     string    `json:"ownerId"`
 	Amount      float64   `json:"amount"`
 	Description string    `json:"description"`
 	Timestamp   time.Time `json:"timestamp"`
@@ -42,6 +44,8 @@ func (e MoneyDepositedEventV1) Type() string { return string(EventTypeMoneyDepos
 
 // MoneyWithdrawnEventV1 represents a withdrawal transaction
 type MoneyWithdrawnEventV1 struct {
+	AccountId   string    `json:"accountId"`
+	OwnerId     string    `json:"ownerId"`
 	Amount      float64   `json:"amount"`
 	Description string    `json:"description"`
 	Timestamp   time.Time `json:"timestamp"`
@@ -53,7 +57,6 @@ func (e MoneyWithdrawnEventV1) Type() string { return string(EventTypeMoneyWithd
 // StateSnapshotEventV1 represents a complete snapshot of account state
 type StateSnapshotEventV1 struct {
 	AccountId string    `json:"accountId"`
-	OwnerName string    `json:"ownerName"`
 	OwnerId   string    `json:"ownerId"`
 	Balance   float64   `json:"balance"`
 	IsActive  bool      `json:"isActive"`
@@ -67,7 +70,6 @@ func (e StateSnapshotEventV1) Type() string { return string(EventTypeStateSnapsh
 // BankAccountStateV1 implements the State interface from go-eventsourced
 type BankAccountStateV1 struct {
 	AccountId string  `json:"accountId"`
-	OwnerName string  `json:"ownerName"`
 	OwnerId   string  `json:"ownerId"`
 	Balance   float64 `json:"balance"`
 	IsActive  bool    `json:"isActive"`
@@ -79,7 +81,6 @@ type BankAccountStateV1 struct {
 func (s *BankAccountStateV1) Apply(event eventsourced.Event) error {
 	switch e := event.(type) {
 	case AccountCreatedEventV1:
-		s.OwnerName = e.OwnerName
 		s.OwnerId = e.OwnerId
 		s.Balance = e.InitialDeposit
 		s.CreatedAt = e.CreatedAt.Format(time.RFC3339)
@@ -97,7 +98,6 @@ func (s *BankAccountStateV1) Apply(event eventsourced.Event) error {
 	case StateSnapshotEventV1:
 		// For snapshots, restore the complete state
 		s.AccountId = e.AccountId
-		s.OwnerName = e.OwnerName
 		s.OwnerId = e.OwnerId
 		s.Balance = e.Balance
 		s.IsActive = e.IsActive
@@ -115,7 +115,6 @@ func (s *BankAccountStateV1) Apply(event eventsourced.Event) error {
 func (s *BankAccountStateV1) Clone() *BankAccountStateV1 {
 	return &BankAccountStateV1{
 		AccountId: s.AccountId,
-		OwnerName: s.OwnerName,
 		OwnerId:   s.OwnerId,
 		Balance:   s.Balance,
 		IsActive:  s.IsActive,

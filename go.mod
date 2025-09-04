@@ -8,7 +8,8 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/lib/pq v1.10.9
 	github.com/shogotsuneto/go-eventsourced v0.0.1
-	github.com/shogotsuneto/go-simple-eventstore v0.0.7
+	github.com/shogotsuneto/go-simple-es-projector v0.0.2
+	github.com/shogotsuneto/go-simple-eventstore v0.0.9
 	github.com/stretchr/testify v1.10.0
 )
 

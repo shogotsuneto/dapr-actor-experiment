@@ -144,7 +144,6 @@ func (b *BankAccount) successResponseWithStateV1(stateData BankAccountStateV1) *
 		Success: true,
 		Data: &BankAccountStateData{
 			AccountId: stateData.AccountId,
-			OwnerName: stateData.OwnerName,
 			OwnerId:   stateData.OwnerId,
 			Balance:   stateData.Balance,
 			IsActive:  stateData.IsActive,
@@ -160,7 +159,6 @@ func (b *BankAccount) successResponseWithState(stateData *BankAccountStateData) 
 		Success: true,
 		Data: &BankAccountStateData{
 			AccountId: stateData.AccountId,
-			OwnerName: stateData.OwnerName,
 			OwnerId:   stateData.OwnerId,
 			Balance:   stateData.Balance,
 			IsActive:  stateData.IsActive,
@@ -206,9 +204,6 @@ func (b *BankAccount) CreateAccount(ctx context.Context, request CreateAccountRe
 	}
 
 	// Validate request
-	if request.OwnerName == "" {
-		return b.errorResponse(ErrorCodeValidationError, "Owner name is required", nil), nil
-	}
 	if request.InitialDeposit < 0 {
 		return b.errorResponse(ErrorCodeValidationError, "Initial deposit cannot be negative", map[string]interface{}{
 			"providedAmount": request.InitialDeposit,
@@ -217,7 +212,7 @@ func (b *BankAccount) CreateAccount(ctx context.Context, request CreateAccountRe
 
 	// Create and store versioned event for durability (include creator info)
 	eventData := AccountCreatedEventV1{
-		OwnerName:      request.OwnerName,
+		AccountId:      b.ID(),
 		OwnerId:        userID,
 		InitialDeposit: request.InitialDeposit,
 		CreatedAt:      time.Now(),
@@ -249,7 +244,7 @@ func (b *BankAccount) CreateAccount(ctx context.Context, request CreateAccountRe
 		}), nil
 	}
 
-	log.Printf("BankAccount %s: Account created by user %s for owner %s", b.ID(), userID, request.OwnerName)
+	log.Printf("BankAccount %s: Account created by user %s", b.ID(), userID)
 	return b.successResponseWithStateV1(*b.stateManager.GetState()), nil
 }
 
@@ -280,7 +275,10 @@ func (b *BankAccount) Deposit(ctx context.Context, request DepositRequest) (*Ban
 	}
 
 	// Create and store versioned event for durability
+	currentState := b.stateManager.GetState()
 	eventData := MoneyDepositedEventV1{
+		AccountId:   b.ID(),
+		OwnerId:     currentState.OwnerId,
 		Amount:      request.Amount,
 		Description: request.Description,
 		Timestamp:   time.Now(),
@@ -345,6 +343,8 @@ func (b *BankAccount) Withdraw(ctx context.Context, request WithdrawRequest) (*B
 
 	// Create and store versioned event for durability
 	eventData := MoneyWithdrawnEventV1{
+		AccountId:   b.ID(),
+		OwnerId:     currentState.OwnerId,
 		Amount:      request.Amount,
 		Description: request.Description,
 		Timestamp:   time.Now(),
@@ -517,7 +517,6 @@ func (b *BankAccount) createSnapshot(ctx context.Context) error {
 	// Create snapshot event
 	snapshotEvent := StateSnapshotEventV1{
 		AccountId: currentState.AccountId,
-		OwnerName: currentState.OwnerName,
 		OwnerId:   currentState.OwnerId,
 		Balance:   currentState.Balance,
 		IsActive:  currentState.IsActive,

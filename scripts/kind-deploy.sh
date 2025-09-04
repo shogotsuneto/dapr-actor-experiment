@@ -56,6 +56,21 @@ kubectl apply -f "${PROJECT_ROOT}/k8s/local/actor-service.yaml"
 echo "Waiting for Actor Service to be ready..."
 kubectl -n dapr-actor-experiment wait --for=condition=available --timeout=300s deployment/actor-service
 
+# Apply projector service
+echo "Deploying Projector..."
+kubectl apply -f "${PROJECT_ROOT}/k8s/local/projector.yaml"
+
+# Apply query server
+echo "Deploying Query Server..."
+kubectl apply -f "${PROJECT_ROOT}/k8s/local/query-server.yaml"
+
+# Wait for projector and query server to be ready
+echo "Waiting for Projector to be ready..."
+kubectl -n dapr-actor-experiment wait --for=condition=available --timeout=300s deployment/projector
+
+echo "Waiting for Query Server to be ready..."
+kubectl -n dapr-actor-experiment wait --for=condition=available --timeout=300s deployment/query-server
+
 # Expose Dapr dashboard via NodePort
 echo "Exposing Dapr Dashboard..."
 kubectl apply -f "${PROJECT_ROOT}/k8s/local/dapr-dashboard-nodeport.yaml"
@@ -69,6 +84,7 @@ echo "  kubectl -n dapr-system get services"
 echo ""
 echo "Access services via NodePort:"
 echo "  # Actor service (Dapr HTTP API): http://localhost:3500"
+echo "  # Query Server: http://localhost:8081"
 echo "  # JWKS Mock API: http://localhost:3000"
 echo "  # Dapr Dashboard: http://localhost:9080"
 echo "  # Redis (for debugging): localhost:6379"

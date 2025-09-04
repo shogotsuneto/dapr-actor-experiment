@@ -81,7 +81,6 @@ func TestSnapshotCreationAndReplay(t *testing.T) {
 
 	// Apply an AccountCreated event to set up initial state
 	createEvent := AccountCreatedEventV1{
-		OwnerName:      "Test User",
 		OwnerId:        "test-user",
 		InitialDeposit: 100.0,
 		CreatedAt:      time.Now(),
@@ -139,7 +138,6 @@ func TestSnapshotBasedReplay(t *testing.T) {
 	// Simulate some events followed by a snapshot
 	// Event 1: Account created
 	event1 := AccountCreatedEventV1{
-		OwnerName:      "Test User",
 		OwnerId:        "test-user",
 		InitialDeposit: 100.0,
 		CreatedAt:      time.Now(),
@@ -246,7 +244,6 @@ func TestSnapshotBasedReplay(t *testing.T) {
 	// Balance should be 150.0 (from snapshot) - 25.0 (withdrawal) = 125.0
 	finalState := actor.stateManager.GetState()
 	assert.Equal(t, 125.0, finalState.Balance, "Balance should reflect snapshot + events after snapshot")
-	assert.Equal(t, "Test User", finalState.OwnerName, "Owner name should be restored from snapshot")
 	assert.Equal(t, "test-user", finalState.OwnerId, "Owner ID should be restored from snapshot")
 	assert.True(t, finalState.IsActive, "Account should be active")
 	assert.Equal(t, int64(3), finalState.Version, "Version should reflect last business event version")
@@ -282,7 +279,6 @@ func TestFindLatestSnapshot(t *testing.T) {
 
 	// Add some regular events
 	event1 := AccountCreatedEventV1{
-		OwnerName:      "Test User",
 		OwnerId:        "test-user",
 		InitialDeposit: 100.0,
 		CreatedAt:      time.Now(),

@@ -1,0 +1,5 @@
+# Database configuration for simple-query-server
+# PostgreSQL connection to the same database used by the projector
+
+type: "postgres"
+dsn: "postgres://postgres:postgres@postgres:5432/eventstore?sslmode=disable"

@@ -1,0 +1,152 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: query-server-database-config
+  namespace: dapr-actor-experiment
+  labels:
+    app: query-server
+type: Opaque
+immutable: true
+stringData:
+  database.yaml: |
+    # Database configuration for simple-query-server
+    # PostgreSQL connection to the same database used by the projector
+    
+    type: "postgres"
+    dsn: "postgres://postgres:postgres@postgres:5432/eventstore?sslmode=disable"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: query-server-config
+  namespace: dapr-actor-experiment
+  labels:
+    app: query-server
+data:
+  queries.yaml: |
+    # Queries configuration for BankAccount transactions with JWT authentication
+    # Account holders can only query their own transaction data
+    
+    queries:
+      # Get transactions for the authenticated user's accounts
+      my_transactions:
+        sql: "SELECT * FROM transactions WHERE owner_id = :user_id ORDER BY transaction_timestamp DESC LIMIT :limit"
+        middleware_params:
+          - name: user_id
+            type: string
+        params:
+          - name: limit
+            type: int
+    
+      # Get balance for the authenticated user's accounts
+      my_account_balance:
+        sql: "SELECT account_id, SUM(CASE WHEN transaction_type IN ('account_created', 'deposit') THEN amount ELSE -amount END) as balance FROM transactions WHERE owner_id = :user_id GROUP BY account_id ORDER BY balance DESC"
+        middleware_params:
+          - name: user_id
+            type: string
+    
+      # Get transaction summary by type for the authenticated user
+      my_transaction_summary:
+        sql: "SELECT transaction_type, COUNT(*) as count, SUM(amount) as total_amount FROM transactions WHERE owner_id = :user_id GROUP BY transaction_type ORDER BY count DESC"
+        middleware_params:
+          - name: user_id
+            type: string
+  
+  server.yaml: |
+    # Server configuration for simple-query-server
+    # Enables JWT/JWKS authentication middleware for account holder access
+    
+    middleware:
+      # JWT/JWKS verification middleware - limits access to account holders
+      - type: "bearer-jwks"
+        config:
+          jwks_url: "http://jwks-mock-api:3000/.well-known/jwks.json"  # JWKS endpoint URL
+          required: true                                              # Authentication is mandatory
+          fallback_ttl: "10m"                                         # Fallback TTL for JWKS cache
+          enable_health_check: true                                   # Include JWKS health in server health
+          claims_mapping:                                             # Map JWT claims to SQL parameters
+            sub: "user_id"                                            # Map 'sub' claim to 'user_id' parameter
+            name: "user_name"                                         # Map 'name' claim to 'user_name' parameter
+          issuer: "http://jwks-mock-api:3000"                        # Expected issuer
+          audience: "dapr-actor-service"                             # Expected audience
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: query-server
+  namespace: dapr-actor-experiment
+  labels:
+    app: query-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: query-server
+  template:
+    metadata:
+      labels:
+        app: query-server
+    spec:
+      containers:
+      - name: query-server
+        image: ghcr.io/shogotsuneto/simple-query-server:v0.0.2
+        ports:
+        - containerPort: 8080
+        args:
+        - "--db-config"
+        - "/secrets/database.yaml"
+        - "--queries-config"
+        - "/configs/queries.yaml"
+        - "--server-config"
+        - "/configs/server.yaml"
+        - "--port"
+        - "8080"
+        volumeMounts:
+        - name: config-volume
+          mountPath: /configs
+        - name: database-config-volume
+          mountPath: /secrets
+          readOnly: true
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 5
+        resources:
+          requests:
+            memory: "32Mi"
+            cpu: "100m"
+          limits:
+            memory: "64Mi"
+            cpu: "200m"
+      volumes:
+      - name: config-volume
+        configMap:
+          name: query-server-config
+      - name: database-config-volume
+        secret:
+          secretName: query-server-database-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: query-server
+  namespace: dapr-actor-experiment
+  labels:
+    app: query-server
+spec:
+  selector:
+    app: query-server
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+    nodePort: 30081
+  type: NodePort

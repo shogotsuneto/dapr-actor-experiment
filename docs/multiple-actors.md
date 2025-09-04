@@ -65,7 +65,6 @@ type StoredEvent struct {
 {
   "eventType": "AccountCreated",
   "data": {
-    "ownerName": "John Doe",
     "initialDeposit": 1000.0,
     "createdAt": "2024-01-15T10:30:00Z"
   }
@@ -150,7 +149,7 @@ curl -X POST http://localhost:3500/v1.0/actors/CounterActor/counter-1/method/set
 # Create account
 curl -X POST http://localhost:3500/v1.0/actors/BankAccountActor/account-123/method/createAccount \
   -H "Content-Type: application/json" \
-  -d '{"ownerName": "John Doe", "initialDeposit": 1000.0}'
+  -d '{"initialDeposit": 1000.0}'
 
 # Deposit money
 curl -X POST http://localhost:3500/v1.0/actors/BankAccountActor/account-123/method/deposit \

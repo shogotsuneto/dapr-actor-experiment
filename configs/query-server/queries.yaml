@@ -1,0 +1,27 @@
+# Queries configuration for BankAccount transactions with JWT authentication
+# Account holders can only query their own transaction data
+
+queries:
+  # Get transactions for the authenticated user's accounts
+  my_transactions:
+    sql: "SELECT * FROM transactions WHERE owner_id = :user_id ORDER BY transaction_timestamp DESC LIMIT :limit"
+    middleware_params:
+      - name: user_id
+        type: string
+    params:
+      - name: limit
+        type: int
+
+  # Get balance for the authenticated user's accounts
+  my_account_balance:
+    sql: "SELECT account_id, SUM(CASE WHEN transaction_type IN ('account_created', 'deposit') THEN amount ELSE -amount END) as balance FROM transactions WHERE owner_id = :user_id GROUP BY account_id ORDER BY balance DESC"
+    middleware_params:
+      - name: user_id
+        type: string
+
+  # Get transaction summary by type for the authenticated user
+  my_transaction_summary:
+    sql: "SELECT transaction_type, COUNT(*) as count, SUM(amount) as total_amount FROM transactions WHERE owner_id = :user_id GROUP BY transaction_type ORDER BY count DESC"
+    middleware_params:
+      - name: user_id
+        type: string

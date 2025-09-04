@@ -57,7 +57,7 @@ echo "-------------------------------------"
 # Test Alice's account
 echo "→ Alice's account operations:"
 make_request "POST" "http://localhost:3500/v1.0/actors/BankAccount/account-alice/method/CreateAccount" \
-    '{"ownerName": "Alice Johnson", "initialDeposit": 1500.00}' "$ALICE_TOKEN" | jq -c '.'
+    '{"initialDeposit": 1500.00}' "$ALICE_TOKEN" | jq -c '.'
 
 make_request "POST" "http://localhost:3500/v1.0/actors/BankAccount/account-alice/method/Deposit" \
     '{"amount": 3000.00, "description": "Monthly salary"}' "$ALICE_TOKEN" | jq -c '.'
@@ -70,7 +70,7 @@ echo "  Alice's balance:" $(make_request "GET" "http://localhost:3500/v1.0/actor
 # Test Bob's account
 echo "→ Bob's account operations:"
 make_request "POST" "http://localhost:3500/v1.0/actors/BankAccount/account-bob/method/CreateAccount" \
-    '{"ownerName": "Bob Smith", "initialDeposit": 500.00}' "$BOB_TOKEN" | jq -c '.'
+    '{"initialDeposit": 500.00}' "$BOB_TOKEN" | jq -c '.'
 
 make_request "POST" "http://localhost:3500/v1.0/actors/BankAccount/account-bob/method/Deposit" \
     '{"amount": 800.00, "description": "Freelance payment"}' "$BOB_TOKEN" | jq -c '.'

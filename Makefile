@@ -10,6 +10,8 @@ build:
 	@go build -o bin/server ./cmd/server
 	@echo "Building client..."
 	@go build -o bin/client ./cmd/client
+	@echo "Building projector..."
+	@go build -o bin/projector ./cmd/projector
 
 # Clean build artifacts
 clean:

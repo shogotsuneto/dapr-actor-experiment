@@ -301,7 +301,6 @@ components:
       description: Account data (only present if success=true)
       required:
         - accountId
-        - ownerName
         - ownerId
         - balance
         - isActive
@@ -312,10 +311,6 @@ components:
           type: string
           description: Unique account identifier
           example: "account-123"
-        ownerName:
-          type: string
-          description: Account owner name
-          example: "John Doe"
         ownerId:
           type: string
           description: Account owner ID (for authorization)
@@ -345,15 +340,8 @@ components:
       type: object
       description: Request to create a new bank account
       required:
-        - ownerName
         - initialDeposit
       properties:
-        ownerName:
-          type: string
-          description: Name of the account owner
-          minLength: 1
-          maxLength: 100
-          example: "John Doe"
         initialDeposit:
           type: number
           format: double

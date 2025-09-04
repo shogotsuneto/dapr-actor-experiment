@@ -8,9 +8,12 @@ This directory contains Kubernetes manifests for deploying the Dapr Actor Experi
 - `local/` - Local development manifests
   - `namespace.yaml` - Kubernetes namespace for the project
   - `redis.yaml` - Redis state store deployment and service
+  - `postgres.yaml` - PostgreSQL database deployment and service for event store
   - `jwks-mock-api.yaml` - JWKS Mock API for JWT authentication
   - `dapr-components.yaml` - Dapr components and configuration as ConfigMaps
   - `actor-service.yaml` - Actor service deployment with Dapr sidecar injection
+  - `projector.yaml` - BankAccount events projector deployment
+  - `query-server.yaml` - JWT-authenticated query server deployment with ConfigMap
 
 ## Quick Start
 
@@ -37,16 +40,22 @@ If you prefer to apply manifests manually:
 kubectl apply -f local/namespace.yaml
 kubectl apply -f local/dapr-components.yaml
 kubectl apply -f local/redis.yaml
+kubectl apply -f local/postgres.yaml
 kubectl apply -f local/jwks-mock-api.yaml
 kubectl apply -f local/actor-service.yaml
+kubectl apply -f local/projector.yaml
+kubectl apply -f local/query-server.yaml
 ```
 
 ## Architecture
 
 The deployment creates:
+- 1x PostgreSQL instance (event store database)
 - 1x Redis instance (state store)
 - 1x JWKS Mock API instance (JWT authentication)
 - 2x Actor service instances (for multi-node testing)
+- 1x Projector instance (event sourcing projection worker)
+- 1x Query Server instance (JWT-authenticated read queries)
 - Dapr components for state management and authentication
 
 All services run in the `dapr-actor-experiment` namespace with proper service discovery and networking.
@@ -73,9 +82,20 @@ All services run in the `dapr-actor-experiment` namespace with proper service di
 │  │  │    Redis     │    │ JWKS Mock API│                  │ │
 │  │  │    :6379     │    │    :3000     │                  │ │
 │  │  └──────────────┘    └──────────────┘                  │ │
+│  │                                                         │ │
+│  │  ┌──────────────┐    ┌──────────────┐                  │ │
+│  │  │ PostgreSQL   │    │  Projector   │                  │ │
+│  │  │    :5432     │    │  (worker)    │                  │ │
+│  │  └──────────────┘    └──────────────┘                  │ │
+│  │                                                         │ │
+│  │  ┌──────────────┐                                      │ │
+│  │  │ Query Server │                                      │ │
+│  │  │    :8080     │                                      │ │
+│  │  └──────────────┘                                      │ │
 │  └─────────────────────────────────────────────────────────┘ │
 └─────────────────────────────────────────────────────────────┘
-      │                      │                        │
-      └─ localhost:3500 ─────┘                        │
+      │              │              │              │
+      └─ localhost:3500 ─────────────┘              │
       └─ localhost:3000 ─────────────────────────────┘
+      └─ localhost:8081 ─────────────────────────────────────┘
 ```
