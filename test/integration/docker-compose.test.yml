@@ -154,7 +154,7 @@ services:
     ports:
       - "8081:8080"
     volumes:
-      - "../../configs/query-server:/configs"
+      - "./configs/query-server:/configs"
     command: ["--db-config", "/configs/database.yaml", "--queries-config", "/configs/queries.yaml", "--server-config", "/configs/server.yaml", "--port", "8080"]
     depends_on:
       postgres:
