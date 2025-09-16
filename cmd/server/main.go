@@ -6,6 +6,9 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/dapr/go-sdk/service/common"
 	daprd "github.com/dapr/go-sdk/service/http"
@@ -133,9 +136,36 @@ func main() {
 	log.Printf("  - %s: State-based counter operations (Dapr StateManager)", counter.ActorTypeCounter)
 	log.Printf("  - %s: Event-sourced bank account using external postgres event store (go-simple-eventstore)", bankaccount.ActorTypeBankAccount)
 	
-	// Start the service
-	if err := s.Start(); err != nil && err != http.ErrServerClosed {
-		log.Fatalf("Error starting service: %v", err)
+	// Set up graceful shutdown
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+	// Start service in a goroutine
+	errChan := make(chan error, 1)
+	go func() {
+		log.Println("Actor service started successfully. Ready to serve requests...")
+		errChan <- s.Start()
+	}()
+
+	// Wait for shutdown signal or error
+	select {
+	case <-sigChan:
+		log.Println("Shutdown signal received, stopping actor service...")
+		
+		// Stop the service gracefully
+		if err := s.Stop(); err != nil {
+			log.Printf("Error during graceful shutdown: %v", err)
+		}
+		
+		// Wait for the service to fully stop
+		<-errChan
+		
+	case err := <-errChan:
+		if err != nil && err != http.ErrServerClosed {
+			log.Fatalf("Actor service error: %v", err)
+		}
 	}
+
+	log.Println("Actor service stopped successfully")
 }
 
