@@ -1,0 +1,5 @@
+# Database configuration for integration tests
+# PostgreSQL connection to the test database used by the projector in test environment
+
+type: "postgres"
+dsn: "postgres://postgres:postgres@postgres:5432/eventstore?sslmode=disable"

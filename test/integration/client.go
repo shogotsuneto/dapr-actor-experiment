@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"time"
 )
 
 // GetDaprEndpoint returns the Dapr HTTP endpoint URL, configurable via environment variable
@@ -16,6 +17,14 @@ func GetDaprEndpoint() string {
 		return endpoint
 	}
 	return "http://localhost:3500"
+}
+
+// GetQueryServerEndpoint returns the Query Server HTTP endpoint URL, configurable via environment variable
+func GetQueryServerEndpoint() string {
+	if endpoint := os.Getenv("QUERY_SERVER_ENDPOINT"); endpoint != "" {
+		return endpoint
+	}
+	return "http://localhost:8081"
 }
 
 
@@ -183,6 +192,108 @@ func (c *DaprClient) CheckHealth() error {
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusUnauthorized {
 		return fmt.Errorf("Dapr sidecar health check failed with status %d", resp.StatusCode)
+	}
+
+	return nil
+}
+
+// QueryClient provides utilities for making HTTP calls to query server endpoints
+type QueryClient struct {
+	baseURL    string
+	httpClient *http.Client
+}
+
+// NewQueryClient creates a new Query client
+func NewQueryClient(baseURL string) *QueryClient {
+	return &QueryClient{
+		baseURL:    baseURL,
+		httpClient: &http.Client{Timeout: 10 * time.Second},
+	}
+}
+
+// QueryRequest represents a request to execute a query
+type QueryRequest struct {
+	QueryName string
+	Params    map[string]interface{}
+	JWTToken  string
+}
+
+// QueryResponse represents the response from a query
+type QueryResponse struct {
+	StatusCode int
+	Body       []byte
+	Headers    http.Header
+}
+
+// ExecuteQuery executes a named query with JWT authentication
+func (c *QueryClient) ExecuteQuery(ctx context.Context, req QueryRequest) (*QueryResponse, error) {
+	// Prepare request body
+	jsonData, err := json.Marshal(req.Params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal query params: %w", err)
+	}
+
+	// Create HTTP request
+	url := fmt.Sprintf("%s/query/%s", c.baseURL, req.QueryName)
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(jsonData))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	// Set headers
+	httpReq.Header.Set("Content-Type", "application/json")
+	if req.JWTToken != "" {
+		httpReq.Header.Set("Authorization", "Bearer "+req.JWTToken)
+	}
+
+	// Execute request
+	resp, err := c.httpClient.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute query: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Read response body
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	return &QueryResponse{
+		StatusCode: resp.StatusCode,
+		Body:       body,
+		Headers:    resp.Header,
+	}, nil
+}
+
+// ExecuteQueryWithResponse executes a query and unmarshals the response
+func (c *QueryClient) ExecuteQueryWithResponse(ctx context.Context, req QueryRequest, responseObj interface{}) error {
+	resp, err := c.ExecuteQuery(ctx, req)
+	if err != nil {
+		return err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("query failed with status %d: %s", resp.StatusCode, string(resp.Body))
+	}
+
+	if err := json.Unmarshal(resp.Body, responseObj); err != nil {
+		return fmt.Errorf("failed to unmarshal response: %w", err)
+	}
+
+	return nil
+}
+
+// CheckHealth checks if the query server is healthy
+func (c *QueryClient) CheckHealth() error {
+	resp, err := c.httpClient.Get(c.baseURL + "/health")
+	if err != nil {
+		return fmt.Errorf("failed to connect to query server at %s: %w", c.baseURL, err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("query server health check failed with status %d", resp.StatusCode)
 	}
 
 	return nil

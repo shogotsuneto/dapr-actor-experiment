@@ -131,6 +131,42 @@ services:
       placement:
         condition: service_started
 
+  # BankAccount Events Projector
+  projector:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    command: ["/bin/projector"]
+    environment:
+      - POSTGRES_CONNECTION_STRING=postgres://postgres:postgres@postgres:5432/eventstore?sslmode=disable
+      - EVENTS_TABLE_NAME=bankaccount_events
+      - PROJECTION_INTERVAL_SECONDS=5
+    depends_on:
+      postgres:
+        condition: service_healthy
+      actor-service:
+        condition: service_started
+    restart: unless-stopped
+
+  # Transactions Query Server
+  query-server:
+    image: ghcr.io/shogotsuneto/simple-query-server:v0.0.2
+    ports:
+      - "8081:8080"
+    volumes:
+      - "./configs/query-server:/configs"
+    command: ["--db-config", "/configs/database.yaml", "--queries-config", "/configs/queries.yaml", "--server-config", "/configs/server.yaml", "--port", "8080"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      projector:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
   # Test runner container for running tests inside Docker
   test-runner:
     image: golang:1.25
@@ -142,6 +178,7 @@ services:
       - DAPR_HTTP_ENDPOINT=http://actor-service-dapr:3500
       - JWKS_GENERATE_URL=http://jwks-mock-api:3000/generate-token
       - JWT_ISSUER=http://jwks-mock-api:3000
+      - QUERY_SERVER_ENDPOINT=http://query-server:8080
     command: ["go", "test", "-v", "./test/integration/...", "-timeout=5m"]
     depends_on:
       jwks-mock-api:
@@ -151,6 +188,8 @@ services:
       redis:
         condition: service_healthy
       postgres:
+        condition: service_healthy
+      query-server:
         condition: service_healthy
     profiles:
       - test-runner
